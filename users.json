@@ -1,0 +1,14 @@
+[
+  {
+    "id": "user_nadler_admin",
+    "phone": "+19173997404",
+    "name": "Orlyn Nadler",
+    "email": "orlyn8@gmail.com",
+    "password_hash": "$2b$12$IdqKSTrxvU/Fwzh6Hg6HFuwCqtMQyMGoViPCN6PEqznYeYbtly6Da",
+    "role": "admin",
+    "family_id": "fam_nadler",
+    "child_name": "",
+    "address": "1163 E Laurelton Parkway, Teaneck, NJ",
+    "joined_at": "2026-05-15T03:07:53Z"
+  }
+]

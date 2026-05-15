@@ -1,0 +1,1630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Carpool Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500;600&family=Tiempos+Text:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Styrene A", ui-sans-serif, system-ui, sans-serif;
+      background: #FAF9F5;
+      color: #1A1714;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1A1714;
+      color: #FAF9F5;
+      padding: 28px 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    header .logo-mark {
+      width: 32px;
+      height: 32px;
+      background: #D4784A;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    header h1 {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: 17px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      color: #FAF9F5;
+    }
+
+    header .subtitle {
+      font-size: 13px;
+      color: #8C8680;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .header-user {
+      font-size: 13px;
+      color: #C4BFB9;
+    }
+
+    .header-user strong {
+      color: #FAF9F5;
+      font-weight: 500;
+    }
+
+    .btn-logout {
+      font-size: 12px;
+      font-weight: 500;
+      font-family: inherit;
+      color: #8C8680;
+      background: none;
+      border: 1px solid #3A3530;
+      border-radius: 6px;
+      padding: 6px 12px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .btn-logout:hover { border-color: #D4784A; color: #D4784A; }
+
+    main {
+      max-width: 860px;
+      margin: 40px auto;
+      padding: 0 24px;
+      display: grid;
+      gap: 20px;
+    }
+
+    .card {
+      background: #FFFFFF;
+      border-radius: 12px;
+      padding: 28px 32px;
+      border: 1px solid #EAE8E3;
+    }
+
+    .card-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #8C8680;
+      margin-bottom: 20px;
+    }
+
+    /* Status banner */
+    .status-banner {
+      background: #F0FAF4;
+      border: 1px solid #A8D8BA;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 14px;
+      color: #1A5C35;
+      margin-bottom: 0;
+    }
+
+    /* Invite form */
+    .invite-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    .invite-row .form-field { flex: 1; margin-bottom: 0; }
+
+    /* Next Trip */
+    .trip-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: #EAE8E3;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .trip-cell {
+      background: #FAF9F5;
+      padding: 16px 20px;
+    }
+
+    .trip-cell .label {
+      font-size: 11px;
+      color: #8C8680;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+
+    .trip-cell .value {
+      font-size: 17px;
+      font-weight: 500;
+      color: #1A1714;
+      letter-spacing: -0.01em;
+    }
+
+    .trip-cell .value.accent { color: #D4784A; }
+
+    /* Rotation */
+    .rotation-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .rotation-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 16px;
+      border-radius: 8px;
+      border: 1px solid #EAE8E3;
+      background: #FDFCFA;
+      transition: border-color 0.15s;
+    }
+
+    .rotation-item.current {
+      background: #FDF5F0;
+      border-color: #D4784A;
+    }
+
+    .rotation-item .num {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #EAE8E3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: #8C8680;
+      flex-shrink: 0;
+    }
+
+    .rotation-item.current .num {
+      background: #D4784A;
+      color: white;
+    }
+
+    .rotation-item .name {
+      font-size: 15px;
+      font-weight: 500;
+      flex: 1;
+      color: #1A1714;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      background: #D4784A;
+      color: white;
+      padding: 3px 10px;
+      border-radius: 99px;
+      letter-spacing: 0.03em;
+    }
+
+    /* Stats */
+    table { width: 100%; border-collapse: collapse; }
+
+    thead tr { border-bottom: 1px solid #EAE8E3; }
+
+    th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      color: #8C8680;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      padding: 0 0 12px;
+    }
+
+    th:not(:first-child) { padding-left: 16px; }
+
+    td {
+      padding: 14px 0;
+      border-bottom: 1px solid #F0EDE8;
+      font-size: 15px;
+      color: #1A1714;
+      vertical-align: middle;
+    }
+
+    td:not(:first-child) { padding-left: 16px; }
+
+    tr:last-child td { border-bottom: none; }
+
+    .bar-track {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .bar-wrap {
+      flex: 1;
+      background: #EAE8E3;
+      border-radius: 99px;
+      height: 5px;
+      max-width: 140px;
+    }
+
+    .bar {
+      background: #D4784A;
+      border-radius: 99px;
+      height: 5px;
+    }
+
+    .time-val { font-weight: 500; white-space: nowrap; }
+
+    .empty {
+      color: #8C8680;
+      font-size: 14px;
+      padding: 8px 0;
+    }
+
+    /* Form */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .form-field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: #8C8680;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 6px;
+    }
+
+    .form-field input,
+    .form-field select {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid #EAE8E3;
+      border-radius: 7px;
+      font-size: 14px;
+      font-family: inherit;
+      background: #FDFCFA;
+      color: #1A1714;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .form-field input:focus,
+    .form-field select:focus {
+      border-color: #D4784A;
+    }
+
+    button[type="submit"] {
+      background: #1A1714;
+      color: #FAF9F5;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 7px;
+      font-size: 14px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    button[type="submit"]:hover { background: #D4784A; }
+
+    /* Karma */
+    .karma-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .karma-card {
+      text-align: center;
+      background: #FDFCFA;
+      border: 1px solid #EAE8E3;
+      border-radius: 10px;
+      padding: 16px 12px 14px;
+    }
+
+    .karma-gauge { width: 100%; }
+
+    .karma-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1A1714;
+      margin-top: 8px;
+    }
+
+    .karma-detail {
+      font-size: 11px;
+      color: #8C8680;
+      margin-top: 4px;
+    }
+
+    .kd-covered { color: #2a9d5c; font-weight: 500; }
+    .kd-requested { color: #c0392b; font-weight: 500; }
+    .kd-sep { margin: 0 4px; }
+
+    @media (max-width: 600px) { .karma-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    /* Calendar */
+    .cal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .cal-nav {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .cal-nav button {
+      background: none;
+      border: 1px solid #EAE8E3;
+      border-radius: 6px;
+      width: 30px;
+      height: 30px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #1A1714;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.15s;
+    }
+
+    .cal-nav button:hover { border-color: #D4784A; color: #D4784A; }
+
+    .cal-month { font-size: 15px; font-weight: 600; }
+
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+
+    .cal-day-name {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: #8C8680;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 4px 0 8px;
+    }
+
+    .cal-day {
+      min-height: 64px;
+      border-radius: 8px;
+      border: 1px solid #EAE8E3;
+      padding: 6px 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      background: #FDFCFA;
+    }
+
+    .cal-day:hover { border-color: #D4784A; background: #FDF5F0; }
+    .cal-day.empty { background: transparent; border-color: transparent; cursor: default; }
+    .cal-day.today { border-color: #1A1714; }
+
+    .cal-day-num {
+      font-size: 13px;
+      font-weight: 500;
+      color: #1A1714;
+      margin-bottom: 4px;
+    }
+
+    .cal-day.today .cal-day-num { color: #D4784A; font-weight: 700; }
+    .cal-day.empty .cal-day-num { color: transparent; }
+
+    .cal-trip-dot {
+      font-size: 10px;
+      background: #D4784A;
+      color: white;
+      border-radius: 4px;
+      padding: 1px 5px;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: white;
+      border-radius: 14px;
+      padding: 28px 32px;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    }
+
+    .cal-trip-dot.series-dot { background: #ede9fe; color: #7c3aed; }
+    .day-chip {
+      display: flex; align-items: center; gap: 4px;
+      padding: 5px 10px; border: 1px solid #d1d5db; border-radius: 20px;
+      font-size: 13px; cursor: pointer; user-select: none; transition: background .15s, border-color .15s;
+    }
+    .day-chip:has(input:checked) {
+      background: #ede9fe; border-color: #7c3aed; color: #4f46e5; font-weight: 600;
+    }
+    .day-chip input { display: none; }
+    .modal h3 {
+      font-size: 17px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: #1A1714;
+    }
+
+    .modal .form-field { margin-bottom: 14px; }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      justify-content: flex-end;
+    }
+
+    .btn { padding: 9px 18px; border-radius: 7px; font-size: 14px; font-weight: 500; font-family: inherit; cursor: pointer; border: none; transition: background 0.15s; }
+    .btn-primary { background: #1A1714; color: white; }
+    .btn-primary:hover { background: #D4784A; }
+    .btn-secondary { background: #EAE8E3; color: #1A1714; }
+    .btn-secondary:hover { background: #d5d2cc; }
+
+    /* Upcoming list */
+    .upcoming-list { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+
+    .upcoming-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid #EAE8E3;
+      background: #FDFCFA;
+    }
+
+    .upcoming-date {
+      text-align: center;
+      min-width: 42px;
+    }
+
+    .upcoming-date .day { font-size: 20px; font-weight: 700; color: #D4784A; line-height: 1; }
+    .upcoming-date .month { font-size: 10px; text-transform: uppercase; color: #8C8680; letter-spacing: 0.05em; }
+
+    .upcoming-info { flex: 1; }
+    .upcoming-info .dest { font-size: 14px; font-weight: 500; }
+    .upcoming-info .driver { font-size: 12px; color: #8C8680; margin-top: 2px; }
+
+    .upcoming-actions { display: flex; gap: 8px; }
+
+    .btn-gcal {
+      font-size: 12px;
+      padding: 5px 10px;
+      border-radius: 5px;
+      background: #4285F4;
+      color: white;
+      text-decoration: none;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .btn-remove {
+      font-size: 12px;
+      padding: 5px 10px;
+      border-radius: 5px;
+      background: #EAE8E3;
+      color: #666;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .btn-remove:hover { background: #f0d0d0; color: #c00; }
+
+    @media (max-width: 600px) {
+      header { padding: 20px 24px; }
+      .trip-grid { grid-template-columns: repeat(2, 1fr); }
+      .form-grid { grid-template-columns: repeat(2, 1fr); }
+      .header-user { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">🚗</div>
+    <div>
+      <h1>Carpool</h1>
+      <div class="subtitle">{{ group_name }}</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="header-user">Hello, <strong>{{ current_user.name }}</strong></span>
+    <a href="/logout" class="btn-logout">Sign out</a>
+  </div>
+</header>
+
+<main>
+
+  {% if invite_status %}
+  <div class="status-banner">{{ invite_status }}</div>
+  {% endif %}
+
+  {% if current_user.role == "admin" %}
+  <!-- Kids Bulletin Link -->
+  <div class="card" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <div class="card-label" style="margin-bottom:4px;">Kids Bulletin</div>
+      <div style="font-size:13px;color:#6B6560;">A read-only page kids can bookmark — shows who's driving and when.</div>
+    </div>
+    <a href="/bulletin" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#1A1714;color:#FAF9F5;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:500;text-decoration:none;white-space:nowrap;">
+      Open Bulletin ↗
+    </a>
+  </div>
+
+  <!-- Live Driver Map -->
+  <div class="card" id="dashboard-tracking-card" style="{% if not live_location.active %}display:none;{% endif %}">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div class="card-label" style="margin-bottom:0;">Driver Location</div>
+      <div style="font-size:12px;color:#D4784A;font-weight:500;">● Live</div>
+    </div>
+    <div style="font-size:13px;color:#6B6560;margin-bottom:12px;">
+      {{ live_location.driver_name if live_location.active else "" }} is on the way
+    </div>
+    <div id="dashboard-live-map" style="width:100%;height:280px;border-radius:10px;overflow:hidden;background:#F0EDE7;"></div>
+  </div>
+
+  <!-- Invite Form (admin only) -->
+  <div class="card">
+    <div class="card-label">Invite a Parent</div>
+    {% if group_name == "Carpool" or not group_name %}
+    <div style="display:flex;align-items:center;gap:12px;padding:16px;background:#FDF3EE;border-radius:8px;border:1px solid #F0C5AE;">
+      <span style="font-size:20px;">✏️</span>
+      <div>
+        <div style="font-weight:500;color:#1A1714;margin-bottom:2px;">Name your carpool group first</div>
+        <div style="font-size:13px;color:#6B6560;">Go to <strong>Trip Settings</strong> below and give this carpool a name before inviting parents.</div>
+      </div>
+    </div>
+    {% else %}
+    <form method="POST" action="/invite">
+      <div class="invite-row">
+        <div class="form-field">
+          <label>Phone Number</label>
+          <input type="tel" name="phone" placeholder="+1 (201) 555-0100" required>
+        </div>
+        <button type="submit">Send Invite</button>
+      </div>
+      <div class="form-field" style="margin-top:12px;margin-bottom:0;">
+        <label>Add to existing family? <span style="font-weight:400;text-transform:none;font-size:11px;">(leave blank for a new family)</span></label>
+        <select name="family_id" style="width:100%;padding:9px 12px;border:1px solid #E8E5DF;border-radius:8px;font-size:14px;background:#FDFCFA;color:#1A1714;">
+          <option value="">— New family —</option>
+          {% for f in families %}
+          <option value="{{ f.id }}">{{ f.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Calendar -->
+  <div class="card">
+    <div class="cal-header">
+      <div class="card-label" style="margin-bottom:0">Schedule</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <a href="/calendar.ics" class="btn-gcal" style="font-size:12px;padding:6px 12px;border-radius:6px;text-decoration:none" title="Download or subscribe in Google Calendar">
+          Subscribe in Google Calendar
+        </a>
+      <div class="cal-nav">
+        <button onclick="changeMonth(-1)">&#8592;</button>
+        <span class="cal-month" id="cal-month-label"></span>
+        <button onclick="changeMonth(1)">&#8594;</button>
+      </div>
+      </div>
+    </div>
+
+    <div class="cal-grid" id="cal-grid"></div>
+
+    <div class="upcoming-list" id="upcoming-list"></div>
+  </div>
+
+  {% if current_user.role == "admin" %}
+  <!-- Assignment Mode Toggle -->
+  <div class="card" style="padding:16px 20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-weight:600;font-size:14px">Driver Assignment</div>
+        <div style="font-size:12px;color:#8C8680;margin-top:2px" id="mode-desc">
+          {% if assignment_mode == "auto" %}
+            Rotation assigns drivers automatically when trips are added.
+          {% else %}
+            Families volunteer for open slots — unassigned rides are highlighted red.
+          {% endif %}
+        </div>
+      </div>
+      <div style="display:flex;gap:0;border:1px solid #d1d5db;border-radius:8px;overflow:hidden;font-size:13px">
+        <button id="mode-auto-btn" onclick="setAssignmentMode('auto')"
+          style="padding:7px 16px;border:none;cursor:pointer;font-weight:500;transition:background .15s;
+                 background:{{ '#4f46e5' if assignment_mode == 'auto' else '#fff' }};
+                 color:{{ '#fff' if assignment_mode == 'auto' else '#374151' }}">
+          🔄 Auto (Rotation)
+        </button>
+        <button id="mode-manual-btn" onclick="setAssignmentMode('manual')"
+          style="padding:7px 16px;border:none;border-left:1px solid #d1d5db;cursor:pointer;font-weight:500;transition:background .15s;
+                 background:{{ '#4f46e5' if assignment_mode == 'manual' else '#fff' }};
+                 color:{{ '#fff' if assignment_mode == 'manual' else '#374151' }}">
+          🙋 Volunteer
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Trip Modal (admin only) -->
+  <div class="modal-overlay" id="modal">
+    <div class="modal" style="max-width:540px;width:95%">
+      <h3 id="modal-title">Add Trip</h3>
+
+      <!-- Destination (shared) -->
+      <div style="display:flex;gap:10px;margin-bottom:16px">
+        <div style="flex:1">
+          <label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:4px">Destination</label>
+          <input type="text" id="m-dest-name" placeholder="e.g. Camp Ramah" style="width:100%;box-sizing:border-box">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:4px">Address</label>
+          <input type="text" id="m-dest-addr" placeholder="123 Main St, Paramus, NJ" style="width:100%;box-sizing:border-box">
+        </div>
+      </div>
+
+      <!-- Two leg boxes -->
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+
+        <!-- Outbound -->
+        <div style="flex:1;min-width:160px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#6366f1;margin-bottom:12px">📤 There</div>
+          <div class="form-field" style="margin-bottom:10px">
+            <label>Arrive by</label>
+            <input type="time" id="m-time" value="17:00" style="width:100%;box-sizing:border-box">
+          </div>
+          <div class="form-field" style="margin-bottom:0">
+            <label>Driver</label>
+            <select id="m-driver" style="width:100%;box-sizing:border-box">
+              <option value="" data-name="">— unassigned —</option>
+              {% for f in families %}
+              <option value="{{ f.id }}" data-name="{{ f.name }}">{{ f.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Return -->
+        <div style="flex:1;min-width:160px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8C8680;margin-bottom:12px">🏠 Return <span style="font-weight:400;font-size:10px">(optional)</span></div>
+          <div class="form-field" style="margin-bottom:10px">
+            <label>Pickup time</label>
+            <input type="time" id="m-return-time" style="width:100%;box-sizing:border-box">
+          </div>
+          <div class="form-field" style="margin-bottom:0">
+            <label>Driver</label>
+            <select id="m-return-driver" style="width:100%;box-sizing:border-box">
+              <option value="" data-name="">— unassigned —</option>
+              {% for f in families %}
+              <option value="{{ f.id }}" data-name="{{ f.name }}">{{ f.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Repeat toggle -->
+      <div class="form-field" style="border-top:1px solid #e5e7eb;padding-top:14px;margin-top:4px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
+          <input type="checkbox" id="m-repeat" onchange="toggleRepeat(this.checked)" style="width:16px;height:16px;accent-color:#4f46e5">
+          Repeat
+        </label>
+      </div>
+      <div id="m-repeat-section" style="display:none">
+        <div class="form-field">
+          <label>Days of week</label>
+          <div id="m-weekdays" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+            <label class="day-chip"><input type="checkbox" value="0"> Mon</label>
+            <label class="day-chip"><input type="checkbox" value="1"> Tue</label>
+            <label class="day-chip"><input type="checkbox" value="2"> Wed</label>
+            <label class="day-chip"><input type="checkbox" value="3"> Thu</label>
+            <label class="day-chip"><input type="checkbox" value="4"> Fri</label>
+            <label class="day-chip"><input type="checkbox" value="5"> Sat</label>
+            <label class="day-chip"><input type="checkbox" value="6"> Sun</label>
+          </div>
+        </div>
+        <div class="form-field">
+          <label>End Date</label>
+          <input type="date" id="m-end-date">
+        </div>
+        <p id="m-repeat-preview" style="font-size:13px;color:#6b7280;margin:0 0 10px"></p>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" id="m-save-btn" onclick="saveTrip()">Add Trip</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Trip Settings (admin only) -->
+  <div class="card">
+    <div class="card-label">Trip Settings</div>
+    <form method="POST" action="/save-trip" class="trip-form">
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Date</label>
+          <input type="date" name="arrival_date" value="{{ cfg.arrival_date }}" required>
+        </div>
+        <div class="form-field">
+          <label>Arrival Time</label>
+          <input type="time" name="arrival_time" value="{{ cfg.arrival_time }}" required>
+        </div>
+        <div class="form-field">
+          <label>Return Pickup Time</label>
+          <input type="time" name="return_time" value="{{ cfg.return_time or '' }}">
+        </div>
+        <div class="form-field">
+          <label>Return Driver</label>
+          <select name="return_driver_family_id" onchange="this.form.elements['return_driver_name'].value = this.options[this.selectedIndex].dataset.name">
+            <option value="" data-name="">— same as outbound —</option>
+            {% for f in families %}
+            <option value="{{ f.id }}" data-name="{{ f.name }}" {% if cfg.return_driver_family_id == f.id %}selected{% endif %}>{{ f.name }}</option>
+            {% endfor %}
+          </select>
+          <input type="hidden" name="return_driver_name" value="{{ cfg.return_driver_name or '' }}">
+        </div>
+        <div class="form-field">
+          <label>Destination Name</label>
+          <input type="text" name="destination_name" value="{{ cfg.destination_name or '' }}" placeholder="e.g. Soccer Field">
+        </div>
+        <div class="form-field">
+          <label>Destination Address</label>
+          <input type="text" name="destination_address" value="{{ cfg.destination_address or '' }}" placeholder="123 Main St, City, NJ">
+        </div>
+        <div class="form-field">
+          <label>Buffer (minutes)</label>
+          <input type="number" name="buffer_minutes" value="{{ cfg.buffer_minutes }}" min="0" max="30">
+        </div>
+        <div class="form-field">
+          <label>Group Name</label>
+          <input type="text" name="group_name" value="{{ cfg.group_name or group_name }}" placeholder="e.g. Teaneck Soccer Carpool">
+        </div>
+      </div>
+      <button type="submit">Save</button>
+    </form>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-label">Next Trip</div>
+    <div style="font-size:13px;color:#8C8680;margin-bottom:12px">{{ next_trip.date }}</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+
+      <!-- Outbound box -->
+      <div style="flex:1;min-width:160px;border:1.5px solid #e5e7eb;border-radius:12px;padding:14px 16px;background:#f9fafb">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8C8680;margin-bottom:10px">📤 There</div>
+        <div class="trip-grid" style="gap:10px 16px">
+          <div class="trip-cell">
+            <div class="label">Destination</div>
+            <div class="value">{{ next_trip.destination }}</div>
+          </div>
+          <div class="trip-cell">
+            <div class="label">Arrive By</div>
+            <div class="value">{{ next_trip.arrive_by }}</div>
+          </div>
+          <div class="trip-cell">
+            <div class="label">Driver</div>
+            <div class="value accent">{{ next_trip.driver }}</div>
+          </div>
+        </div>
+      </div>
+
+      {% if next_trip.return_time %}
+      <!-- Return box -->
+      <div style="flex:1;min-width:160px;border:1.5px solid #e5e7eb;border-radius:12px;padding:14px 16px;background:#f9fafb">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8C8680;margin-bottom:10px">🏠 Return</div>
+        <div class="trip-grid" style="gap:10px 16px">
+          <div class="trip-cell">
+            <div class="label">Destination</div>
+            <div class="value">{{ next_trip.destination }}</div>
+          </div>
+          <div class="trip-cell">
+            <div class="label">Pickup</div>
+            <div class="value">{{ next_trip.return_time | fmt_time }}</div>
+          </div>
+          <div class="trip-cell">
+            <div class="label">Driver</div>
+            <div class="value accent">{{ next_trip.return_driver or next_trip.driver }}</div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+  <!-- Today's Trip Actions -->
+  <div class="card" id="today-card">
+    <div class="card-label">Today's Trip</div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+
+      <!-- Absent toggles -->
+      <div>
+        <div style="font-size:12px;font-weight:500;color:#9B9590;margin-bottom:8px;letter-spacing:0.04em;">WHO'S COMING?</div>
+        <div style="display:flex;flex-direction:column;gap:8px;" id="family-list">
+          {% for fam in pickup_families %}
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:8px;border:1px solid #E8E5DF;background:{% if fam.absent %}#FFF5F5{% else %}#FAF9F5{% endif %};" id="fam-row-{{ fam.id }}">
+            <span style="font-size:14px;font-weight:500;">{{ fam.name }}</span>
+            <button
+              onclick="toggleAbsent('{{ fam.id }}')"
+              id="absent-btn-{{ fam.id }}"
+              style="font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;border:1px solid;cursor:pointer;transition:all 0.15s;
+                {% if fam.absent %}background:#FEE2E2;color:#DC2626;border-color:#FECACA;{% else %}background:#F0FDF4;color:#16A34A;border-color:#BBF7D0;{% endif %}">
+              {% if fam.absent %}Not Coming{% else %}Coming ✓{% endif %}
+            </button>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Driver actions -->
+      <div style="border-top:1px solid #E8E5DF;padding-top:16px;">
+        <div style="font-size:12px;font-weight:500;color:#9B9590;margin-bottom:10px;letter-spacing:0.04em;">DRIVER ACTIONS</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button id="ride-btn" onclick="toggleRide()"
+            style="flex:1;min-width:130px;padding:11px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid;transition:all 0.2s;
+              {% if live_location.active and live_location.trip_leg != 'return' %}background:#FEE2E2;color:#DC2626;border-color:#FECACA;{% else %}background:#1A1714;color:#FAF9F5;border-color:#1A1714;{% endif %}">
+            {% if live_location.active and live_location.trip_leg != 'return' %}⏹ End Outbound{% else %}▶ Start Outbound{% endif %}
+          </button>
+          {% if next_trip.return_time %}
+          <button id="return-btn" onclick="toggleReturn()"
+            style="flex:1;min-width:130px;padding:11px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid;transition:all 0.2s;
+              {% if live_location.active and live_location.trip_leg == 'return' %}background:#FEE2E2;color:#DC2626;border-color:#FECACA;{% else %}background:#4B5563;color:#FAF9F5;border-color:#4B5563;{% endif %}">
+            {% if live_location.active and live_location.trip_leg == 'return' %}⏹ End Return{% else %}🏠 Start Return{% endif %}
+          </button>
+          {% endif %}
+          <button onclick="openLateModal()" style="flex:1;min-width:130px;padding:11px 16px;background:#FDF3EE;color:#D4784A;border:1px solid #F0C5AE;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
+            ⏰ Running Late
+          </button>
+          <button onclick="confirmArrived()" style="flex:1;min-width:130px;padding:11px 16px;background:#F0FDF4;color:#16A34A;border:1px solid #BBF7D0;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
+            ✅ Kids Arrived
+          </button>
+        </div>
+        <div id="ride-status" style="margin-top:10px;font-size:12px;color:#9B9590;display:{% if live_location.active %}block{% else %}none{% endif %};">
+          📍 Live location is being shared on the <a href="/bulletin" target="_blank" style="color:#D4784A;">Kids Bulletin</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Running Late Modal -->
+  <div id="late-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:32px;width:360px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+      <div style="font-family:'Tiempos Text',Georgia,serif;font-size:20px;font-weight:500;margin-bottom:8px;">Running Late</div>
+      <div style="font-size:13px;color:#6B6560;margin-bottom:20px;">All pickup families will get a WhatsApp notification.</div>
+      <div style="margin-bottom:20px;">
+        <label style="font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#9B9590;display:block;margin-bottom:6px;">Minutes late (optional)</label>
+        <input type="number" id="late-minutes" min="1" max="60" placeholder="e.g. 10"
+          style="width:100%;padding:10px 14px;border:1px solid #E8E5DF;border-radius:8px;font-size:14px;outline:none;">
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button onclick="closeLateModal()" style="flex:1;padding:11px;border:1px solid #E8E5DF;border-radius:8px;font-size:13px;font-weight:500;background:#fff;cursor:pointer;">Cancel</button>
+        <button onclick="sendRunningLate()" style="flex:1;padding:11px;background:#1A1714;color:#FAF9F5;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Send Alert</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Driving Rotation</div>
+    <div class="rotation-list">
+      {% for item in rotation %}
+      <div class="rotation-item {% if item.is_next %}current{% endif %}">
+        <div class="num">{{ loop.index }}</div>
+        <div class="name">{{ item.name }}</div>
+        {% if item.is_next %}<span class="badge">Up next</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Stats</div>
+    {% if stats %}
+    <table>
+      <thead>
+        <tr>
+          <th>Family</th>
+          <th>Trips</th>
+          <th>Time Behind the Wheel</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for fid, s in stats.items() %}
+        <tr>
+          <td>{{ s.name }}</td>
+          <td>{{ s.trips }}</td>
+          <td>
+            <div class="bar-track">
+              <span class="time-val">{{ s.hours }}h {{ s.mins }}m</span>
+              <div class="bar-wrap"><div class="bar" style="width: {{ s.bar_pct }}%"></div></div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">No trips recorded yet. Run route.py to log your first trip.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-label">Karma</div>
+    <div class="karma-grid" id="karma-grid">
+      {% for k in karma %}
+      <div class="karma-card">
+        <svg viewBox="0 0 120 72" class="karma-gauge" data-score="{{ k.score }}">
+          <path d="M 10 65 A 50 50 0 0 1 110 65" fill="none" stroke="#EAE8E3" stroke-width="10" stroke-linecap="round"/>
+          <path class="k-arc" fill="none" stroke-width="10" stroke-linecap="round"/>
+          <line class="k-needle" x1="60" y1="65" stroke="#1A1714" stroke-width="2.5" stroke-linecap="round"/>
+          <circle cx="60" cy="65" r="4" fill="#1A1714"/>
+          <text x="60" y="52" text-anchor="middle" font-size="14" font-weight="700" class="k-score-text" font-family="inherit"></text>
+        </svg>
+        <div class="karma-name">{{ k.name }}</div>
+        <div class="karma-detail">
+          <span class="kd-covered">{{ k.covered }} covered</span>
+          <span class="kd-sep">·</span>
+          <span class="kd-requested">{{ k.requested }} requested</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Trip History</div>
+    {% if history %}
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Driver</th>
+          <th>Kids Picked Up</th>
+          <th>Drive Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for trip in history %}
+        <tr>
+          <td>{{ trip.date | fmt_date }}</td>
+          <td>{{ trip.driver }}</td>
+          <td>{{ trip.pickups }}</td>
+          <td>{{ trip.duration }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">No trips recorded yet. Run route.py to log your first trip.</p>
+    {% endif %}
+  </div>
+
+</main>
+
+<script>
+  const IS_ADMIN = {{ 'true' if current_user.role == 'admin' else 'false' }};
+  const MY_FAMILY_ID = "{{ current_user.family_id or '' }}";
+  const NEXT_DRIVER_ID = "{{ next_driver_id or '' }}";
+  let ASSIGNMENT_MODE = "{{ assignment_mode }}";
+  const SCHEDULE = {{ schedule_json | safe }};
+  let trips = [...SCHEDULE];
+  let currentDate = new Date();
+  let selectedDate = null;
+
+  const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+  function fmtTime(t) {
+    if (!t) return "";
+    const [h, m] = t.split(":").map(Number);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const hour = h % 12 || 12;
+    return `${hour}:${String(m).padStart(2,"0")} ${ampm}`;
+  }
+  const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  function dateKey(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function tripsOnDate(key) {
+    return trips.filter(t => t.date === key);
+  }
+
+  function renderCalendar() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    document.getElementById("cal-month-label").textContent = `${MONTHS[month]} ${year}`;
+
+    const grid = document.getElementById("cal-grid");
+    grid.innerHTML = "";
+
+    DAYS.forEach(d => {
+      const el = document.createElement("div");
+      el.className = "cal-day-name";
+      el.textContent = d;
+      grid.appendChild(el);
+    });
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = dateKey(new Date());
+
+    for (let i = 0; i < firstDay; i++) {
+      const el = document.createElement("div");
+      el.className = "cal-day empty";
+      el.innerHTML = '<div class="cal-day-num">0</div>';
+      grid.appendChild(el);
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const el = document.createElement("div");
+      el.className = "cal-day" + (key === today ? " today" : "");
+      el.innerHTML = `<div class="cal-day-num">${d}</div>`;
+
+      const dayTrips = tripsOnDate(key);
+      dayTrips.forEach(t => {
+        const dot = document.createElement("div");
+        dot.className = "cal-trip-dot" + (t.series_id ? " series-dot" : "");
+        dot.textContent = t.destination_name + (t.series_id ? " 🔁" : "");
+        dot.title = t.series_id ? "Part of a recurring series" : "";
+        el.appendChild(dot);
+      });
+
+      if (IS_ADMIN) {
+        el.onclick = () => openModal(key);
+      }
+      grid.appendChild(el);
+    }
+
+    renderUpcoming();
+  }
+
+  function legCard(t, leg) {
+    const isOutbound = leg === "outbound";
+    const driverFid = isOutbound ? t.driver_family_id : t.return_driver_family_id;
+    const driverName = isOutbound ? t.driver_name : (t.return_driver_name || t.driver_name);
+    const time = isOutbound ? t.arrival_time : t.return_time;
+    const isManual = ASSIGNMENT_MODE === "manual";
+    const unassigned = isManual && !driverFid;
+    const isMyFamily = MY_FAMILY_ID && driverFid === MY_FAMILY_ID;
+
+    const cardBg = unassigned ? "background:#fff5f5;border:1.5px solid #fca5a5" : "background:#f9fafb;border:1.5px solid #e5e7eb";
+    const icon = isOutbound ? "📤" : "🏠";
+    const label = isOutbound ? "There" : "Return";
+    const timeStr = time ? fmtTime(time) : "";
+
+    let driverHtml;
+    if (unassigned) {
+      const claimBtn = MY_FAMILY_ID
+        ? `<button onclick="claimTrip('${t.id}','${leg}')" style="font-size:11px;padding:3px 10px;border-radius:12px;border:none;background:#4f46e5;color:#fff;cursor:pointer;font-weight:600">Claim</button>`
+        : "";
+      driverHtml = `<span style="color:#ef4444;font-weight:500">Unassigned</span> ${claimBtn}`;
+    } else {
+      const youBadge = isMyFamily ? `<span style="font-size:10px;background:#d1fae5;color:#065f46;border-radius:8px;padding:1px 6px;margin-left:4px">you</span>` : "";
+      driverHtml = `<span>${driverName || "—"}${youBadge}</span>`;
+    }
+
+    return `
+      <div style="${cardBg};border-radius:10px;padding:10px 14px;flex:1;min-width:140px">
+        <div style="font-size:11px;font-weight:700;color:#8C8680;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${icon} ${label}</div>
+        <div style="font-size:13px;font-weight:600;color:#1f2937">${timeStr || "—"}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:3px;display:flex;align-items:center;gap:4px">${driverHtml}</div>
+      </div>`;
+  }
+
+  function renderUpcoming() {
+    const today = dateKey(new Date());
+    const upcoming = trips.filter(t => t.date >= today).sort((a,b) => a.date.localeCompare(b.date));
+    const list = document.getElementById("upcoming-list");
+
+    if (upcoming.length === 0) {
+      list.innerHTML = IS_ADMIN
+        ? '<p style="color:#8C8680;font-size:14px;padding:8px 0">No upcoming trips. Click a date to add one.</p>'
+        : '<p style="color:#8C8680;font-size:14px;padding:8px 0">No upcoming trips scheduled.</p>';
+      return;
+    }
+
+    list.innerHTML = upcoming.map(t => {
+      const [year, mon, day] = t.date.split("-");
+      const monthName = MONTHS[parseInt(mon)-1];
+      const seriesBadge = t.series_id ? `<span style="font-size:11px;background:#ede9fe;color:#7c3aed;border-radius:10px;padding:2px 7px;margin-left:6px">🔁</span>` : '';
+      const removeBtn = IS_ADMIN ? `<button class="btn-remove" onclick="removeTrip('${t.id}','${t.series_id||''}')" title="Delete trip">&#x2715;</button>` : '';
+      const gcalBtn = t.gcal_url ? `<a class="btn-gcal" href="${t.gcal_url}" target="_blank">+ Google Cal</a>` : '';
+      const hasReturn = !!t.return_time;
+
+      return `
+        <div class="upcoming-item" style="flex-direction:column;align-items:stretch;gap:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:baseline;gap:10px">
+              <div class="upcoming-date" style="margin:0">
+                <div class="day">${parseInt(day)}</div>
+                <div class="month">${monthName}</div>
+              </div>
+              <div style="font-size:14px;font-weight:600;color:#1f2937">${t.destination_name || ""}${seriesBadge}</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              ${gcalBtn}
+              ${removeBtn}
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${legCard(t, "outbound")}
+            ${hasReturn ? legCard(t, "return") : ""}
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+  function changeMonth(dir) {
+    currentDate.setMonth(currentDate.getMonth() + dir);
+    renderCalendar();
+  }
+
+  function openModal(dateStr) {
+    if (!IS_ADMIN) return;
+    selectedDate = dateStr;
+    const [y, m, d] = dateStr.split("-");
+    document.getElementById("modal-title").textContent = `Add Trip — ${MONTHS[parseInt(m)-1]} ${parseInt(d)}, ${y}`;
+    // Reset repeat state
+    document.getElementById("m-repeat").checked = false;
+    toggleRepeat(false);
+    // Pre-set end date to end of that month
+    const lastDay = new Date(parseInt(y), parseInt(m), 0);
+    const mm = String(lastDay.getMonth()+1).padStart(2,"0");
+    const dd = String(lastDay.getDate()).padStart(2,"0");
+    document.getElementById("m-end-date").value = `${y}-${mm}-${dd}`;
+    // Pre-check Mon-Fri
+    document.querySelectorAll("#m-weekdays input").forEach(cb => {
+      cb.checked = ["0","1","2","3","4"].includes(cb.value);
+    });
+    // In auto mode, pre-select the next rotation driver; in manual mode, leave blank
+    const driverSel = document.getElementById("m-driver");
+    if (ASSIGNMENT_MODE === "auto" && NEXT_DRIVER_ID) {
+      driverSel.value = NEXT_DRIVER_ID;
+    } else {
+      driverSel.value = "";
+    }
+    document.getElementById("m-return-driver").value = "";
+    document.getElementById("modal").classList.add("open");
+    updateRepeatPreview();
+  }
+
+  function closeModal() {
+    document.getElementById("modal").classList.remove("open");
+    selectedDate = null;
+  }
+
+  function toggleRepeat(on) {
+    document.getElementById("m-repeat-section").style.display = on ? "" : "none";
+    document.getElementById("m-save-btn").textContent = on ? "Add Series" : "Add Trip";
+    document.getElementById("modal-title").textContent = on
+      ? "Add Recurring Trips"
+      : (selectedDate ? (() => { const [y,m,d] = selectedDate.split("-"); return `Add Trip — ${MONTHS[parseInt(m)-1]} ${parseInt(d)}, ${y}`; })() : "Add Trip");
+    updateRepeatPreview();
+  }
+
+  function updateRepeatPreview() {
+    const previewEl = document.getElementById("m-repeat-preview");
+    if (!document.getElementById("m-repeat").checked) { previewEl.textContent = ""; return; }
+    const endDate = document.getElementById("m-end-date").value;
+    const checked = [...document.querySelectorAll("#m-weekdays input:checked")].map(c => parseInt(c.value));
+    if (!endDate || checked.length === 0 || !selectedDate) { previewEl.textContent = "Select days and an end date."; return; }
+    // Count matching days
+    let cur = new Date(selectedDate + "T12:00:00");
+    const end = new Date(endDate + "T12:00:00");
+    let count = 0;
+    while (cur <= end) { if (checked.includes(cur.getDay() === 0 ? 6 : cur.getDay() - 1)) count++; cur.setDate(cur.getDate()+1); }
+    const dayNames = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    const dayLabels = checked.sort().map(i => dayNames[i]).join(", ");
+    previewEl.textContent = `${dayLabels} from ${selectedDate} to ${endDate} — ${count} trip${count !== 1 ? "s" : ""} will be created.`;
+  }
+
+  // Live preview updates
+  document.querySelectorAll("#m-weekdays input").forEach(cb => cb.addEventListener("change", updateRepeatPreview));
+  document.getElementById("m-end-date").addEventListener("change", updateRepeatPreview);
+
+  function getWeekdayIndex(jsDay) {
+    // JS: Sun=0,Mon=1…Sat=6  →  Python: Mon=0…Sun=6
+    return jsDay === 0 ? 6 : jsDay - 1;
+  }
+
+  async function saveTrip() {
+    const driverEl = document.getElementById("m-driver");
+    const rdEl = document.getElementById("m-return-driver");
+    const isRepeat = document.getElementById("m-repeat").checked;
+
+    const base = {
+      arrival_time: document.getElementById("m-time").value,
+      return_time: document.getElementById("m-return-time").value,
+      return_driver_family_id: rdEl.value,
+      return_driver_name: rdEl.options[rdEl.selectedIndex].dataset.name,
+      destination_name: document.getElementById("m-dest-name").value,
+      destination_address: document.getElementById("m-dest-addr").value,
+      driver_family_id: driverEl.value,
+      driver_name: driverEl.options[driverEl.selectedIndex].dataset.name,
+    };
+
+    if (!isRepeat) {
+      const res = await fetch("/schedule/add", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({...base, date: selectedDate}),
+      });
+      const trip = await res.json();
+      trips.push(trip);
+    } else {
+      const weekdays = [...document.querySelectorAll("#m-weekdays input:checked")].map(c => parseInt(c.value));
+      if (weekdays.length === 0) { alert("Pick at least one day."); return; }
+      const endDate = document.getElementById("m-end-date").value;
+      if (!endDate || endDate < selectedDate) { alert("End date must be on or after start date."); return; }
+      const res = await fetch("/schedule/add-recurring", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({...base, start_date: selectedDate, end_date: endDate, weekdays}),
+      });
+      const data = await res.json();
+      trips.push(...data.trips);
+      // Brief confirmation
+      const btn = document.getElementById("m-save-btn");
+      btn.textContent = `✓ ${data.count} trips added`;
+      btn.disabled = true;
+      setTimeout(() => { btn.textContent = "Add Series"; btn.disabled = false; }, 1500);
+    }
+
+    closeModal();
+    renderCalendar();
+  }
+
+  async function removeTrip(id, seriesId) {
+    if (seriesId) {
+      const seriesTrips = trips.filter(t => t.series_id === seriesId);
+      if (seriesTrips.length > 1) {
+        const choice = confirm(`This trip is part of a series of ${seriesTrips.length}.\n\nOK → Delete entire series\nCancel → Delete just this one`);
+        if (choice) {
+          await fetch(`/schedule/remove-series/${seriesId}`, { method: "POST" });
+          trips = trips.filter(t => t.series_id !== seriesId);
+          renderCalendar();
+          return;
+        }
+      }
+    }
+    await fetch(`/schedule/remove/${id}`, { method: "POST" });
+    trips = trips.filter(t => t.id !== id);
+    renderCalendar();
+  }
+
+  async function setAssignmentMode(mode) {
+    await fetch("/schedule/set-assignment-mode", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({mode}),
+    });
+    ASSIGNMENT_MODE = mode;
+    const autoBtn = document.getElementById("mode-auto-btn");
+    const manualBtn = document.getElementById("mode-manual-btn");
+    const desc = document.getElementById("mode-desc");
+    if (mode === "auto") {
+      autoBtn.style.background = "#4f46e5"; autoBtn.style.color = "#fff";
+      manualBtn.style.background = "#fff"; manualBtn.style.color = "#374151";
+      desc.textContent = "Rotation assigns drivers automatically when trips are added.";
+    } else {
+      manualBtn.style.background = "#4f46e5"; manualBtn.style.color = "#fff";
+      autoBtn.style.background = "#fff"; autoBtn.style.color = "#374151";
+      desc.textContent = "Families volunteer for open slots — unassigned rides are highlighted red.";
+    }
+    renderUpcoming();
+  }
+
+  async function claimTrip(tripId, leg) {
+    const res = await fetch(`/schedule/claim/${tripId}/${leg}`, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || "Could not claim this slot."); return; }
+    // Update local trip data
+    const idx = trips.findIndex(t => t.id === tripId);
+    if (idx !== -1) trips[idx] = data.trip;
+    renderUpcoming();
+    renderCalendar();
+  }
+
+  // Close modal on overlay click
+  if (IS_ADMIN) {
+    document.getElementById("modal").addEventListener("click", e => {
+      if (e.target === document.getElementById("modal")) closeModal();
+    });
+  }
+
+  renderCalendar();
+
+  // Karma gauges
+  function polarToXY(cx, cy, r, angleDeg) {
+    const rad = angleDeg * Math.PI / 180;
+    return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) };
+  }
+
+  function arcPath(cx, cy, r, a1, a2) {
+    const s = polarToXY(cx, cy, r, a1);
+    const e = polarToXY(cx, cy, r, a2);
+    const large = Math.abs(a1 - a2) > 180 ? 1 : 0;
+    const sweep = a1 > a2 ? 1 : 0;
+    return `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${r} ${r} 0 ${large} ${sweep} ${e.x.toFixed(2)} ${e.y.toFixed(2)}`;
+  }
+
+  function scoreColor(score) {
+    if (score >= 2) return "#2a9d5c";
+    if (score === 1) return "#5cb85c";
+    if (score === 0) return "#8C8680";
+    if (score === -1) return "#e07b4a";
+    return "#c0392b";
+  }
+
+  document.querySelectorAll(".karma-gauge").forEach(svg => {
+    const score = parseInt(svg.dataset.score);
+    const maxAbs = 3;
+    const clamped = Math.max(-maxAbs, Math.min(maxAbs, score));
+    const cx = 60, cy = 65, r = 50;
+    const scoreAngle = 180 - ((clamped + maxAbs) / (2 * maxAbs)) * 180;
+    const centerAngle = 90;
+    const color = scoreColor(score);
+
+    const arc = svg.querySelector(".k-arc");
+    if (score !== 0) {
+      const a1 = score > 0 ? centerAngle : scoreAngle;
+      const a2 = score > 0 ? scoreAngle : centerAngle;
+      arc.setAttribute("d", arcPath(cx, cy, r, a1, a2));
+      arc.setAttribute("stroke", color);
+    }
+
+    const needle = svg.querySelector(".k-needle");
+    const tip = polarToXY(cx, cy, 38, scoreAngle);
+    needle.setAttribute("x2", tip.x.toFixed(2));
+    needle.setAttribute("y2", tip.y.toFixed(2));
+
+    const text = svg.querySelector(".k-score-text");
+    text.textContent = score > 0 ? `+${score}` : `${score}`;
+    text.setAttribute("fill", color);
+  });
+
+  // ── Live ride tracking ────────────────────────────────────────────────────
+
+  let rideActive = {{ 'true' if live_location.active else 'false' }};
+  let currentLeg = "{{ live_location.trip_leg or 'outbound' }}";
+  let watchId = null;
+
+  function startGeolocation() {
+    if (!navigator.geolocation) { alert("Your browser doesn't support location sharing."); return false; }
+    watchId = navigator.geolocation.watchPosition(pos => {
+      fetch("/update-location", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      });
+    }, null, { enableHighAccuracy: true, maximumAge: 5000 });
+    return true;
+  }
+
+  function stopGeolocation() {
+    if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  }
+
+  function setRideButtonOff(btnId, label) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.textContent = label;
+    btn.style.background = btnId === "ride-btn" ? "#1A1714" : "#4B5563";
+    btn.style.color = "#FAF9F5";
+    btn.style.borderColor = btnId === "ride-btn" ? "#1A1714" : "#4B5563";
+  }
+
+  function setRideButtonOn(btnId, label) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.textContent = label;
+    btn.style.background = "#FEE2E2";
+    btn.style.color = "#DC2626";
+    btn.style.borderColor = "#FECACA";
+  }
+
+  async function toggleRide() {
+    if (rideActive && currentLeg === "outbound") {
+      await fetch("/stop-ride", { method: "POST" });
+      stopGeolocation();
+      rideActive = false;
+      setRideButtonOff("ride-btn", "▶ Start Outbound");
+      document.getElementById("ride-status").style.display = "none";
+    } else {
+      if (rideActive) { await fetch("/stop-ride", { method: "POST" }); stopGeolocation(); setRideButtonOff("return-btn", "🏠 Start Return"); }
+      if (!startGeolocation()) return;
+      await fetch("/start-ride", { method: "POST" });
+      rideActive = true;
+      currentLeg = "outbound";
+      setRideButtonOn("ride-btn", "⏹ End Outbound");
+      setRideButtonOff("return-btn", "🏠 Start Return");
+      document.getElementById("ride-status").style.display = "block";
+    }
+  }
+
+  async function toggleReturn() {
+    if (rideActive && currentLeg === "return") {
+      await fetch("/stop-ride", { method: "POST" });
+      stopGeolocation();
+      rideActive = false;
+      setRideButtonOff("return-btn", "🏠 Start Return");
+      document.getElementById("ride-status").style.display = "none";
+    } else {
+      if (rideActive) { await fetch("/stop-ride", { method: "POST" }); stopGeolocation(); setRideButtonOff("ride-btn", "▶ Start Outbound"); }
+      if (!startGeolocation()) return;
+      await fetch("/start-return", { method: "POST" });
+      rideActive = true;
+      currentLeg = "return";
+      setRideButtonOn("return-btn", "⏹ End Return");
+      setRideButtonOff("ride-btn", "▶ Start Outbound");
+      document.getElementById("ride-status").style.display = "block";
+    }
+  }
+
+  // ── Today's Trip actions ──────────────────────────────────────────────────
+
+  async function toggleAbsent(familyId) {
+    const res = await fetch("/toggle-absent", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({family_id: familyId}),
+    });
+    const data = await res.json();
+    const btn = document.getElementById(`absent-btn-${familyId}`);
+    const row = document.getElementById(`fam-row-${familyId}`);
+    if (data.absent) {
+      btn.textContent = "Not Coming";
+      btn.style.cssText = btn.style.cssText.replace(/background:[^;]+;color:[^;]+;border-color:[^;]+/, "background:#FEE2E2;color:#DC2626;border-color:#FECACA");
+      row.style.background = "#FFF5F5";
+    } else {
+      btn.textContent = "Coming ✓";
+      btn.style.cssText = btn.style.cssText.replace(/background:[^;]+;color:[^;]+;border-color:[^;]+/, "background:#F0FDF4;color:#16A34A;border-color:#BBF7D0");
+      row.style.background = "#FAF9F5";
+    }
+  }
+
+  function openLateModal() {
+    const modal = document.getElementById("late-modal");
+    modal.style.display = "flex";
+  }
+
+  function closeLateModal() {
+    document.getElementById("late-modal").style.display = "none";
+    document.getElementById("late-minutes").value = "";
+  }
+
+  async function sendRunningLate() {
+    const minutes = document.getElementById("late-minutes").value;
+    await fetch("/running-late", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({minutes}),
+    });
+    closeLateModal();
+    alert("Running late alert sent to all pickup families!");
+  }
+
+  async function confirmArrived() {
+    if (!confirm("Send arrival confirmation to all families?")) return;
+    await fetch("/arrived", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({}),
+    });
+    alert("Arrival confirmation sent!");
+  }
+
+  // ── Dashboard live map ────────────────────────────────────────────────────
+
+  let dashMap = null;
+  let dashMarker = null;
+
+  function initDashMap(lat, lng) {
+    const pos = { lat, lng };
+    dashMap = new google.maps.Map(document.getElementById("dashboard-live-map"), {
+      center: pos,
+      zoom: 14,
+      disableDefaultUI: true,
+      zoomControl: true,
+      styles: [
+        { featureType: "poi", stylers: [{ visibility: "off" }] },
+        { featureType: "transit", stylers: [{ visibility: "off" }] },
+      ],
+    });
+    dashMarker = new google.maps.Marker({
+      position: pos,
+      map: dashMap,
+      title: "Driver",
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 10,
+        fillColor: "#D4784A",
+        fillOpacity: 1,
+        strokeColor: "#fff",
+        strokeWeight: 3,
+      },
+    });
+  }
+
+  async function pollDashLocation() {
+    try {
+      const res = await fetch("/get-location");
+      const data = await res.json();
+      const card = document.getElementById("dashboard-tracking-card");
+      if (data.active && data.lat && data.lng) {
+        card.style.display = "block";
+        if (!dashMap) {
+          initDashMap(data.lat, data.lng);
+        } else {
+          const pos = { lat: data.lat, lng: data.lng };
+          dashMarker.setPosition(pos);
+          dashMap.panTo(pos);
+        }
+      } else {
+        card.style.display = "none";
+      }
+    } catch (e) { /* retry next poll */ }
+  }
+
+  function onMapsApiReady() {
+    pollDashLocation();
+    setInterval(pollDashLocation, 10000);
+  }
+</script>
+<script src="https://maps.googleapis.com/maps/api/js?key={{ maps_api_key }}&callback=onMapsApiReady" async defer></script>
+</body>
+</html>

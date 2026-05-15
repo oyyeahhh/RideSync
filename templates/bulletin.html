@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ group_name }} — Pickup Bulletin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500;600&family=Tiempos+Text:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Styrene A", ui-sans-serif, system-ui, sans-serif;
+      background: #FAF9F5;
+      color: #1A1714;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1A1714;
+      color: #FAF9F5;
+      padding: 28px 48px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-mark {
+      width: 32px;
+      height: 32px;
+      background: #D4784A;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+
+    header h1 {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: 17px;
+      font-weight: 500;
+      color: #FAF9F5;
+    }
+
+    header .subtitle {
+      font-size: 12px;
+      color: #9B9590;
+      margin-top: 2px;
+    }
+
+    main {
+      max-width: 560px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .card {
+      background: #FFFFFF;
+      border: 1px solid #E8E5DF;
+      border-radius: 12px;
+      padding: 28px;
+    }
+
+    .card-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9B9590;
+      margin-bottom: 16px;
+    }
+
+    /* Next pickup hero */
+    .next-pickup {
+      text-align: center;
+      padding: 36px 28px;
+    }
+
+    .next-pickup .driver-name {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: 42px;
+      font-weight: 500;
+      color: #1A1714;
+      margin-bottom: 8px;
+    }
+
+    .next-pickup .pickup-detail {
+      font-size: 16px;
+      color: #6B6560;
+      margin-bottom: 4px;
+    }
+
+    .next-pickup .arrive-time {
+      display: inline-block;
+      margin-top: 16px;
+      background: #FDF3EE;
+      color: #D4784A;
+      border: 1px solid #F0C5AE;
+      border-radius: 20px;
+      padding: 6px 16px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    /* Schedule list */
+    .schedule-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 0;
+      border-bottom: 1px solid #F0EDE7;
+    }
+
+    .schedule-item:last-child { border-bottom: none; }
+
+    .schedule-item .trip-date {
+      font-size: 13px;
+      font-weight: 500;
+      color: #1A1714;
+    }
+
+    .schedule-item .trip-meta {
+      font-size: 12px;
+      color: #9B9590;
+      margin-top: 2px;
+    }
+
+    .schedule-item .trip-driver {
+      font-size: 13px;
+      font-weight: 500;
+      color: #D4784A;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: #9B9590;
+      font-size: 14px;
+      padding: 20px 0;
+    }
+
+    /* Rotation */
+    .rotation-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .rotation-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      background: #FAF9F5;
+      border: 1px solid #E8E5DF;
+    }
+
+    .rotation-item.is-next {
+      background: #FDF3EE;
+      border-color: #F0C5AE;
+    }
+
+    .rotation-item .pos {
+      font-size: 12px;
+      color: #9B9590;
+      width: 20px;
+      text-align: center;
+    }
+
+    .rotation-item .fam-name {
+      font-size: 14px;
+      font-weight: 500;
+      flex: 1;
+    }
+
+    .next-badge {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #D4784A;
+      background: #fff;
+      border: 1px solid #F0C5AE;
+      border-radius: 12px;
+      padding: 3px 10px;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 12px;
+      color: #C5C0B8;
+      padding: 32px 24px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">🚗</div>
+  <div>
+    <h1>{{ group_name }}</h1>
+    <div class="subtitle">Pickup Bulletin</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- Next Pickup -->
+  <div class="card next-pickup">
+    <div class="card-label">Next Pickup</div>
+    <div class="driver-name">{{ next_trip.driver }}</div>
+    <div class="pickup-detail">{{ next_trip.date }}</div>
+    <div class="pickup-detail">{{ next_trip.destination }}</div>
+    <div class="arrive-time">Arrive by {{ next_trip.arrive_by }}</div>
+    {% if next_trip.return_time %}
+    <div class="arrive-time" style="margin-top:8px;background:#F0EDE7;color:#6B6560;border-color:#D8D3CC;">
+      Return at {{ next_trip.return_time | fmt_time }} · {{ next_trip.return_driver or next_trip.driver }}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Live Tracking -->
+  <div class="card" id="tracking-card" style="{% if not live_location.active %}display:none;{% endif %}">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div class="card-label" style="margin-bottom:0;">Live Tracking</div>
+      <div style="font-size:12px;color:#D4784A;font-weight:500;" id="live-dot">● Live</div>
+    </div>
+    <div style="font-size:13px;color:#6B6560;margin-bottom:12px;" id="tracking-status">
+      {% if live_location.active and live_location.trip_leg == 'return' %}
+        🏠 <strong>{{ live_location.driver_name }}</strong> is on the way home
+      {% elif live_location.active %}
+        📍 <strong>{{ live_location.driver_name }}</strong> is on the way to pick up
+      {% endif %}
+    </div>
+    <div id="live-map" style="width:100%;height:280px;border-radius:10px;overflow:hidden;background:#F0EDE7;display:flex;align-items:center;justify-content:center;">
+      <div id="map-placeholder" style="color:#9B9590;font-size:13px;">Locating driver…</div>
+    </div>
+
+    <!-- ETA list -->
+    <div id="eta-list" style="margin-top:16px;display:flex;flex-direction:column;gap:8px;"></div>
+  </div>
+
+  <!-- Pickup Timetable -->
+  <div class="card">
+    <div class="card-label">Pickup Times</div>
+    {% if route_cache and route_cache.date == next_trip.date_raw %}
+      <div style="display:flex;flex-direction:column;gap:0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #F0EDE7;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="width:28px;height:28px;background:#1A1714;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:#FAF9F5;font-weight:600;">🚗</span>
+            <div>
+              <div style="font-size:13px;font-weight:500;">{{ route_cache.driver_name }} departs</div>
+            </div>
+          </div>
+          <div style="font-size:14px;font-weight:600;color:#D4784A;">{{ route_cache.depart_at }}</div>
+        </div>
+        {% for stop in route_cache.schedule %}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #F0EDE7;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="width:28px;height:28px;background:#F0EDE7;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#6B6560;">{{ loop.index }}</span>
+            <div style="font-size:13px;font-weight:500;">{{ stop.label }}</div>
+          </div>
+          <div style="font-size:14px;font-weight:600;color:#1A1714;">{{ stop.pickup_time }}</div>
+        </div>
+        {% endfor %}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="width:28px;height:28px;background:#D4784A;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;">📍</span>
+            <div style="font-size:13px;font-weight:500;">{{ route_cache.dest_name }}</div>
+          </div>
+          <div style="font-size:14px;font-weight:600;color:#D4784A;">{{ route_cache.arrive_by }}</div>
+        </div>
+      </div>
+    {% else %}
+      <div class="empty-state">Pickup times will appear here once the driver runs the route.</div>
+    {% endif %}
+  </div>
+
+  <!-- Upcoming Schedule -->
+  <div class="card">
+    <div class="card-label">Upcoming Trips</div>
+    {% if schedule %}
+      {% for trip in schedule %}
+      <div class="schedule-item">
+        <div>
+          <div class="trip-date">{{ trip.date | fmt_date }}</div>
+          <div class="trip-meta">{{ trip.destination_name }} · {{ trip.arrival_time | fmt_time }}</div>
+        </div>
+        <div class="trip-driver">{{ trip.driver_name }}</div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">No trips scheduled yet.</div>
+    {% endif %}
+  </div>
+
+  <!-- Rotation Order -->
+  <div class="card">
+    <div class="card-label">Driving Rotation</div>
+    <div class="rotation-list">
+      {% for fam in rotation %}
+      <div class="rotation-item {% if fam.is_next %}is-next{% endif %}">
+        <span class="pos">{{ fam.position }}</span>
+        <span class="fam-name">{{ fam.name }}</span>
+        {% if fam.is_next %}<span class="next-badge">Up next</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</main>
+
+<script>
+  let map = null;
+  let driverMarker = null;
+  let pickupMarkers = [];
+
+  // Teaneck, NJ — default center while waiting for driver GPS
+  const DEFAULT_LAT = 40.8976;
+  const DEFAULT_LNG = -74.0143;
+
+  function initMap(lat, lng) {
+    document.getElementById("map-placeholder").style.display = "none";
+    const pos = { lat, lng };
+    map = new google.maps.Map(document.getElementById("live-map"), {
+      center: pos,
+      zoom: 13,
+      disableDefaultUI: true,
+      zoomControl: true,
+      styles: [
+        { featureType: "poi", stylers: [{ visibility: "off" }] },
+        { featureType: "transit", stylers: [{ visibility: "off" }] },
+      ],
+    });
+    driverMarker = new google.maps.Marker({
+      position: pos,
+      map,
+      title: "Driver",
+      zIndex: 10,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 11,
+        fillColor: "#D4784A",
+        fillOpacity: 1,
+        strokeColor: "#fff",
+        strokeWeight: 3,
+      },
+    });
+  }
+
+  function updatePickupMarkers(etas) {
+    // Remove old markers
+    pickupMarkers.forEach(m => m.setMap(null));
+    pickupMarkers = [];
+
+    etas.forEach(eta => {
+      const pos = { lat: eta.lat, lng: eta.lng };
+      const marker = new google.maps.Marker({
+        position: pos,
+        map,
+        title: eta.name,
+        label: {
+          text: eta.label,
+          color: "#1A1714",
+          fontSize: "11px",
+          fontWeight: "600",
+        },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: "#F0EDE7",
+          fillOpacity: 1,
+          strokeColor: "#9B9590",
+          strokeWeight: 2,
+          labelOrigin: new google.maps.Point(0, -16),
+        },
+      });
+      pickupMarkers.push(marker);
+    });
+  }
+
+  function updateEtaList(etas) {
+    const list = document.getElementById("eta-list");
+    if (!etas || etas.length === 0) { list.innerHTML = ""; return; }
+    list.innerHTML = etas.map(eta => `
+      <div style="display:flex;justify-content:space-between;align-items:center;
+                  padding:10px 14px;background:#FAF9F5;border:1px solid #E8E5DF;border-radius:8px;">
+        <div style="font-size:13px;font-weight:500;">${eta.name}</div>
+        <div style="font-size:13px;font-weight:700;color:${eta.minutes <= 2 ? '#16A34A' : '#D4784A'};">
+          ${eta.label}
+        </div>
+      </div>`).join("");
+  }
+
+  async function pollLocation() {
+    try {
+      const res = await fetch("/get-location");
+      const data = await res.json();
+      const card = document.getElementById("tracking-card");
+
+      if (data.active) {
+        card.style.display = "block";
+        if (data.driver_name) {
+          const icon = data.trip_leg === "return" ? "🏠" : "📍";
+          const label = data.trip_leg === "return" ? "is on the way home" : "is on the way to pick up";
+          document.getElementById("tracking-status").innerHTML =
+            `${icon} <strong>${data.driver_name}</strong> ${label}`;
+        }
+        if (data.lat && data.lng) {
+          if (!map) {
+            initMap(data.lat, data.lng);
+          } else {
+            const pos = { lat: data.lat, lng: data.lng };
+            driverMarker.setPosition(pos);
+            map.panTo(pos);
+          }
+          if (map && data.etas) {
+            updatePickupMarkers(data.etas);
+            updateEtaList(data.etas);
+          }
+        } else if (!map) {
+          initMap(DEFAULT_LAT, DEFAULT_LNG);
+        }
+      } else {
+        card.style.display = "none";
+        updateEtaList([]);
+      }
+    } catch (e) { /* retry next poll */ }
+  }
+
+  // Called by Google Maps once the API is fully loaded
+  function onMapsApiReady() {
+    pollLocation();
+    setInterval(pollLocation, 10000);
+  }
+</script>
+<script src="https://maps.googleapis.com/maps/api/js?key={{ maps_api_key }}&callback=onMapsApiReady" async defer></script>
+
+<footer>{{ group_name }} · Read-only bulletin</footer>
+
+</body>
+</html>
