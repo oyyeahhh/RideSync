@@ -419,7 +419,7 @@
     }
 
     .cal-day {
-      min-height: 64px;
+      min-height: 90px;
       border-radius: 8px;
       border: 1px solid #EAE8E3;
       padding: 6px 8px;
@@ -447,11 +447,17 @@
       background: #D4784A;
       color: white;
       border-radius: 4px;
-      padding: 1px 5px;
-      margin-top: 2px;
+      padding: 2px 5px;
+      margin-top: 3px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .cal-trip-dot.return-dot {
+      background: #6b7280;
     }
 
     /* Modal */
@@ -1119,11 +1125,20 @@
 
       const dayTrips = tripsOnDate(key);
       dayTrips.forEach(t => {
+        // Outbound dot
         const dot = document.createElement("div");
         dot.className = "cal-trip-dot" + (t.series_id ? " series-dot" : "");
-        dot.textContent = t.destination_name + (t.series_id ? " 🔁" : "");
-        dot.title = t.series_id ? "Part of a recurring series" : "";
+        dot.innerHTML = `<span>📤</span><span style="overflow:hidden;text-overflow:ellipsis">${t.destination_name}${t.series_id ? " 🔁" : ""}</span>`;
+        dot.title = t.driver_name ? `Driver: ${t.driver_name}` : "Unassigned";
         el.appendChild(dot);
+        // Return dot (only if return time set)
+        if (t.return_time) {
+          const rdot = document.createElement("div");
+          rdot.className = "cal-trip-dot return-dot";
+          rdot.innerHTML = `<span>🏠</span><span style="overflow:hidden;text-overflow:ellipsis">${t.return_driver_name || t.driver_name || "Unassigned"}</span>`;
+          rdot.title = `Return: ${t.return_time}`;
+          el.appendChild(rdot);
+        }
       });
 
       if (IS_ADMIN) {
