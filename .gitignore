@@ -4,3 +4,4 @@ __pycache__/
 .flask_sessions/
 .DS_Store
 individual_ics/
+.claude/
