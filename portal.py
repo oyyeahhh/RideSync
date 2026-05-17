@@ -415,7 +415,9 @@ def invite():
     whatsapp_ok = True
     try:
         send_sms(to_phone=phone, message=message)
-    except Exception:
+        logger.info("Invite WhatsApp sent to %s", phone)
+    except Exception as e:
+        logger.error("Invite WhatsApp failed for %s: %s", phone, e)
         whatsapp_ok = False
 
     return redirect(url_for("dashboard", invite_link=signup_url, invite_phone=phone, whatsapp_ok=int(whatsapp_ok)))
