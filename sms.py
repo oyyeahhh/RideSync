@@ -13,13 +13,20 @@ ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
 AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
 FROM_NUMBER = os.environ.get("TWILIO_FROM_NUMBER")
 
+# Twilio WhatsApp sandbox opt-in details (set these in .env / Railway)
+# TWILIO_SANDBOX_NUMBER  – the sandbox phone number, e.g. +14155238886
+# TWILIO_SANDBOX_KEYWORD – the join keyword shown in the Twilio console, e.g. "marble-apple"
+SANDBOX_NUMBER = os.environ.get("TWILIO_SANDBOX_NUMBER", "+14155238886")
+SANDBOX_KEYWORD = os.environ.get("TWILIO_SANDBOX_KEYWORD", "")
+
 
 def send_sms(to_phone: str, message: str) -> None:
     if not all([ACCOUNT_SID, AUTH_TOKEN, FROM_NUMBER]):
         raise RuntimeError("Twilio credentials not set in .env")
     client = Client(ACCOUNT_SID, AUTH_TOKEN)
     to = to_phone if to_phone.startswith("whatsapp:") else f"whatsapp:{to_phone}"
-    client.messages.create(body=message, from_=FROM_NUMBER, to=to)
+    from_ = FROM_NUMBER if FROM_NUMBER.startswith("whatsapp:") else f"whatsapp:{FROM_NUMBER}"
+    client.messages.create(body=message, from_=from_, to=to)
     print(f"SMS sent to {to_phone}")
 
 

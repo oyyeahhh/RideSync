@@ -41,7 +41,7 @@ from auth import (
     generate_invite_token, verify_invite_token, mark_invite_used,
 )
 from groups import create_group as _create_group, get_group, list_groups
-from sms import send_sms
+from sms import send_sms, SANDBOX_NUMBER, SANDBOX_KEYWORD
 from absences import toggle_absent, get_absences
 from route_cache import load as load_route_cache
 from location import start_ride, stop_ride, update_location, get_location
@@ -374,6 +374,8 @@ def signup():
         error=error,
         form=form,
         suggested_family_name=suggested_family_name,
+        sandbox_number=SANDBOX_NUMBER,
+        sandbox_keyword=SANDBOX_KEYWORD,
     )
 
 

@@ -181,6 +181,92 @@
 
     .btn-submit:hover { background: #D4784A; }
 
+    .whatsapp-notice {
+      background: #F0FAF3;
+      border: 1px solid #B7DFC4;
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 24px;
+    }
+
+    .whatsapp-notice-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      color: #1A5C30;
+      margin-bottom: 10px;
+    }
+
+    .whatsapp-notice-header .wa-icon {
+      width: 22px;
+      height: 22px;
+      background: #25D366;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .whatsapp-notice p {
+      font-size: 13px;
+      color: #2D6B45;
+      line-height: 1.55;
+      margin-bottom: 10px;
+    }
+
+    .whatsapp-notice p:last-child { margin-bottom: 0; }
+
+    .whatsapp-steps {
+      list-style: none;
+      counter-reset: steps;
+      margin: 0;
+      padding: 0;
+    }
+
+    .whatsapp-steps li {
+      counter-increment: steps;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13px;
+      color: #2D6B45;
+      line-height: 1.5;
+      margin-bottom: 8px;
+    }
+
+    .whatsapp-steps li:last-child { margin-bottom: 0; }
+
+    .step-num {
+      width: 20px;
+      height: 20px;
+      background: #25D366;
+      color: #fff;
+      border-radius: 50%;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .join-code {
+      display: inline-block;
+      background: #fff;
+      border: 1px solid #B7DFC4;
+      border-radius: 5px;
+      padding: 2px 8px;
+      font-family: ui-monospace, monospace;
+      font-size: 13px;
+      color: #1A5C30;
+      font-weight: 600;
+    }
+
     @media (max-width: 480px) {
       header { padding: 20px 24px; }
       .card { padding: 28px 24px; }
@@ -205,6 +291,39 @@
     <div class="phone-badge">
       <span class="label">Phone:</span>
       <span>{{ phone }}</span>
+    </div>
+
+    <div class="whatsapp-notice">
+      <div class="whatsapp-notice-header">
+        <div class="wa-icon">💬</div>
+        Set up WhatsApp notifications
+      </div>
+      <p>This carpool group sends reminders and route info via WhatsApp. To receive them, you need to opt in once before your first message arrives.</p>
+      <ol class="whatsapp-steps">
+        <li>
+          <div class="step-num">1</div>
+          <span>Open WhatsApp on your phone</span>
+        </li>
+        <li>
+          <div class="step-num">2</div>
+          <span>Start a new chat with <strong>{{ sandbox_number }}</strong></span>
+        </li>
+        <li>
+          <div class="step-num">3</div>
+          <span>Send the message:
+            {% if sandbox_keyword %}
+              <span class="join-code">join {{ sandbox_keyword }}</span>
+            {% else %}
+              <span class="join-code">join &lt;keyword&gt;</span>
+              &nbsp;— your admin will share the exact keyword
+            {% endif %}
+          </span>
+        </li>
+        <li>
+          <div class="step-num">4</div>
+          <span>You'll get a confirmation reply, then you're all set!</span>
+        </li>
+      </ol>
     </div>
 
     {% if error %}
