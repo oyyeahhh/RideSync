@@ -1,9 +1,6 @@
 {
   "order": [
-    "fam_nadler",
-    "fam_bickel",
-    "fam_heiding",
-    "fam_tracer"
+    "fam_nadler"
   ],
-  "current_index": 1
+  "current_index": 0
 }

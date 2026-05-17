@@ -5,26 +5,5 @@
     "address": "1163 E Laurelton Parkway, Teaneck, NJ",
     "phone": "+19173997404",
     "children": []
-  },
-  {
-    "id": "fam_bickel",
-    "name": "Bickel Family",
-    "address": "1291 Princeton Rd, Teaneck, NJ",
-    "phone": "+19173997404",
-    "children": []
-  },
-  {
-    "id": "fam_heiding",
-    "name": "Heiding Family",
-    "address": "415 Sagamore Ave, Teaneck, NJ",
-    "phone": "+19173997404",
-    "children": []
-  },
-  {
-    "id": "fam_tracer",
-    "name": "Tracer Family",
-    "address": "335 Griggs Ave, Teaneck, NJ",
-    "phone": "+19173997404",
-    "children": []
   }
 ]
