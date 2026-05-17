@@ -270,7 +270,7 @@
   <div class="card" id="tracking-card" style="{% if not live_location.active %}display:none;{% endif %}">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <div class="card-label" style="margin-bottom:0;">Live Tracking</div>
-      <div style="font-size:12px;color:#D4784A;font-weight:500;" id="live-dot">● Live</div>
+      <div style="font-size:12px;color:var(--coral);font-weight:500;" id="live-dot">● Live</div>
     </div>
     <div style="font-size:13px;color:rgba(255,255,255,0.55);margin-bottom:12px;" id="tracking-status">
       {% if live_location.active and live_location.trip_leg == 'return' %}
@@ -299,7 +299,7 @@
               <div style="font-size:13px;font-weight:500;color:#FAF9F5;">{{ route_cache.driver_name }} departs</div>
             </div>
           </div>
-          <div style="font-size:14px;font-weight:600;color:#D4784A;">{{ route_cache.depart_at }}</div>
+          <div style="font-size:14px;font-weight:600;color:var(--coral);">{{ route_cache.depart_at }}</div>
         </div>
         {% for stop in route_cache.schedule %}
         <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.08);">
@@ -312,10 +312,10 @@
         {% endfor %}
         <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;">
           <div style="display:flex;align-items:center;gap:10px;">
-            <span style="width:28px;height:28px;background:#D4784A;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;">📍</span>
+            <span style="width:28px;height:28px;background:var(--coral);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;">📍</span>
             <div style="font-size:13px;font-weight:500;color:#FAF9F5;">{{ route_cache.dest_name }}</div>
           </div>
-          <div style="font-size:14px;font-weight:600;color:#D4784A;">{{ route_cache.arrive_by }}</div>
+          <div style="font-size:14px;font-weight:600;color:var(--coral);">{{ route_cache.arrive_by }}</div>
         </div>
       </div>
     {% else %}
@@ -433,7 +433,7 @@
       <div style="display:flex;justify-content:space-between;align-items:center;
                   padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:8px;">
         <div style="font-size:13px;font-weight:500;color:#FAF9F5;">${eta.name}</div>
-        <div style="font-size:13px;font-weight:700;color:${eta.minutes <= 2 ? '#6ee7a0' : '#D4784A'};">
+        <div style="font-size:13px;font-weight:700;color:${eta.minutes <= 2 ? '#3EC9E8' : 'rgba(255,255,255,0.7)'};">
           ${eta.label}
         </div>
       </div>`).join("");

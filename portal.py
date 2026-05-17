@@ -6,9 +6,12 @@ Then open http://localhost:3000 in your browser.
 """
 
 import json
+import logging
 import os
-from datetime import datetime, timedelta
+import uuid
+from datetime import date, datetime, timedelta
 from functools import wraps
+from pathlib import Path
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
@@ -18,14 +21,19 @@ from flask import (
     jsonify, Response, session, flash,
 )
 from flask_session import Session
+from twilio.request_validator import RequestValidator
 
-from config import arrival_time, get_destination_id, load_config, save_config, get_group_name, get_assignment_mode, set_assignment_mode
+from config import (
+    ADMIN_PHONE,
+    arrival_time, get_destination_id, load_config, save_config,
+    get_group_name, get_assignment_mode, set_assignment_mode,
+)
 from storage import DATA_DIR, CODE_DIR
 from families import get_family, get_destination, get_all_family_ids, add_family
-from rotation import _load as load_rotation, add_to_rotation
+from rotation import _load as load_rotation, add_to_rotation, set_driver as _set_driver
 from trips import get_stats, load_trips
-from schedule import load_schedule, add_trip, remove_trip, remove_series, add_recurring_trips, claim_trip
-from karma import get_karma
+from schedule import load_schedule, save_schedule, add_trip, remove_trip, remove_series, add_recurring_trips, claim_trip
+from karma import get_karma, record_swap_request as _record_swap_req, record_swap_cover as _record_swap_cover
 from cal_feed import build_ics
 from auth import (
     get_user_by_email, get_user_by_id,
@@ -39,6 +47,12 @@ from location import start_ride, stop_ride, update_location, get_location
 from eta import compute_etas
 
 load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
@@ -399,7 +413,7 @@ def dashboard():
             "date": trip_time.strftime("%A, %B %d, %Y"),
             "driver": next_driver_name,
             "destination": dest_name,
-            "arrive_by": trip_time.strftime("%I:%M %p"),
+            "arrive_by": trip_time.strftime("%-I:%M %p"),
             "return_time": cfg.get("return_time", ""),
             "return_driver": cfg.get("return_driver_name", ""),
         },
@@ -564,15 +578,12 @@ def schedule_add_recurring():
     # Pre-compute per-trip drivers when using rotation sequence
     # (add_recurring_trips needs a single driver; we handle cycling here manually)
     if rot_sequence:
-        from datetime import date as _date, timedelta as _td
-        import uuid as _uuid
-        from schedule import load_schedule as _ls, save_schedule as _ss
         weekdays = [int(d) for d in data.get("weekdays", [])]
-        cur = _date.fromisoformat(data["start_date"])
-        end = _date.fromisoformat(data["end_date"])
-        series_id = str(_uuid.uuid4())[:12]
+        cur = date.fromisoformat(data["start_date"])
+        end = date.fromisoformat(data["end_date"])
+        series_id = str(uuid.uuid4())[:12]
         rot_n = len(rot_sequence)
-        trips_list = _ls()
+        trips_list = load_schedule()
         created = []
         rot_idx = 0
         while cur <= end:
@@ -580,7 +591,7 @@ def schedule_add_recurring():
                 fid, fname = rot_sequence[rot_idx % rot_n]
                 rot_idx += 1
                 trip = {
-                    "id": str(_uuid.uuid4())[:8],
+                    "id": str(uuid.uuid4())[:8],
                     "series_id": series_id,
                     "date": cur.isoformat(),
                     "arrival_time": data["arrival_time"],
@@ -594,9 +605,9 @@ def schedule_add_recurring():
                 }
                 trips_list.append(trip)
                 created.append(trip)
-            cur += _td(days=1)
+            cur += timedelta(days=1)
         trips_list.sort(key=lambda t: t["date"])
-        _ss(trips_list)
+        save_schedule(trips_list)
     else:
         created = add_recurring_trips(
             start_date=data["start_date"],
@@ -656,8 +667,8 @@ def running_late():
         family = get_family(fid)
         try:
             send_sms(to_phone=family.guardians[0].phone, message=msg)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("Failed to send running-late SMS to family %s: %s", fid, e)
 
     return jsonify({"ok": True})
 
@@ -683,8 +694,8 @@ def arrived():
         family = get_family(fid)
         try:
             send_sms(to_phone=family.guardians[0].phone, message=msg)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("Failed to send arrival SMS to family %s: %s", fid, e)
 
     return jsonify({"ok": True})
 
@@ -771,7 +782,7 @@ def bulletin():
             "date_raw": trip_time.strftime("%Y-%m-%d"),
             "driver": next_driver_name,
             "destination": dest_name,
-            "arrive_by": trip_time.strftime("%I:%M %p"),
+            "arrive_by": trip_time.strftime("%-I:%M %p"),
             "return_time": cfg.get("return_time", ""),
             "return_driver": cfg.get("return_driver_name", ""),
         },
@@ -783,27 +794,21 @@ def bulletin():
 # ── SMS Webhook (Twilio) ──────────────────────────────────────────────────────
 # Handles inbound SMS replies: YES confirmations, SWAP requests, swap volunteers.
 
-import json as _json
-from pathlib import Path as _Path
-from rotation import set_driver as _set_driver
-from karma import record_swap_request as _record_swap_req, record_swap_cover as _record_swap_cover
-from config import ADMIN_PHONE
-
 CONFIRMATIONS_FILE = DATA_DIR / "confirmations.json"
 SWAP_FILE = DATA_DIR / "swap_state.json"
 
 
 def _load_confirmations() -> dict:
-    return _json.loads(CONFIRMATIONS_FILE.read_text()) if CONFIRMATIONS_FILE.exists() else {}
+    return json.loads(CONFIRMATIONS_FILE.read_text()) if CONFIRMATIONS_FILE.exists() else {}
 
 def _save_confirmations(data: dict) -> None:
-    CONFIRMATIONS_FILE.write_text(_json.dumps(data, indent=2))
+    CONFIRMATIONS_FILE.write_text(json.dumps(data, indent=2))
 
 def _load_swap() -> dict:
-    return _json.loads(SWAP_FILE.read_text()) if SWAP_FILE.exists() else {}
+    return json.loads(SWAP_FILE.read_text()) if SWAP_FILE.exists() else {}
 
 def _save_swap(data: dict) -> None:
-    SWAP_FILE.write_text(_json.dumps(data, indent=2))
+    SWAP_FILE.write_text(json.dumps(data, indent=2))
 
 def _phone_to_family(phone: str):
     from families import get_all_family_ids, get_family
@@ -831,11 +836,14 @@ def _handle_swap(from_phone: str, reason: str) -> str:
     for other in others:
         phone = other.guardians[0].phone if other.guardians else ""
         if phone:
-            send_sms(to_phone=phone, message=(
-                f"{family.name} can't drive on {trip_time.strftime('%a %b %d')} ({reason}). "
-                f"Can you take over? Reply YES to volunteer."
-            ))
-            asked.append(phone)
+            try:
+                send_sms(to_phone=phone, message=(
+                    f"{family.name} can't drive on {trip_time.strftime('%a %b %d')} ({reason}). "
+                    f"Can you take over? Reply YES to volunteer."
+                ))
+                asked.append(phone)
+            except Exception as e:
+                logger.error("Failed to send swap request SMS to %s: %s", phone, e)
     _record_swap_req(family.id, family.name)
     _save_swap({"pending": True, "original_driver_id": family.id,
                 "original_driver_phone": from_phone, "reason": reason,
@@ -870,9 +878,22 @@ def _handle_yes_for_swap(from_phone: str) -> str | None:
 
 @app.route("/sms", methods=["POST"])
 def sms_webhook():
+    # Verify the request genuinely came from Twilio.
+    # Railway sits behind a TLS-terminating proxy, so request.url may arrive
+    # as http:// — we reconstruct the https:// URL that Twilio signed.
+    auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    if auth_token:
+        validator = RequestValidator(auth_token)
+        url = request.url.replace("http://", "https://", 1)
+        signature = request.headers.get("X-Twilio-Signature", "")
+        if not validator.validate(url, request.form, signature):
+            logger.warning("Rejected SMS webhook: invalid Twilio signature from %s", request.remote_addr)
+            return Response("Forbidden", status=403)
+
     from_number = request.form.get("From", "")
     raw_body = request.form.get("Body", "").strip()
     upper = raw_body.upper()
+    logger.info("SMS received from %s: %r", from_number, raw_body)
 
     reply = None
     if upper == "YES":
@@ -892,7 +913,10 @@ def sms_webhook():
         reply = f"Got it! We'll pick you up at: {raw_body}"
 
     if reply:
-        send_sms(to_phone=from_number, message=reply)
+        try:
+            send_sms(to_phone=from_number, message=reply)
+        except Exception as e:
+            logger.error("Failed to send SMS reply to %s: %s", from_number, e)
 
     twiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
     return Response(twiml, mimetype="text/xml")
