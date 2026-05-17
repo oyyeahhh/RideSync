@@ -32,7 +32,7 @@ from storage import DATA_DIR, CODE_DIR, group_dir, migrate_legacy_data
 from families import get_family, get_destination, get_all_family_ids, add_family
 from rotation import _load as _load_rotation, add_to_rotation, set_driver as _set_driver
 from trips import get_stats, load_trips
-from schedule import load_schedule, save_schedule, add_trip, remove_trip, remove_series, add_recurring_trips, claim_trip
+from schedule import load_schedule, save_schedule, add_trip, update_trip, remove_trip, remove_series, add_recurring_trips, claim_trip
 from karma import get_karma, record_swap_request as _record_swap_req, record_swap_cover as _record_swap_cover
 from cal_feed import build_ics
 from auth import (
@@ -577,6 +577,32 @@ def schedule_add():
         driver_name=driver_name,
         group_id=group_id,
     )
+    trip["gcal_url"] = gcal_url(trip, group_id)
+    trip["gcal_url_return"] = gcal_url_return(trip, group_id)
+    return jsonify(trip)
+
+
+@app.route("/schedule/update/<trip_id>", methods=["POST"])
+@login_required
+@admin_required
+def schedule_update(trip_id):
+    group_id = gid()
+    data = request.json or {}
+    driverEl_id = data.get("driver_family_id", "")
+    rdEl_id = data.get("return_driver_family_id", "")
+    trip = update_trip(
+        trip_id, group_id,
+        arrival_time=data["arrival_time"],
+        return_time=data.get("return_time", ""),
+        driver_family_id=driverEl_id,
+        driver_name=data.get("driver_name", ""),
+        return_driver_family_id=rdEl_id,
+        return_driver_name=data.get("return_driver_name", ""),
+        destination_name=data.get("destination_name", ""),
+        destination_address=data.get("destination_address", ""),
+    )
+    if not trip:
+        return jsonify({"error": "trip not found"}), 404
     trip["gcal_url"] = gcal_url(trip, group_id)
     trip["gcal_url_return"] = gcal_url_return(trip, group_id)
     return jsonify(trip)

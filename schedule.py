@@ -49,6 +49,17 @@ def add_trip(date: str, arrival_time: str, destination_name: str,
     return trip
 
 
+def update_trip(trip_id: str, group_id: str, **fields) -> dict | None:
+    """Update specific fields on an existing trip. Returns updated trip or None."""
+    trips = load_schedule(group_id)
+    for t in trips:
+        if t["id"] == trip_id:
+            t.update(fields)
+            save_schedule(trips, group_id)
+            return t
+    return None
+
+
 def remove_trip(trip_id: str, group_id: str) -> None:
     trips = [t for t in load_schedule(group_id) if t["id"] != trip_id]
     save_schedule(trips, group_id)
