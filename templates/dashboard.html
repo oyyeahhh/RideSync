@@ -927,6 +927,16 @@
           <input type="time" name="return_time" value="{{ cfg.return_time or '' }}">
         </div>
         <div class="form-field">
+          <label>Driver</label>
+          <select name="driver_family_id" onchange="this.form.elements['driver_name'].value = this.options[this.selectedIndex].dataset.name">
+            <option value="" data-name="">— use rotation —</option>
+            {% for f in families %}
+            <option value="{{ f.id }}" data-name="{{ f.name }}" {% if cfg.driver_family_id == f.id %}selected{% endif %}>{{ f.name }}</option>
+            {% endfor %}
+          </select>
+          <input type="hidden" name="driver_name" value="{{ cfg.driver_name or '' }}">
+        </div>
+        <div class="form-field">
           <label>Return Driver</label>
           <select name="return_driver_family_id" onchange="this.form.elements['return_driver_name'].value = this.options[this.selectedIndex].dataset.name">
             <option value="" data-name="">— same as outbound —</option>

@@ -645,6 +645,8 @@ def save_trip():
     cfg["arrival_date"] = request.form["arrival_date"]
     cfg["arrival_time"] = request.form["arrival_time"]
     cfg["return_time"] = request.form.get("return_time", "").strip()
+    cfg["driver_family_id"] = request.form.get("driver_family_id", "").strip()
+    cfg["driver_name"] = request.form.get("driver_name", "").strip()
     cfg["return_driver_family_id"] = request.form.get("return_driver_family_id", "").strip()
     cfg["return_driver_name"] = request.form.get("return_driver_name", "").strip()
     cfg["destination_name"] = request.form.get("destination_name", "").strip()
