@@ -21,8 +21,8 @@
       font-family: "Styrene A", ui-sans-serif, system-ui, sans-serif;
       background-color: #F2F1ED;
       background-image:
-        linear-gradient(rgba(26,23,20,0.045) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(26,23,20,0.045) 1px, transparent 1px);
+        linear-gradient(rgba(26,23,20,0.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(26,23,20,0.018) 1px, transparent 1px);
       background-size: 44px 44px;
       color: var(--dark);
       min-height: 100vh;
@@ -89,18 +89,17 @@
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       border-radius: 20px;
-      padding: 24px;
+      padding: 28px;
       box-shadow: 0 2px 12px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05);
       border: 1px solid rgba(255,255,255,0.7);
     }
 
     .card-label {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--mid);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--dark);
       margin-bottom: 16px;
+      letter-spacing: -0.01em;
     }
 
     /* Next pickup hero */
@@ -111,8 +110,9 @@
 
     .next-pickup .driver-name {
       font-family: "Tiempos Text", Georgia, serif;
-      font-size: 42px;
-      font-weight: 500;
+      font-size: 52px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
       color: var(--dark);
       margin-bottom: 8px;
     }
@@ -191,8 +191,8 @@
     }
 
     .rotation-item.is-next {
-      background: linear-gradient(135deg, rgba(62,201,232,0.08) 0%, rgba(62,201,232,0.04) 100%);
-      border-color: rgba(62,201,232,0.4);
+      background: linear-gradient(135deg, rgba(255,107,138,0.07) 0%, rgba(255,107,138,0.03) 100%);
+      border-color: rgba(255,107,138,0.35);
     }
 
     .rotation-item .pos {
@@ -213,8 +213,8 @@
       font-weight: 700;
       letter-spacing: 0.04em;
       text-transform: uppercase;
-      color: #0d3d4a;
-      background: linear-gradient(135deg, var(--cyan) 0%, #2db8d8 100%);
+      color: white;
+      background: var(--coral);
       border: none;
       border-radius: 99px;
       padding: 4px 12px;
@@ -482,5 +482,22 @@
 
 <footer>{{ group_name }} · Read-only bulletin</footer>
 
+<script>
+  (function() {
+    const wrap = document.querySelector('.header-wrap');
+    let lastY = 0;
+    window.addEventListener('scroll', () => {
+      const y = window.scrollY;
+      if (y > lastY && y > 60) {
+        wrap.style.transform = 'translateY(-120%)';
+        wrap.style.transition = 'transform 0.3s ease';
+      } else {
+        wrap.style.transform = 'translateY(0)';
+        wrap.style.transition = 'transform 0.25s ease';
+      }
+      lastY = y;
+    }, { passive: true });
+  })();
+</script>
 </body>
 </html>
