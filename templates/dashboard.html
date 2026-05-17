@@ -758,11 +758,11 @@
         <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);margin-bottom:8px;letter-spacing:0.04em;">WHO'S COMING?</div>
         <div style="display:flex;flex-direction:column;gap:8px;" id="family-list">
           {% for fam in pickup_families %}
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:{% if fam.absent %}rgba(220,38,38,0.15){% else %}rgba(255,255,255,0.06){% endif %};" id="fam-row-{{ fam.id }}">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:{% if fam.absent %}rgba(255,107,138,0.10){% else %}rgba(255,255,255,0.06){% endif %};" id="fam-row-{{ fam.id }}">
             <span style="font-size:14px;font-weight:500;color:#FAF9F5;">{{ fam.name }}</span>
             <button onclick="toggleAbsent('{{ fam.id }}')" id="absent-btn-{{ fam.id }}"
               style="font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;border:1px solid;cursor:pointer;transition:all 0.15s;
-                {% if fam.absent %}background:#FEE2E2;color:#DC2626;border-color:#FECACA;{% else %}background:#F0FDF4;color:#16A34A;border-color:#BBF7D0;{% endif %}">
+                {% if fam.absent %}background:rgba(255,107,138,0.15);color:#FF6B8A;border-color:rgba(255,107,138,0.35);{% else %}background:rgba(62,201,232,0.12);color:#3EC9E8;border-color:rgba(62,201,232,0.35);{% endif %}">
               {% if fam.absent %}Not Coming{% else %}Coming ✓{% endif %}
             </button>
           </div>
@@ -784,10 +784,10 @@
             {% if live_location.active and live_location.trip_leg == 'return' %}⏹ End Return{% else %}🏠 Start Return{% endif %}
           </button>
           {% endif %}
-          <button onclick="openLateModal()" style="flex:1;min-width:130px;padding:11px 16px;background:rgba(255,152,0,0.15);color:#ffb74d;border:1px solid rgba(255,152,0,0.3);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
+          <button onclick="openLateModal()" style="flex:1;min-width:130px;padding:11px 16px;background:rgba(255,107,138,0.12);color:#FF6B8A;border:1px solid rgba(255,107,138,0.3);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
             ⏰ Running Late
           </button>
-          <button onclick="confirmArrived()" style="flex:1;min-width:130px;padding:11px 16px;background:rgba(22,163,74,0.15);color:#4ade80;border:1px solid rgba(22,163,74,0.3);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
+          <button onclick="confirmArrived()" style="flex:1;min-width:130px;padding:11px 16px;background:rgba(62,201,232,0.12);color:#3EC9E8;border:1px solid rgba(62,201,232,0.3);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
             ✅ Kids Arrived
           </button>
         </div>
@@ -1618,11 +1618,11 @@
     const row = document.getElementById(`fam-row-${familyId}`);
     if (data.absent) {
       btn.textContent = "Not Coming";
-      btn.style.cssText = btn.style.cssText.replace(/background:[^;]+;color:[^;]+;border-color:[^;]+/, "background:#FEE2E2;color:#DC2626;border-color:#FECACA");
-      row.style.background = "rgba(220,38,38,0.15)";
+      btn.style.cssText = btn.style.cssText.replace(/background:[^;]+;color:[^;]+;border-color:[^;]+/, "background:rgba(255,107,138,0.15);color:#FF6B8A;border-color:rgba(255,107,138,0.35)");
+      row.style.background = "rgba(255,107,138,0.10)";
     } else {
       btn.textContent = "Coming ✓";
-      btn.style.cssText = btn.style.cssText.replace(/background:[^;]+;color:[^;]+;border-color:[^;]+/, "background:#F0FDF4;color:#16A34A;border-color:#BBF7D0");
+      btn.style.cssText = btn.style.cssText.replace(/background:[^;]+;color:[^;]+;border-color:[^;]+/, "background:rgba(62,201,232,0.12);color:#3EC9E8;border-color:rgba(62,201,232,0.35)");
       row.style.background = "rgba(255,255,255,0.06)";
     }
   }
