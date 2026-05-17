@@ -51,6 +51,45 @@ load_dotenv()
 # Run legacy data migration on startup so existing single-group data is accessible
 migrate_legacy_data("grp_main")
 
+
+def _bootstrap_legacy_group() -> None:
+    """
+    One-time bootstrap for deployments upgrading from single-group to multi-group.
+    Ensures grp_main exists in groups.json and all users without group_id are
+    assigned to grp_main so existing accounts keep working after the upgrade.
+    """
+    from groups import _load_groups, _save_groups
+    from auth import _load_users, _save_users
+    from config import load_config
+
+    # 1. Ensure grp_main is registered in groups.json
+    groups = _load_groups()
+    if not any(g["id"] == "grp_main" for g in groups):
+        try:
+            cfg = load_config("grp_main")
+            name = cfg.get("group_name", "Carpool")
+        except Exception:
+            name = "Carpool"
+        groups.insert(0, {
+            "id": "grp_main",
+            "name": name,
+            "created_at": "2026-01-01T00:00:00Z",
+        })
+        _save_groups(groups)
+
+    # 2. Backfill group_id on all legacy users that don't have one
+    users = _load_users()
+    patched = False
+    for u in users:
+        if not u.get("group_id"):
+            u["group_id"] = "grp_main"
+            patched = True
+    if patched:
+        _save_users(users)
+
+
+_bootstrap_legacy_group()
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
@@ -212,7 +251,10 @@ def logout():
 @app.route("/create-group", methods=["GET", "POST"])
 def create_group_route():
     """New admin flow: create a brand-new carpool group."""
-    if session.get("user_id"):
+    # If already logged in AND already has a group → go to dashboard.
+    # If logged in but no group → fall through so they can create one.
+    # (Redirecting all logged-in users causes an infinite loop with dashboard.)
+    if session.get("user_id") and session.get("group_id"):
         return redirect(url_for("dashboard"))
 
     error = None
@@ -385,7 +427,12 @@ def dashboard():
     user = current_user()
     group_id = gid()
     if not group_id:
-        return redirect(url_for("create_group_route"))
+        # Session missing group_id — try to recover from user record
+        group_id = user.get("group_id", "") if user else ""
+        if group_id:
+            session["group_id"] = group_id
+        else:
+            return redirect(url_for("create_group_route"))
 
     cfg = load_config(group_id)
     trip_time = arrival_time(group_id)
@@ -857,6 +904,14 @@ def get_location_route():
     if not group_id:
         return jsonify({"active": False})
     return jsonify(get_location(group_id))
+
+
+@app.route("/bulletin")
+def bulletin_legacy():
+    """Backward-compat redirect — old bookmarks/links without group_id."""
+    # Use the session group if available, else fall back to grp_main
+    group_id = gid() or "grp_main"
+    return redirect(url_for("bulletin", group_id=group_id))
 
 
 @app.route("/bulletin/<group_id>")
