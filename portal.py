@@ -492,11 +492,49 @@ def dashboard():
                 "score": 0,
             })
 
-    trip_date = arrival_time(group_id).strftime("%Y-%m-%d")
+    # ── Next trip: prefer the schedule over rotation/config ───────────────────
+    today_str = date.today().isoformat()
+    upcoming = sorted(
+        [t for t in schedule if t["date"] >= today_str],
+        key=lambda t: (t["date"], t.get("arrival_time", "")),
+    )
+
+    if upcoming:
+        st = upcoming[0]
+        try:
+            st_date_fmt = datetime.strptime(st["date"], "%Y-%m-%d").strftime("%A, %B %d, %Y")
+            st_arrive = datetime.strptime(st["arrival_time"], "%H:%M").strftime("%-I:%M %p") if st.get("arrival_time") else ""
+        except ValueError:
+            st_date_fmt = st["date"]
+            st_arrive = st.get("arrival_time", "")
+        next_trip_data = {
+            "date": st_date_fmt,
+            "driver": st.get("driver_name") or "—",
+            "destination": st.get("destination_name") or dest_name,
+            "arrive_by": st_arrive,
+            "return_time": st.get("return_time", ""),
+            "return_driver": st.get("return_driver_name", ""),
+        }
+        # Use the scheduled trip's driver for "who's driving today" logic
+        active_driver_id = st.get("driver_family_id") or next_driver_id
+        trip_date = st["date"]
+    else:
+        # No scheduled trips — fall back to rotation + config
+        next_trip_data = {
+            "date": trip_time.strftime("%A, %B %d, %Y"),
+            "driver": next_driver_name,
+            "destination": dest_name,
+            "arrive_by": trip_time.strftime("%-I:%M %p"),
+            "return_time": cfg.get("return_time", ""),
+            "return_driver": cfg.get("return_driver_name", ""),
+        }
+        active_driver_id = next_driver_id
+        trip_date = trip_time.strftime("%Y-%m-%d")
+
     absences = get_absences(trip_date, group_id)
     pickup_families = []
     for fid in get_all_family_ids(group_id):
-        if fid == next_driver_id:
+        if fid == active_driver_id:
             continue
         family = get_family(fid, group_id)
         pickup_families.append({
@@ -522,14 +560,7 @@ def dashboard():
         group_name=group_name,
         group_id=group_id,
         current_user=user,
-        next_trip={
-            "date": trip_time.strftime("%A, %B %d, %Y"),
-            "driver": next_driver_name,
-            "destination": dest_name,
-            "arrive_by": trip_time.strftime("%-I:%M %p"),
-            "return_time": cfg.get("return_time", ""),
-            "return_driver": cfg.get("return_driver_name", ""),
-        },
+        next_trip=next_trip_data,
         rotation=rotation,
         stats=stats,
         history=history,
