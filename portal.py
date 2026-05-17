@@ -103,16 +103,15 @@ def admin_required(f):
 # ── Utility ───────────────────────────────────────────────────────────────────
 
 def gcal_url(trip: dict) -> str:
-    """Build a Google Calendar 'add event' URL for a trip."""
+    """Build a Google Calendar 'add event' URL for the outbound leg."""
     tz = ZoneInfo("America/New_York")
     arrival = datetime.strptime(f"{trip['date']} {trip['arrival_time']}", "%Y-%m-%d %H:%M").replace(tzinfo=tz)
 
-    # Use actual computed departure time if route has been run for this date
     start = None
     route_cache = load_route_cache()
     if route_cache and route_cache.get("date") == trip["date"]:
         try:
-            depart_str = route_cache["depart_at"]  # e.g. "4:15 PM"
+            depart_str = route_cache["depart_at"]
             depart_naive = datetime.strptime(f"{trip['date']} {depart_str}", "%Y-%m-%d %I:%M %p")
             start = depart_naive.replace(tzinfo=tz)
         except (ValueError, KeyError):
@@ -124,7 +123,7 @@ def gcal_url(trip: dict) -> str:
 
     pickup_start = start.strftime("%-I:%M %p")
     fmt = "%Y%m%dT%H%M%S"
-    title = quote(f"{get_group_name()} — {trip['destination_name']}")
+    title = quote(f"{get_group_name()} — {trip['destination_name']} (There)")
     details = quote(
         f"Driver: {trip['driver_name']}\n"
         f"Pickup starts: {pickup_start}\n"
@@ -132,6 +131,26 @@ def gcal_url(trip: dict) -> str:
     )
     location = quote(f"{trip['destination_address']} ({get_group_name()})")
     dates = f"{start.strftime(fmt)}/{arrival.strftime(fmt)}"
+    return f"https://calendar.google.com/calendar/render?action=TEMPLATE&text={title}&dates={dates}&details={details}&location={location}"
+
+
+def gcal_url_return(trip: dict) -> str:
+    """Build a Google Calendar 'add event' URL for the return leg."""
+    if not trip.get("return_time"):
+        return ""
+    tz = ZoneInfo("America/New_York")
+    fmt = "%Y%m%dT%H%M%S"
+    cfg = load_config()
+    pickup = datetime.strptime(f"{trip['date']} {trip['return_time']}", "%Y-%m-%d %H:%M").replace(tzinfo=tz)
+    arrive_home = pickup + timedelta(minutes=cfg.get("buffer_minutes", 10) + 20)
+    driver = trip.get("return_driver_name") or trip.get("driver_name", "")
+    title = quote(f"{get_group_name()} — {trip['destination_name']} (Return)")
+    details = quote(
+        f"Driver: {driver}\n"
+        f"Pickup from {trip['destination_name']}: {pickup.strftime('%-I:%M %p')}"
+    )
+    location = quote(f"{trip['destination_address']} ({get_group_name()})")
+    dates = f"{pickup.strftime(fmt)}/{arrive_home.strftime(fmt)}"
     return f"https://calendar.google.com/calendar/render?action=TEMPLATE&text={title}&dates={dates}&details={details}&location={location}"
 
 
@@ -330,6 +349,7 @@ def dashboard():
     schedule = load_schedule()
     for trip in schedule:
         trip["gcal_url"] = gcal_url(trip)
+        trip["gcal_url_return"] = gcal_url_return(trip)
 
     families = [{"id": fid, "name": get_family(fid).name} for fid in get_all_family_ids()]
     raw_karma = {k["family_id"]: k for k in get_karma()}
@@ -474,6 +494,7 @@ def schedule_add():
         driver_name=driver_name,
     )
     trip["gcal_url"] = gcal_url(trip)
+    trip["gcal_url_return"] = gcal_url_return(trip)
     return jsonify(trip)
 
 
@@ -518,6 +539,7 @@ def schedule_claim(trip_id, leg):
     if not trip:
         return jsonify({"error": "trip not found"}), 404
     trip["gcal_url"] = gcal_url(trip)
+    trip["gcal_url_return"] = gcal_url_return(trip)
     return jsonify({"ok": True, "trip": trip})
 
 
@@ -592,6 +614,7 @@ def schedule_add_recurring():
 
     for trip in created:
         trip["gcal_url"] = gcal_url(trip)
+        trip["gcal_url_return"] = gcal_url_return(trip)
     return jsonify({"ok": True, "trips": created, "count": len(created)})
 
 

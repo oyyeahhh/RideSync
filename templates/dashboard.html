@@ -3,112 +3,145 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Carpool Dashboard</title>
+  <title>CarpoolSync</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500;600&family=Tiempos+Text:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --cyan: #3EC9E8;
+      --coral: #FF6B8A;
+      --dark: #1A1714;
+      --cream: #FAF9F5;
+      --mid: #8C8680;
+      --border: #E8E5DF;
+      --orange: #D4784A;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: "Styrene A", ui-sans-serif, system-ui, sans-serif;
-      background: #FAF9F5;
-      color: #1A1714;
+      background-color: #F2F1ED;
+      background-image:
+        linear-gradient(rgba(26,23,20,0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(26,23,20,0.045) 1px, transparent 1px);
+      background-size: 44px 44px;
+      color: var(--dark);
       min-height: 100vh;
     }
 
+    /* ── Floating pill header ── */
+    .header-wrap {
+      position: sticky;
+      top: 14px;
+      z-index: 200;
+      padding: 0 20px;
+      pointer-events: none;
+    }
+
     header {
-      background: #1A1714;
-      color: #FAF9F5;
-      padding: 28px 48px;
+      background: rgba(26,23,20,0.94);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      color: var(--cream);
+      padding: 12px 20px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      border-radius: 20px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.22);
+      pointer-events: all;
     }
 
     header .logo {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
 
     header .logo-mark {
-      width: 32px;
-      height: 32px;
-      background: #D4784A;
-      border-radius: 6px;
+      width: 30px;
+      height: 30px;
+      background: linear-gradient(135deg, var(--coral) 0%, #ff9a5c 100%);
+      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
+      font-size: 15px;
     }
 
     header h1 {
       font-family: "Tiempos Text", Georgia, serif;
-      font-size: 17px;
-      font-weight: 500;
-      letter-spacing: -0.01em;
-      color: #FAF9F5;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--cream);
+      line-height: 1;
     }
 
     header .subtitle {
-      font-size: 13px;
+      font-size: 11px;
       color: #8C8680;
+      margin-top: 2px;
     }
 
     .header-right {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 12px;
     }
 
     .header-user {
-      font-size: 13px;
-      color: #C4BFB9;
+      font-size: 12px;
+      color: #9B9590;
     }
 
     .header-user strong {
-      color: #FAF9F5;
+      color: var(--cream);
       font-weight: 500;
     }
 
     .btn-logout {
       font-size: 12px;
-      font-weight: 500;
+      font-weight: 600;
       font-family: inherit;
-      color: #8C8680;
-      background: none;
-      border: 1px solid #3A3530;
-      border-radius: 6px;
-      padding: 6px 12px;
+      color: var(--cream);
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 99px;
+      padding: 5px 14px;
       cursor: pointer;
       text-decoration: none;
-      transition: border-color 0.15s, color 0.15s;
+      transition: background 0.15s;
     }
 
-    .btn-logout:hover { border-color: #D4784A; color: #D4784A; }
+    .btn-logout:hover { background: rgba(255,255,255,0.2); }
 
     main {
       max-width: 860px;
-      margin: 40px auto;
-      padding: 0 24px;
+      margin: 20px auto 0;
+      padding: 0 20px 40px;
       display: grid;
-      gap: 20px;
+      gap: 16px;
     }
 
     .card {
-      background: #FFFFFF;
-      border-radius: 12px;
-      padding: 28px 32px;
-      border: 1px solid #EAE8E3;
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05);
+      border: 1px solid rgba(255,255,255,0.7);
     }
 
     .card-label {
       font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #8C8680;
+      font-weight: 700;
+      color: var(--mid);
       margin-bottom: 20px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
 
     /* Status banner */
@@ -183,8 +216,8 @@
     }
 
     .rotation-item.current {
-      background: #FDF5F0;
-      border-color: #D4784A;
+      background: linear-gradient(135deg, rgba(62,201,232,0.08) 0%, rgba(62,201,232,0.04) 100%);
+      border-color: rgba(62,201,232,0.4);
     }
 
     .rotation-item .num {
@@ -202,8 +235,8 @@
     }
 
     .rotation-item.current .num {
-      background: #D4784A;
-      color: white;
+      background: linear-gradient(135deg, var(--cyan) 0%, #2db8d8 100%);
+      color: #0d3d4a;
     }
 
     .rotation-item .name {
@@ -215,12 +248,12 @@
 
     .badge {
       font-size: 11px;
-      font-weight: 600;
-      background: #D4784A;
-      color: white;
-      padding: 3px 10px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--cyan) 0%, #2db8d8 100%);
+      color: #0d3d4a;
+      padding: 3px 12px;
       border-radius: 99px;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.04em;
     }
 
     /* Stats */
@@ -268,7 +301,7 @@
     }
 
     .bar {
-      background: #D4784A;
+      background: linear-gradient(90deg, var(--cyan) 0%, var(--coral) 100%);
       border-radius: 99px;
       height: 5px;
     }
@@ -315,23 +348,30 @@
 
     .form-field input:focus,
     .form-field select:focus {
-      border-color: #D4784A;
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 3px rgba(62,201,232,0.15);
     }
 
-    button[type="submit"] {
-      background: #1A1714;
-      color: #FAF9F5;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 7px;
-      font-size: 14px;
-      font-weight: 500;
+    button, .btn {
       font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 20px;
+      border-radius: 50px;
+      border: none;
       cursor: pointer;
-      transition: background 0.15s;
+      transition: background 0.15s, transform 0.1s;
     }
+    button:active { transform: scale(0.97); }
 
-    button[type="submit"]:hover { background: #D4784A; }
+    button[type="submit"], .btn-primary {
+      background: linear-gradient(135deg, var(--coral) 0%, #ff8fa8 100%);
+      color: #fff;
+      box-shadow: 0 2px 12px rgba(255,107,138,0.35);
+    }
+    button[type="submit"]:hover, .btn-primary:hover {
+      background: linear-gradient(135deg, #ff5577 0%, var(--coral) 100%);
+    }
 
     /* Karma */
     .karma-grid {
@@ -398,7 +438,7 @@
       transition: border-color 0.15s;
     }
 
-    .cal-nav button:hover { border-color: #D4784A; color: #D4784A; }
+    .cal-nav button:hover { border-color: var(--coral); color: var(--coral); }
 
     .cal-month { font-size: 15px; font-weight: 600; }
 
@@ -428,9 +468,9 @@
       background: #FDFCFA;
     }
 
-    .cal-day:hover { border-color: #D4784A; background: #FDF5F0; }
+    .cal-day:hover { border-color: var(--coral); background: #fff7f9; }
     .cal-day.empty { background: transparent; border-color: transparent; cursor: default; }
-    .cal-day.today { border-color: #1A1714; }
+    .cal-day.today { border-color: var(--coral); box-shadow: 0 0 0 2px rgba(255,107,138,0.2); }
 
     .cal-day-num {
       font-size: 13px;
@@ -439,14 +479,14 @@
       margin-bottom: 4px;
     }
 
-    .cal-day.today .cal-day-num { color: #D4784A; font-weight: 700; }
+    .cal-day.today .cal-day-num { color: var(--coral); font-weight: 700; }
     .cal-day.empty .cal-day-num { color: transparent; }
 
     .cal-trip-dot {
       font-size: 10px;
-      background: #D4784A;
+      background: linear-gradient(135deg, var(--coral) 0%, #ff9a5c 100%);
       color: white;
-      border-radius: 4px;
+      border-radius: 6px;
       padding: 2px 5px;
       margin-top: 3px;
       white-space: nowrap;
@@ -457,7 +497,8 @@
       gap: 3px;
     }
     .cal-trip-dot.return-dot {
-      background: #6b7280;
+      background: linear-gradient(135deg, var(--cyan) 0%, #2db8d8 100%);
+      color: #0d3d4a;
     }
 
     /* Modal */
@@ -508,49 +549,62 @@
       justify-content: flex-end;
     }
 
-    .btn { padding: 9px 18px; border-radius: 7px; font-size: 14px; font-weight: 500; font-family: inherit; cursor: pointer; border: none; transition: background 0.15s; }
-    .btn-primary { background: #1A1714; color: white; }
-    .btn-primary:hover { background: #D4784A; }
     .btn-secondary { background: #EAE8E3; color: #1A1714; }
     .btn-secondary:hover { background: #d5d2cc; }
 
     /* Upcoming list */
-    .upcoming-list { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+    .upcoming-list { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
 
     .upcoming-item {
       display: flex;
       align-items: center;
       gap: 14px;
-      padding: 12px 16px;
-      border-radius: 8px;
-      border: 1px solid #EAE8E3;
-      background: #FDFCFA;
+      padding: 16px 20px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.6);
+      background: rgba(255,255,255,0.75);
+      backdrop-filter: blur(6px);
+      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+      transition: box-shadow 0.15s, transform 0.1s;
+    }
+
+    .upcoming-item:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+      transform: translateY(-1px);
     }
 
     .upcoming-date {
       text-align: center;
-      min-width: 42px;
+      min-width: 44px;
+      background: linear-gradient(135deg, #fff7f9 0%, #fff3f0 100%);
+      border: 1px solid #ffd6df;
+      border-radius: 12px;
+      padding: 6px 4px;
     }
 
-    .upcoming-date .day { font-size: 20px; font-weight: 700; color: #D4784A; line-height: 1; }
-    .upcoming-date .month { font-size: 10px; text-transform: uppercase; color: #8C8680; letter-spacing: 0.05em; }
+    .upcoming-date .day { font-size: 22px; font-weight: 800; color: var(--coral); line-height: 1; }
+    .upcoming-date .month { font-size: 9px; font-weight: 700; text-transform: uppercase; color: var(--mid); letter-spacing: 0.07em; margin-top: 2px; }
 
     .upcoming-info { flex: 1; }
-    .upcoming-info .dest { font-size: 14px; font-weight: 500; }
-    .upcoming-info .driver { font-size: 12px; color: #8C8680; margin-top: 2px; }
+    .upcoming-info .dest { font-size: 14px; font-weight: 600; }
+    .upcoming-info .driver { font-size: 12px; color: var(--mid); margin-top: 2px; }
 
     .upcoming-actions { display: flex; gap: 8px; }
 
     .btn-gcal {
-      font-size: 12px;
-      padding: 5px 10px;
-      border-radius: 5px;
-      background: #4285F4;
-      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--cyan);
+      background: rgba(62,201,232,0.08);
+      border: 1.5px solid rgba(62,201,232,0.4);
+      border-radius: 99px;
+      padding: 5px 13px;
       text-decoration: none;
-      font-weight: 500;
       white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s;
+      letter-spacing: 0.01em;
     }
+    .btn-gcal:hover { background: rgba(62,201,232,0.16); border-color: var(--cyan); }
 
     .btn-remove {
       font-size: 12px;
@@ -565,21 +619,96 @@
 
     .btn-remove:hover { background: #f0d0d0; color: #c00; }
 
-    @media (max-width: 600px) {
-      header { padding: 20px 24px; }
-      .trip-grid { grid-template-columns: repeat(2, 1fr); }
-      .form-grid { grid-template-columns: repeat(2, 1fr); }
+    @media (max-width: 640px) {
+      /* Header */
+      .header-wrap { padding: 0 10px; top: 10px; }
+      header { padding: 10px 14px; }
       .header-user { display: none; }
+      h1 { font-size: 17px; }
+      .subtitle { font-size: 10px; }
+
+      /* Layout */
+      main { margin: 8px auto; padding: 0 10px; gap: 12px; }
+      .card { padding: 18px 16px; }
+      .card-label { margin-bottom: 14px; }
+
+      /* Calendar */
+      .cal-grid { gap: 2px; }
+      .cal-day { min-height: 62px; padding: 4px 5px; }
+      .cal-day-num { font-size: 11px; margin-bottom: 2px; }
+      .cal-day-name { font-size: 9px; padding: 2px 0 6px; }
+      .cal-trip-dot { font-size: 9px; padding: 1px 3px; }
+
+      /* Forms */
+      .form-grid { grid-template-columns: 1fr !important; }
+      .trip-grid { grid-template-columns: repeat(2, 1fr); }
+      .invite-row { flex-direction: column; }
+      .invite-row .form-field { width: 100%; }
+
+      /* Karma */
+      .karma-grid { grid-template-columns: repeat(2, 1fr); }
+
+      /* Upcoming list leg rows */
+      .upcoming-item { padding: 14px 12px; }
+      .upcoming-date .day { font-size: 18px; }
+
+      /* Next trip boxes */
+      .next-trip-boxes { flex-direction: column; }
+
+      /* Buttons — bigger tap targets */
+      .btn-gcal { font-size: 11px; padding: 5px 10px; white-space: nowrap; }
+      .btn-remove { width: 28px; height: 28px; font-size: 14px; }
+
+      /* Modal — full screen on mobile */
+      .modal-overlay { align-items: flex-end; }
+      .modal {
+        max-width: 100% !important;
+        width: 100% !important;
+        border-radius: 20px 20px 0 0 !important;
+        max-height: 90vh;
+        overflow-y: auto;
+        padding: 24px 20px 32px;
+      }
+
+      /* Settings form */
+      .form-field input, .form-field select { font-size: 16px; } /* prevents iOS zoom */
+    }
+
+    .bottom-nav {
+      display: none;
+      position: fixed;
+      bottom: 12px; left: 12px; right: 12px;
+      background: rgba(26,23,20,0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-radius: 20px;
+      padding: 10px 0 env(safe-area-inset-bottom);
+      z-index: 200;
+      justify-content: space-around;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+    }
+    .bottom-nav a {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 3px; text-decoration: none;
+      font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.4);
+      padding: 4px 12px;
+    }
+    .bottom-nav a.active { color: var(--coral); }
+    .bottom-nav a svg { width: 22px; height: 22px; stroke-width: 1.8; }
+    @media (max-width: 640px) {
+      .bottom-nav { display: flex; }
+      main { padding-bottom: 100px; }
     }
   </style>
 </head>
 <body>
 
+<div class="header-wrap">
 <header>
   <div class="logo">
     <div class="logo-mark">🚗</div>
     <div>
-      <h1>Carpool</h1>
+      <h1>CarpoolSync</h1>
       <div class="subtitle">{{ group_name }}</div>
     </div>
   </div>
@@ -588,6 +717,7 @@
     <a href="/logout" class="btn-logout">Sign out</a>
   </div>
 </header>
+</div>
 
 <main>
 
@@ -596,17 +726,6 @@
   {% endif %}
 
   {% if current_user.role == "admin" %}
-  <!-- Kids Bulletin Link -->
-  <div class="card" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-    <div>
-      <div class="card-label" style="margin-bottom:4px;">Kids Bulletin</div>
-      <div style="font-size:13px;color:#6B6560;">A read-only page kids can bookmark — shows who's driving and when.</div>
-    </div>
-    <a href="/bulletin" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#1A1714;color:#FAF9F5;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:500;text-decoration:none;white-space:nowrap;">
-      Open Bulletin ↗
-    </a>
-  </div>
-
   <!-- Live Driver Map -->
   <div class="card" id="dashboard-tracking-card" style="{% if not live_location.active %}display:none;{% endif %}">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
@@ -846,52 +965,31 @@
   </div>
   {% endif %}
 
-  <div class="card">
-    <div class="card-label">Next Trip</div>
-    <div style="font-size:13px;color:#8C8680;margin-bottom:14px">{{ next_trip.date }}</div>
-    <div style="display:flex;gap:12px;flex-wrap:wrap">
+  <div class="card" style="background: linear-gradient(135deg, #1A1714 0%, #2d2a26 100%); color: #FAF9F5; border-radius: 22px; padding: 28px; border: none;">
+    <div style="display:inline-block;font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;background:linear-gradient(135deg,var(--coral),#ff9a5c);color:#fff;border-radius:99px;padding:4px 14px;margin-bottom:18px;">Next trip</div>
+    <div style="font-size: 22px; font-weight: 700; color: #FAF9F5; margin-bottom: 24px; letter-spacing: -0.02em;">{{ next_trip.date }}</div>
 
-      <!-- Outbound box -->
-      <div style="flex:1;min-width:180px;border:1.5px solid #e5e7eb;border-radius:12px;padding:16px 18px;background:#f9fafb">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#D4784A;margin-bottom:14px">📤 There</div>
-        <div style="display:flex;flex-direction:column;gap:12px">
-          <div>
-            <div style="font-size:11px;color:#8C8680;font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Destination</div>
-            <div style="font-size:15px;font-weight:600;color:#1A1714">{{ next_trip.destination }}</div>
-          </div>
-          <div>
-            <div style="font-size:11px;color:#8C8680;font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Arrive By</div>
-            <div style="font-size:15px;font-weight:600;color:#1A1714">{{ next_trip.arrive_by }}</div>
-          </div>
-          <div>
-            <div style="font-size:11px;color:#8C8680;font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Driver</div>
-            <div style="font-size:15px;font-weight:600;color:#D4784A">{{ next_trip.driver }}</div>
-          </div>
-        </div>
+    <!-- Outbound leg -->
+    <div style="display:flex; align-items:flex-start; gap:16px; padding:16px 0; border-top:1px solid rgba(255,255,255,0.08)">
+      <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--coral),#ff9a5c);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">📤</div>
+      <div style="flex:1">
+        <div style="font-size:11px;color:#8C8680;margin-bottom:4px">There · {{ next_trip.arrive_by }}</div>
+        <div style="font-size:18px;font-weight:700;color:#FAF9F5;letter-spacing:-0.01em">{{ next_trip.driver }}</div>
+        <div style="font-size:13px;color:#8C8680;margin-top:2px">driving to {{ next_trip.destination }}</div>
       </div>
-
-      {% if next_trip.return_time %}
-      <!-- Return box -->
-      <div style="flex:1;min-width:180px;border:1.5px solid #e5e7eb;border-radius:12px;padding:16px 18px;background:#f9fafb">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6b7280;margin-bottom:14px">🏠 Return</div>
-        <div style="display:flex;flex-direction:column;gap:12px">
-          <div>
-            <div style="font-size:11px;color:#8C8680;font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Destination</div>
-            <div style="font-size:15px;font-weight:600;color:#1A1714">{{ next_trip.destination }}</div>
-          </div>
-          <div>
-            <div style="font-size:11px;color:#8C8680;font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Pickup</div>
-            <div style="font-size:15px;font-weight:600;color:#1A1714">{{ next_trip.return_time | fmt_time }}</div>
-          </div>
-          <div>
-            <div style="font-size:11px;color:#8C8680;font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Driver</div>
-            <div style="font-size:15px;font-weight:600;color:#D4784A">{{ next_trip.return_driver or next_trip.driver }}</div>
-          </div>
-        </div>
-      </div>
-      {% endif %}
-
     </div>
+
+    {% if next_trip.return_time %}
+    <!-- Return leg -->
+    <div style="display:flex; align-items:flex-start; gap:16px; padding:16px 0; border-top:1px solid rgba(255,255,255,0.08)">
+      <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--cyan),#2db8d8);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">🏠</div>
+      <div style="flex:1">
+        <div style="font-size:11px;color:#8C8680;margin-bottom:4px">Return · {{ next_trip.return_time | fmt_time }}</div>
+        <div style="font-size:18px;font-weight:700;color:#FAF9F5;letter-spacing:-0.01em">{{ next_trip.return_driver or next_trip.driver }}</div>
+        <div style="font-size:13px;color:#8C8680;margin-top:2px">pickup from {{ next_trip.destination }}</div>
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   <!-- Today's Trip Actions -->
@@ -1176,10 +1274,13 @@
     }
 
     return `
-      <div style="${cardBg};border-radius:10px;padding:10px 14px;flex:1;min-width:140px">
-        <div style="font-size:11px;font-weight:700;color:#8C8680;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${icon} ${label}</div>
-        <div style="font-size:13px;font-weight:600;color:#1f2937">${timeStr || "—"}</div>
-        <div style="font-size:12px;color:#6b7280;margin-top:3px;display:flex;align-items:center;gap:4px">${driverHtml}</div>
+      <div style="display:flex;align-items:center;gap:16px;flex:1">
+        <div style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;letter-spacing:.04em;
+          ${isOutbound
+            ? 'background:linear-gradient(135deg,#FF6B8A,#ff9a5c);color:#fff'
+            : 'background:linear-gradient(135deg,#3EC9E8,#2db8d8);color:#0d3d4a'}">${icon} ${label}</div>
+        <div style="font-size:14px;font-weight:600;color:#1f2937;min-width:70px">${timeStr || "—"}</div>
+        <div style="font-size:13px;color:#6b7280;display:flex;align-items:center;gap:4px">${driverHtml}</div>
       </div>`;
   }
 
@@ -1203,9 +1304,12 @@
       const gcalBtn = t.gcal_url ? `<a class="btn-gcal" href="${t.gcal_url}" target="_blank">+ Google Cal</a>` : '';
       const hasReturn = !!t.return_time;
 
+      const gcalReturnBtn = t.gcal_url_return ? `<a class="btn-gcal" href="${t.gcal_url_return}" target="_blank">+ Google Cal</a>` : '';
+
       return `
-        <div class="upcoming-item" style="flex-direction:column;align-items:stretch;gap:10px">
-          <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="upcoming-item" style="flex-direction:column;align-items:stretch;gap:0">
+          <!-- Date + destination header -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
             <div style="display:flex;align-items:baseline;gap:10px">
               <div class="upcoming-date" style="margin:0">
                 <div class="day">${parseInt(day)}</div>
@@ -1213,15 +1317,18 @@
               </div>
               <div style="font-size:14px;font-weight:600;color:#1f2937">${t.destination_name || ""}${seriesBadge}</div>
             </div>
-            <div style="display:flex;gap:8px;align-items:center">
-              ${gcalBtn}
-              ${removeBtn}
-            </div>
+            ${removeBtn}
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <!-- Outbound row -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid #f3f4f6">
             ${legCard(t, "outbound")}
-            ${hasReturn ? legCard(t, "return") : ""}
+            ${gcalBtn}
           </div>
+          <!-- Return row -->
+          ${hasReturn ? `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid #f3f4f6">
+            ${legCard(t, "return")}
+            ${gcalReturnBtn}
+          </div>` : ""}
         </div>`;
     }).join("");
   }
@@ -1641,5 +1748,24 @@
   }
 </script>
 <script src="https://maps.googleapis.com/maps/api/js?key={{ maps_api_key }}&callback=onMapsApiReady" async defer></script>
+
+<nav class="bottom-nav">
+  <a href="#" onclick="document.querySelector('.card').scrollIntoView({behavior:'smooth'});return false;" class="active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+    Today
+  </a>
+  <a href="#" onclick="document.getElementById('cal-grid').scrollIntoView({behavior:'smooth'});return false;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Schedule
+  </a>
+  <a href="#" onclick="document.getElementById('upcoming-list').scrollIntoView({behavior:'smooth'});return false;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+    Rotation
+  </a>
+  <a href="/bulletin" target="_blank">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Bulletin
+  </a>
+</nav>
 </body>
 </html>
