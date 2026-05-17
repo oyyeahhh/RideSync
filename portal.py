@@ -8,6 +8,7 @@ Then open http://localhost:3000 in your browser.
 import json
 import logging
 import os
+import re
 import uuid
 from datetime import date, datetime, timedelta
 from functools import wraps
@@ -394,9 +395,14 @@ def invite():
     if not phone:
         return redirect(url_for("dashboard"))
 
-    # Normalize: ensure leading +
-    if not phone.startswith("+"):
-        phone = "+" + phone
+    # Normalize to E.164 format
+    digits = re.sub(r'\D', '', phone)
+    if len(digits) == 10:
+        phone = f"+1{digits}"          # assume US
+    elif len(digits) == 11 and digits.startswith('1'):
+        phone = f"+{digits}"
+    else:
+        phone = f"+{digits}"
 
     family_id = request.form.get("family_id", "").strip()
     family_name = ""
