@@ -308,17 +308,27 @@ def create_group_route():
 
     if request.method == "POST":
         form = {
-            "group_name": request.form.get("group_name", "").strip(),
-            "name": request.form.get("name", "").strip(),
-            "email": request.form.get("email", "").strip(),
-            "phone": request.form.get("phone", "").strip(),
+            "group_name":  request.form.get("group_name", "").strip(),
+            "name":        request.form.get("name", "").strip(),
+            "family_name": request.form.get("family_name", "").strip(),
+            "email":       request.form.get("email", "").strip(),
+            "phone":       request.form.get("phone", "").strip(),
+            "child_name":  request.form.get("child_name", "").strip(),
+            "address":     request.form.get("address", "").strip(),
         }
         password = request.form.get("password", "")
+
+        # Normalize phone to E.164
+        digits = re.sub(r'\D', '', form["phone"])
+        if digits:
+            form["phone"] = f"+1{digits}" if len(digits) == 10 else f"+{digits}"
 
         if not form["group_name"]:
             error = "Please name your carpool group."
         elif not form["name"]:
             error = "Please enter your name."
+        elif not form["family_name"]:
+            error = "Please enter your family name."
         elif not form["email"]:
             error = "Please enter your email."
         elif len(password) < 8:
@@ -327,12 +337,24 @@ def create_group_route():
             error = "An account with that email already exists."
         else:
             group = _create_group(form["group_name"])
+            # Create the admin's family and add to rotation
+            family = add_family(
+                name=form["family_name"],
+                address=form["address"],
+                phone=form["phone"],
+                children=[form["child_name"]] if form["child_name"] else [],
+                group_id=group["id"],
+            )
+            add_to_rotation(family["id"], group["id"])
             user = create_user(
                 phone=form["phone"],
                 name=form["name"],
                 email=form["email"],
                 password=password,
                 role="admin",
+                family_id=family["id"],
+                child_name=form["child_name"],
+                address=form["address"],
                 group_id=group["id"],
             )
             session["user_id"] = user["id"]

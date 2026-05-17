@@ -187,6 +187,10 @@
         <input type="text" name="name" value="{{ form.get('name', '') }}" autocomplete="name" required>
       </div>
       <div class="form-field">
+        <label>Family Name</label>
+        <input type="text" name="family_name" value="{{ form.get('family_name', '') }}" placeholder="e.g. Nadler Family" required>
+      </div>
+      <div class="form-field">
         <label>Email</label>
         <input type="email" name="email" value="{{ form.get('email', '') }}" autocomplete="email" required>
       </div>
@@ -197,6 +201,18 @@
       <div class="form-field">
         <label>Password</label>
         <input type="password" name="password" autocomplete="new-password" required minlength="8" placeholder="At least 8 characters">
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-label">Your Child</div>
+
+      <div class="form-field">
+        <label>Child's Name</label>
+        <input type="text" name="child_name" value="{{ form.get('child_name', '') }}" placeholder="e.g. Avigail">
+      </div>
+      <div class="form-field">
+        <label>Home Address</label>
+        <input type="text" name="address" value="{{ form.get('address', '') }}" placeholder="123 Main St, Teaneck, NJ">
       </div>
 
       <button type="submit" class="btn-submit">Create Carpool</button>
