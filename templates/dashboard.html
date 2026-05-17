@@ -726,12 +726,117 @@
   <div class="status-banner">{{ invite_status }}</div>
   {% endif %}
 
+  <!-- 1. NEXT TRIP HERO -->
+  <div class="card" style="background: linear-gradient(135deg, #1A1714 0%, #2d2a26 100%); color: #FAF9F5; border-radius: 28px; padding: 28px; border: none;">
+    <div style="display:inline-block;font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;background:linear-gradient(135deg,var(--coral),#ff9a5c);color:#fff;border-radius:99px;padding:4px 14px;margin-bottom:18px;">Next trip</div>
+    <div style="font-size: 22px; font-weight: 700; color: #FAF9F5; margin-bottom: 24px; letter-spacing: -0.02em;">{{ next_trip.date }}</div>
+    <div style="display:flex; align-items:flex-start; gap:16px; padding:16px 0; border-top:1px solid rgba(255,255,255,0.08)">
+      <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--coral),#ff9a5c);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">📤</div>
+      <div style="flex:1">
+        <div style="font-size:11px;color:rgba(255,255,255,0.45);margin-bottom:4px">There · {{ next_trip.arrive_by }}</div>
+        <div style="font-size:26px;font-weight:800;color:#FAF9F5;letter-spacing:-0.02em;line-height:1.1">{{ next_trip.driver }}</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.45);margin-top:2px">driving to {{ next_trip.destination }}</div>
+      </div>
+    </div>
+    {% if next_trip.return_time %}
+    <div style="display:flex; align-items:flex-start; gap:16px; padding:16px 0; border-top:1px solid rgba(255,255,255,0.08)">
+      <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--cyan),#2db8d8);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">🏠</div>
+      <div style="flex:1">
+        <div style="font-size:11px;color:rgba(255,255,255,0.45);margin-bottom:4px">Return · {{ next_trip.return_time | fmt_time }}</div>
+        <div style="font-size:26px;font-weight:800;color:#FAF9F5;letter-spacing:-0.02em;line-height:1.1">{{ next_trip.return_driver or next_trip.driver }}</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.45);margin-top:2px">pickup from {{ next_trip.destination }}</div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 2. TODAY'S TRIP ACTIONS -->
+  <div class="card" id="today-card">
+    <div class="card-label">Today's Trip</div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);margin-bottom:8px;letter-spacing:0.04em;">WHO'S COMING?</div>
+        <div style="display:flex;flex-direction:column;gap:8px;" id="family-list">
+          {% for fam in pickup_families %}
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:{% if fam.absent %}rgba(220,38,38,0.15){% else %}rgba(255,255,255,0.06){% endif %};" id="fam-row-{{ fam.id }}">
+            <span style="font-size:14px;font-weight:500;color:#FAF9F5;">{{ fam.name }}</span>
+            <button onclick="toggleAbsent('{{ fam.id }}')" id="absent-btn-{{ fam.id }}"
+              style="font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;border:1px solid;cursor:pointer;transition:all 0.15s;
+                {% if fam.absent %}background:#FEE2E2;color:#DC2626;border-color:#FECACA;{% else %}background:#F0FDF4;color:#16A34A;border-color:#BBF7D0;{% endif %}">
+              {% if fam.absent %}Not Coming{% else %}Coming ✓{% endif %}
+            </button>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;">
+        <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);margin-bottom:10px;letter-spacing:0.04em;">DRIVER ACTIONS</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button id="ride-btn" onclick="toggleRide()"
+            style="flex:1;min-width:130px;padding:11px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid;transition:all 0.2s;
+              {% if live_location.active and live_location.trip_leg != 'return' %}background:#FEE2E2;color:#DC2626;border-color:#FECACA;{% else %}background:#1A1714;color:#FAF9F5;border-color:#1A1714;{% endif %}">
+            {% if live_location.active and live_location.trip_leg != 'return' %}⏹ End Outbound{% else %}▶ Start Outbound{% endif %}
+          </button>
+          {% if next_trip.return_time %}
+          <button id="return-btn" onclick="toggleReturn()"
+            style="flex:1;min-width:130px;padding:11px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid;transition:all 0.2s;
+              {% if live_location.active and live_location.trip_leg == 'return' %}background:#FEE2E2;color:#DC2626;border-color:#FECACA;{% else %}background:#4B5563;color:#FAF9F5;border-color:#4B5563;{% endif %}">
+            {% if live_location.active and live_location.trip_leg == 'return' %}⏹ End Return{% else %}🏠 Start Return{% endif %}
+          </button>
+          {% endif %}
+          <button onclick="openLateModal()" style="flex:1;min-width:130px;padding:11px 16px;background:rgba(255,152,0,0.15);color:#ffb74d;border:1px solid rgba(255,152,0,0.3);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
+            ⏰ Running Late
+          </button>
+          <button onclick="confirmArrived()" style="flex:1;min-width:130px;padding:11px 16px;background:rgba(22,163,74,0.15);color:#4ade80;border:1px solid rgba(22,163,74,0.3);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
+            ✅ Kids Arrived
+          </button>
+        </div>
+        <div id="ride-status" style="margin-top:10px;font-size:12px;color:rgba(255,255,255,0.5);display:{% if live_location.active %}block{% else %}none{% endif %};">
+          📍 Live location is being shared on the <a href="/bulletin" target="_blank" style="color:var(--coral);">Kids Bulletin</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. SCHEDULE / CALENDAR -->
+  <div class="card">
+    <div class="cal-header">
+      <div class="card-label" style="margin-bottom:0">Schedule</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <a href="/calendar.ics" class="btn-gcal" style="font-size:12px;padding:6px 12px;border-radius:6px;text-decoration:none" title="Subscribe in Google Calendar">
+          Subscribe in Google Calendar
+        </a>
+        <div class="cal-nav">
+          <button onclick="changeMonth(-1)">&#8592;</button>
+          <span class="cal-month" id="cal-month-label"></span>
+          <button onclick="changeMonth(1)">&#8594;</button>
+        </div>
+      </div>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+    <div class="upcoming-list" id="upcoming-list"></div>
+  </div>
+
+  <!-- 4. DRIVING ROTATION -->
+  <div class="card">
+    <div class="card-label">Driving Rotation</div>
+    <div class="rotation-list">
+      {% for item in rotation %}
+      <div class="rotation-item {% if item.is_next %}current{% endif %}">
+        <div class="num">{{ loop.index }}</div>
+        <div class="name">{{ item.name }}</div>
+        {% if item.is_next %}<span class="badge">Up next</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 5. LIVE DRIVER MAP (admin, only when active) -->
   {% if current_user.role == "admin" %}
-  <!-- Live Driver Map -->
   <div class="card" id="dashboard-tracking-card" style="{% if not live_location.active %}display:none;{% endif %}">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <div class="card-label" style="margin-bottom:0;">Driver Location</div>
-      <div style="font-size:12px;color:#D4784A;font-weight:500;">● Live</div>
+      <div style="font-size:12px;color:var(--coral);font-weight:500;">● Live</div>
     </div>
     <div style="font-size:13px;color:rgba(255,255,255,0.55);margin-bottom:12px;">
       {{ live_location.driver_name if live_location.active else "" }} is on the way
@@ -739,7 +844,34 @@
     <div id="dashboard-live-map" style="width:100%;height:280px;border-radius:10px;overflow:hidden;background:rgba(255,255,255,0.06);"></div>
   </div>
 
-  <!-- Invite Form (admin only) -->
+  <!-- 6. DRIVER ASSIGNMENT MODE -->
+  <div class="card" style="padding:16px 20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-weight:600;font-size:14px;color:#FAF9F5;">Driver Assignment</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-top:2px" id="mode-desc">
+          {% if assignment_mode == "auto" %}Rotation assigns drivers automatically when trips are added.
+          {% else %}Families volunteer for open slots — unassigned rides are highlighted red.{% endif %}
+        </div>
+      </div>
+      <div style="display:flex;gap:0;border:1px solid rgba(255,255,255,0.12);border-radius:8px;overflow:hidden;font-size:13px">
+        <button id="mode-auto-btn" onclick="setAssignmentMode('auto')"
+          style="padding:7px 16px;border:none;cursor:pointer;font-weight:500;transition:background .15s;
+                 background:{{ '#FF6B8A' if assignment_mode == 'auto' else 'rgba(255,255,255,0.07)' }};
+                 color:{{ '#fff' if assignment_mode == 'auto' else 'rgba(255,255,255,0.6)' }}">
+          🔄 Auto (Rotation)
+        </button>
+        <button id="mode-manual-btn" onclick="setAssignmentMode('manual')"
+          style="padding:7px 16px;border:none;border-left:1px solid rgba(255,255,255,0.1);cursor:pointer;font-weight:500;transition:background .15s;
+                 background:{{ '#FF6B8A' if assignment_mode == 'manual' else 'rgba(255,255,255,0.07)' }};
+                 color:{{ '#fff' if assignment_mode == 'manual' else 'rgba(255,255,255,0.6)' }}">
+          🙋 Volunteer
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. INVITE A PARENT -->
   <div class="card">
     <div class="card-label">Invite a Parent</div>
     {% if group_name == "Carpool" or not group_name %}
@@ -771,153 +903,8 @@
     </form>
     {% endif %}
   </div>
-  {% endif %}
 
-  <!-- Calendar -->
-  <div class="card">
-    <div class="cal-header">
-      <div class="card-label" style="margin-bottom:0">Schedule</div>
-      <div style="display:flex;align-items:center;gap:12px">
-        <a href="/calendar.ics" class="btn-gcal" style="font-size:12px;padding:6px 12px;border-radius:6px;text-decoration:none" title="Download or subscribe in Google Calendar">
-          Subscribe in Google Calendar
-        </a>
-      <div class="cal-nav">
-        <button onclick="changeMonth(-1)">&#8592;</button>
-        <span class="cal-month" id="cal-month-label"></span>
-        <button onclick="changeMonth(1)">&#8594;</button>
-      </div>
-      </div>
-    </div>
-
-    <div class="cal-grid" id="cal-grid"></div>
-
-    <div class="upcoming-list" id="upcoming-list"></div>
-  </div>
-
-  {% if current_user.role == "admin" %}
-  <!-- Assignment Mode Toggle -->
-  <div class="card" style="padding:16px 20px">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-      <div>
-        <div style="font-weight:600;font-size:14px;color:#FAF9F5;">Driver Assignment</div>
-        <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-top:2px" id="mode-desc">
-          {% if assignment_mode == "auto" %}
-            Rotation assigns drivers automatically when trips are added.
-          {% else %}
-            Families volunteer for open slots — unassigned rides are highlighted red.
-          {% endif %}
-        </div>
-      </div>
-      <div style="display:flex;gap:0;border:1px solid rgba(255,255,255,0.12);border-radius:8px;overflow:hidden;font-size:13px">
-        <button id="mode-auto-btn" onclick="setAssignmentMode('auto')"
-          style="padding:7px 16px;border:none;cursor:pointer;font-weight:500;transition:background .15s;
-                 background:{{ '#FF6B8A' if assignment_mode == 'auto' else 'rgba(255,255,255,0.07)' }};
-                 color:{{ '#fff' if assignment_mode == 'auto' else 'rgba(255,255,255,0.6)' }}">
-          🔄 Auto (Rotation)
-        </button>
-        <button id="mode-manual-btn" onclick="setAssignmentMode('manual')"
-          style="padding:7px 16px;border:none;border-left:1px solid rgba(255,255,255,0.1);cursor:pointer;font-weight:500;transition:background .15s;
-                 background:{{ '#FF6B8A' if assignment_mode == 'manual' else 'rgba(255,255,255,0.07)' }};
-                 color:{{ '#fff' if assignment_mode == 'manual' else 'rgba(255,255,255,0.6)' }}">
-          🙋 Volunteer
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Add Trip Modal (admin only) -->
-  <div class="modal-overlay" id="modal">
-    <div class="modal" style="max-width:540px;width:95%">
-      <h3 id="modal-title">Add Trip</h3>
-
-      <!-- Destination (shared) -->
-      <div style="display:flex;gap:10px;margin-bottom:16px">
-        <div style="flex:1">
-          <label style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.45);display:block;margin-bottom:4px">Destination</label>
-          <input type="text" id="m-dest-name" placeholder="e.g. Camp Ramah" style="width:100%;box-sizing:border-box">
-        </div>
-        <div style="flex:1">
-          <label style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.45);display:block;margin-bottom:4px">Address</label>
-          <input type="text" id="m-dest-addr" placeholder="123 Main St, Paramus, NJ" style="width:100%;box-sizing:border-box">
-        </div>
-      </div>
-
-      <!-- Two leg boxes -->
-      <div style="display:flex;gap:12px;flex-wrap:wrap">
-
-        <!-- Outbound -->
-        <div style="flex:1;min-width:160px">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,107,138,0.9);margin-bottom:12px">📤 There</div>
-          <div class="form-field" style="margin-bottom:10px">
-            <label>Arrive by</label>
-            <input type="time" id="m-time" value="17:00" style="width:100%;box-sizing:border-box">
-          </div>
-          <div class="form-field" style="margin-bottom:0">
-            <label>Driver</label>
-            <select id="m-driver" style="width:100%;box-sizing:border-box">
-              <option value="" data-name="">— unassigned —</option>
-              {% for f in families %}
-              <option value="{{ f.id }}" data-name="{{ f.name }}">{{ f.name }}</option>
-              {% endfor %}
-            </select>
-          </div>
-        </div>
-
-        <!-- Return -->
-        <div style="flex:1;min-width:160px">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,0.4);margin-bottom:12px">🏠 Return <span style="font-weight:400;font-size:10px">(optional)</span></div>
-          <div class="form-field" style="margin-bottom:10px">
-            <label>Pickup time</label>
-            <input type="time" id="m-return-time" style="width:100%;box-sizing:border-box">
-          </div>
-          <div class="form-field" style="margin-bottom:0">
-            <label>Driver</label>
-            <select id="m-return-driver" style="width:100%;box-sizing:border-box">
-              <option value="" data-name="">— unassigned —</option>
-              {% for f in families %}
-              <option value="{{ f.id }}" data-name="{{ f.name }}">{{ f.name }}</option>
-              {% endfor %}
-            </select>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- Repeat toggle -->
-      <div class="form-field" style="border-top:1px solid rgba(255,255,255,0.08);padding-top:14px;margin-top:4px">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
-          <input type="checkbox" id="m-repeat" onchange="toggleRepeat(this.checked)" style="width:16px;height:16px;accent-color:#4f46e5">
-          Repeat
-        </label>
-      </div>
-      <div id="m-repeat-section" style="display:none">
-        <div class="form-field">
-          <label>Days of week</label>
-          <div id="m-weekdays" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
-            <label class="day-chip"><input type="checkbox" value="0"> Mon</label>
-            <label class="day-chip"><input type="checkbox" value="1"> Tue</label>
-            <label class="day-chip"><input type="checkbox" value="2"> Wed</label>
-            <label class="day-chip"><input type="checkbox" value="3"> Thu</label>
-            <label class="day-chip"><input type="checkbox" value="4"> Fri</label>
-            <label class="day-chip"><input type="checkbox" value="5"> Sat</label>
-            <label class="day-chip"><input type="checkbox" value="6"> Sun</label>
-          </div>
-        </div>
-        <div class="form-field">
-          <label>End Date</label>
-          <input type="date" id="m-end-date">
-        </div>
-        <p id="m-repeat-preview" style="font-size:13px;color:rgba(255,255,255,0.5);margin:0 0 10px"></p>
-      </div>
-
-      <div class="modal-actions">
-        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary" id="m-save-btn" onclick="saveTrip()">Add Trip</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Trip Settings (admin only) -->
+  <!-- 8. TRIP SETTINGS -->
   <div class="card">
     <div class="card-label">Trip Settings</div>
     <form method="POST" action="/save-trip" class="trip-form">
@@ -964,87 +951,154 @@
       <button type="submit">Save</button>
     </form>
   </div>
+
+  <!-- Add Trip Modal (admin only) -->
+  <div class="modal-overlay" id="modal">
+    <div class="modal" style="max-width:540px;width:95%">
+      <h3 id="modal-title">Add Trip</h3>
+      <div style="display:flex;gap:10px;margin-bottom:16px">
+        <div style="flex:1">
+          <label style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.45);display:block;margin-bottom:4px">Destination</label>
+          <input type="text" id="m-dest-name" placeholder="e.g. Camp Ramah" style="width:100%;box-sizing:border-box">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.45);display:block;margin-bottom:4px">Address</label>
+          <input type="text" id="m-dest-addr" placeholder="123 Main St, Paramus, NJ" style="width:100%;box-sizing:border-box">
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:160px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,107,138,0.9);margin-bottom:12px">📤 There</div>
+          <div class="form-field" style="margin-bottom:10px">
+            <label>Arrive by</label>
+            <input type="time" id="m-time" value="17:00" style="width:100%;box-sizing:border-box">
+          </div>
+          <div class="form-field" style="margin-bottom:0">
+            <label>Driver</label>
+            <select id="m-driver" style="width:100%;box-sizing:border-box">
+              <option value="" data-name="">— unassigned —</option>
+              {% for f in families %}<option value="{{ f.id }}" data-name="{{ f.name }}">{{ f.name }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <div style="flex:1;min-width:160px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,0.4);margin-bottom:12px">🏠 Return <span style="font-weight:400;font-size:10px">(optional)</span></div>
+          <div class="form-field" style="margin-bottom:10px">
+            <label>Pickup time</label>
+            <input type="time" id="m-return-time" style="width:100%;box-sizing:border-box">
+          </div>
+          <div class="form-field" style="margin-bottom:0">
+            <label>Driver</label>
+            <select id="m-return-driver" style="width:100%;box-sizing:border-box">
+              <option value="" data-name="">— unassigned —</option>
+              {% for f in families %}<option value="{{ f.id }}" data-name="{{ f.name }}">{{ f.name }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="form-field" style="border-top:1px solid rgba(255,255,255,0.08);padding-top:14px;margin-top:4px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
+          <input type="checkbox" id="m-repeat" onchange="toggleRepeat(this.checked)" style="width:16px;height:16px;accent-color:#4f46e5">
+          Repeat
+        </label>
+      </div>
+      <div id="m-repeat-section" style="display:none">
+        <div class="form-field">
+          <label>Days of week</label>
+          <div id="m-weekdays" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+            <label class="day-chip"><input type="checkbox" value="0"> Mon</label>
+            <label class="day-chip"><input type="checkbox" value="1"> Tue</label>
+            <label class="day-chip"><input type="checkbox" value="2"> Wed</label>
+            <label class="day-chip"><input type="checkbox" value="3"> Thu</label>
+            <label class="day-chip"><input type="checkbox" value="4"> Fri</label>
+            <label class="day-chip"><input type="checkbox" value="5"> Sat</label>
+            <label class="day-chip"><input type="checkbox" value="6"> Sun</label>
+          </div>
+        </div>
+        <div class="form-field">
+          <label>End Date</label>
+          <input type="date" id="m-end-date">
+        </div>
+        <p id="m-repeat-preview" style="font-size:13px;color:rgba(255,255,255,0.5);margin:0 0 10px"></p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" id="m-save-btn" onclick="saveTrip()">Add Trip</button>
+      </div>
+    </div>
+  </div>
   {% endif %}
 
-  <div class="card" style="background: linear-gradient(135deg, #1A1714 0%, #2d2a26 100%); color: #FAF9F5; border-radius: 22px; padding: 28px; border: none;">
-    <div style="display:inline-block;font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;background:linear-gradient(135deg,var(--coral),#ff9a5c);color:#fff;border-radius:99px;padding:4px 14px;margin-bottom:18px;">Next trip</div>
-    <div style="font-size: 22px; font-weight: 700; color: #FAF9F5; margin-bottom: 24px; letter-spacing: -0.02em;">{{ next_trip.date }}</div>
-
-    <!-- Outbound leg -->
-    <div style="display:flex; align-items:flex-start; gap:16px; padding:16px 0; border-top:1px solid rgba(255,255,255,0.08)">
-      <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--coral),#ff9a5c);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">📤</div>
-      <div style="flex:1">
-        <div style="font-size:11px;color:rgba(255,255,255,0.45);margin-bottom:4px">There · {{ next_trip.arrive_by }}</div>
-        <div style="font-size:26px;font-weight:800;color:#FAF9F5;letter-spacing:-0.02em;line-height:1.1">{{ next_trip.driver }}</div>
-        <div style="font-size:13px;color:rgba(255,255,255,0.45);margin-top:2px">driving to {{ next_trip.destination }}</div>
-      </div>
-    </div>
-
-    {% if next_trip.return_time %}
-    <!-- Return leg -->
-    <div style="display:flex; align-items:flex-start; gap:16px; padding:16px 0; border-top:1px solid rgba(255,255,255,0.08)">
-      <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--cyan),#2db8d8);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">🏠</div>
-      <div style="flex:1">
-        <div style="font-size:11px;color:rgba(255,255,255,0.45);margin-bottom:4px">Return · {{ next_trip.return_time | fmt_time }}</div>
-        <div style="font-size:26px;font-weight:800;color:#FAF9F5;letter-spacing:-0.02em;line-height:1.1">{{ next_trip.return_driver or next_trip.driver }}</div>
-        <div style="font-size:13px;color:rgba(255,255,255,0.45);margin-top:2px">pickup from {{ next_trip.destination }}</div>
-      </div>
-    </div>
+  <!-- 9. STATS -->
+  <div class="card">
+    <div class="card-label">Stats</div>
+    {% if stats %}
+    <table>
+      <thead><tr><th>Family</th><th>Trips</th><th>Time Behind the Wheel</th></tr></thead>
+      <tbody>
+        {% for fid, s in stats.items() %}
+        <tr>
+          <td>{{ s.name }}</td>
+          <td>{{ s.trips }}</td>
+          <td>
+            <div class="bar-track">
+              <span class="time-val">{{ s.hours }}h {{ s.mins }}m</span>
+              <div class="bar-wrap"><div class="bar" style="width: {{ s.bar_pct }}%"></div></div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">No trips recorded yet.</p>
     {% endif %}
   </div>
 
-  <!-- Today's Trip Actions -->
-  <div class="card" id="today-card">
-    <div class="card-label">Today's Trip</div>
-    <div style="display:flex;flex-direction:column;gap:12px;">
-
-      <!-- Absent toggles -->
-      <div>
-        <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);margin-bottom:8px;letter-spacing:0.04em;">WHO'S COMING?</div>
-        <div style="display:flex;flex-direction:column;gap:8px;" id="family-list">
-          {% for fam in pickup_families %}
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:{% if fam.absent %}rgba(220,38,38,0.15){% else %}rgba(255,255,255,0.06){% endif %};" id="fam-row-{{ fam.id }}">
-            <span style="font-size:14px;font-weight:500;color:#FAF9F5;">{{ fam.name }}</span>
-            <button
-              onclick="toggleAbsent('{{ fam.id }}')"
-              id="absent-btn-{{ fam.id }}"
-              style="font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;border:1px solid;cursor:pointer;transition:all 0.15s;
-                {% if fam.absent %}background:#FEE2E2;color:#DC2626;border-color:#FECACA;{% else %}background:#F0FDF4;color:#16A34A;border-color:#BBF7D0;{% endif %}">
-              {% if fam.absent %}Not Coming{% else %}Coming ✓{% endif %}
-            </button>
-          </div>
-          {% endfor %}
+  <!-- 10. KARMA -->
+  <div class="card">
+    <div class="card-label">Karma</div>
+    <div class="karma-grid" id="karma-grid">
+      {% for k in karma %}
+      <div class="karma-card">
+        <svg viewBox="0 0 120 72" class="karma-gauge" data-score="{{ k.score }}">
+          <path d="M 10 65 A 50 50 0 0 1 110 65" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="10" stroke-linecap="round"/>
+          <path class="k-arc" fill="none" stroke-width="10" stroke-linecap="round"/>
+          <line class="k-needle" x1="60" y1="65" stroke="#FAF9F5" stroke-width="2.5" stroke-linecap="round"/>
+          <circle cx="60" cy="65" r="4" fill="#FAF9F5"/>
+          <text x="60" y="52" text-anchor="middle" font-size="14" font-weight="700" class="k-score-text" font-family="inherit"></text>
+        </svg>
+        <div class="karma-name">{{ k.name }}</div>
+        <div class="karma-detail">
+          <span class="kd-covered">{{ k.covered }} covered</span>
+          <span class="kd-sep">·</span>
+          <span class="kd-requested">{{ k.requested }} requested</span>
         </div>
       </div>
-
-      <!-- Driver actions -->
-      <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;">
-        <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);margin-bottom:10px;letter-spacing:0.04em;">DRIVER ACTIONS</div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;">
-          <button id="ride-btn" onclick="toggleRide()"
-            style="flex:1;min-width:130px;padding:11px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid;transition:all 0.2s;
-              {% if live_location.active and live_location.trip_leg != 'return' %}background:#FEE2E2;color:#DC2626;border-color:#FECACA;{% else %}background:#1A1714;color:#FAF9F5;border-color:#1A1714;{% endif %}">
-            {% if live_location.active and live_location.trip_leg != 'return' %}⏹ End Outbound{% else %}▶ Start Outbound{% endif %}
-          </button>
-          {% if next_trip.return_time %}
-          <button id="return-btn" onclick="toggleReturn()"
-            style="flex:1;min-width:130px;padding:11px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid;transition:all 0.2s;
-              {% if live_location.active and live_location.trip_leg == 'return' %}background:#FEE2E2;color:#DC2626;border-color:#FECACA;{% else %}background:#4B5563;color:#FAF9F5;border-color:#4B5563;{% endif %}">
-            {% if live_location.active and live_location.trip_leg == 'return' %}⏹ End Return{% else %}🏠 Start Return{% endif %}
-          </button>
-          {% endif %}
-          <button onclick="openLateModal()" style="flex:1;min-width:130px;padding:11px 16px;background:#FDF3EE;color:#D4784A;border:1px solid #F0C5AE;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
-            ⏰ Running Late
-          </button>
-          <button onclick="confirmArrived()" style="flex:1;min-width:130px;padding:11px 16px;background:#F0FDF4;color:#16A34A;border:1px solid #BBF7D0;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
-            ✅ Kids Arrived
-          </button>
-        </div>
-        <div id="ride-status" style="margin-top:10px;font-size:12px;color:rgba(255,255,255,0.5);display:{% if live_location.active %}block{% else %}none{% endif %};">
-          📍 Live location is being shared on the <a href="/bulletin" target="_blank" style="color:var(--coral);">Kids Bulletin</a>
-        </div>
-      </div>
+      {% endfor %}
     </div>
+  </div>
+
+  <!-- 11. TRIP HISTORY -->
+  <div class="card">
+    <div class="card-label">Trip History</div>
+    {% if history %}
+    <table>
+      <thead><tr><th>Date</th><th>Driver</th><th>Kids Picked Up</th><th>Drive Time</th></tr></thead>
+      <tbody>
+        {% for trip in history %}
+        <tr>
+          <td>{{ trip.date | fmt_date }}</td>
+          <td>{{ trip.driver }}</td>
+          <td>{{ trip.pickups }}</td>
+          <td>{{ trip.duration }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">No trips recorded yet.</p>
+    {% endif %}
   </div>
 
   <!-- Running Late Modal -->
@@ -1062,101 +1116,6 @@
         <button onclick="sendRunningLate()" style="flex:1;padding:11px;background:linear-gradient(135deg,var(--coral),#ff9a5c);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Send Alert</button>
       </div>
     </div>
-  </div>
-
-  <div class="card">
-    <div class="card-label">Driving Rotation</div>
-    <div class="rotation-list">
-      {% for item in rotation %}
-      <div class="rotation-item {% if item.is_next %}current{% endif %}">
-        <div class="num">{{ loop.index }}</div>
-        <div class="name">{{ item.name }}</div>
-        {% if item.is_next %}<span class="badge">Up next</span>{% endif %}
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-label">Stats</div>
-    {% if stats %}
-    <table>
-      <thead>
-        <tr>
-          <th>Family</th>
-          <th>Trips</th>
-          <th>Time Behind the Wheel</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for fid, s in stats.items() %}
-        <tr>
-          <td>{{ s.name }}</td>
-          <td>{{ s.trips }}</td>
-          <td>
-            <div class="bar-track">
-              <span class="time-val">{{ s.hours }}h {{ s.mins }}m</span>
-              <div class="bar-wrap"><div class="bar" style="width: {{ s.bar_pct }}%"></div></div>
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <p class="empty">No trips recorded yet. Run route.py to log your first trip.</p>
-    {% endif %}
-  </div>
-
-  <div class="card">
-    <div class="card-label">Karma</div>
-    <div class="karma-grid" id="karma-grid">
-      {% for k in karma %}
-      <div class="karma-card">
-        <svg viewBox="0 0 120 72" class="karma-gauge" data-score="{{ k.score }}">
-          <path d="M 10 65 A 50 50 0 0 1 110 65" fill="none" stroke="#EAE8E3" stroke-width="10" stroke-linecap="round"/>
-          <path class="k-arc" fill="none" stroke-width="10" stroke-linecap="round"/>
-          <line class="k-needle" x1="60" y1="65" stroke="#1A1714" stroke-width="2.5" stroke-linecap="round"/>
-          <circle cx="60" cy="65" r="4" fill="#1A1714"/>
-          <text x="60" y="52" text-anchor="middle" font-size="14" font-weight="700" class="k-score-text" font-family="inherit"></text>
-        </svg>
-        <div class="karma-name">{{ k.name }}</div>
-        <div class="karma-detail">
-          <span class="kd-covered">{{ k.covered }} covered</span>
-          <span class="kd-sep">·</span>
-          <span class="kd-requested">{{ k.requested }} requested</span>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-label">Trip History</div>
-    {% if history %}
-    <table>
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Driver</th>
-          <th>Kids Picked Up</th>
-          <th>Drive Time</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for trip in history %}
-        <tr>
-          <td>{{ trip.date | fmt_date }}</td>
-          <td>{{ trip.driver }}</td>
-          <td>{{ trip.pickups }}</td>
-          <td>{{ trip.duration }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <p class="empty">No trips recorded yet. Run route.py to log your first trip.</p>
-    {% endif %}
   </div>
 
 </main>
