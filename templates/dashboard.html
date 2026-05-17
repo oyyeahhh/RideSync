@@ -126,31 +126,33 @@
     }
 
     .card {
-      background: rgba(255,255,255,0.88);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border-radius: 20px;
-      padding: 28px 28px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05);
-      border: 1px solid rgba(255,255,255,0.7);
+      background: rgba(42, 39, 35, 0.93);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 28px;
+      padding: 28px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.18), 0 1px 4px rgba(0,0,0,0.12);
+      border: 1px solid rgba(255,255,255,0.07);
+      color: #FAF9F5;
     }
 
     .card-label {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--dark);
+      font-size: 11px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.4);
       margin-bottom: 20px;
-      letter-spacing: -0.01em;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
 
     /* Status banner */
     .status-banner {
-      background: #F0FAF4;
-      border: 1px solid #A8D8BA;
-      border-radius: 8px;
+      background: rgba(42,157,92,0.2);
+      border: 1px solid rgba(42,157,92,0.35);
+      border-radius: 12px;
       padding: 12px 16px;
       font-size: 14px;
-      color: #1A5C35;
+      color: #6ee7a0;
       margin-bottom: 0;
     }
 
@@ -208,14 +210,14 @@
       align-items: center;
       gap: 14px;
       padding: 14px 16px;
-      border-radius: 8px;
-      border: 1px solid #EAE8E3;
-      background: #FDFCFA;
-      transition: border-color 0.15s;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.07);
+      background: rgba(255,255,255,0.05);
+      transition: background 0.15s;
     }
 
     .rotation-item.current {
-      background: linear-gradient(135deg, rgba(255,107,138,0.06) 0%, rgba(255,107,138,0.03) 100%);
+      background: rgba(255,107,138,0.18);
       border-color: rgba(255,107,138,0.35);
     }
 
@@ -223,13 +225,13 @@
       width: 26px;
       height: 26px;
       border-radius: 50%;
-      background: #EAE8E3;
+      background: rgba(255,255,255,0.1);
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 12px;
       font-weight: 600;
-      color: #8C8680;
+      color: rgba(255,255,255,0.5);
       flex-shrink: 0;
     }
 
@@ -242,7 +244,7 @@
       font-size: 15px;
       font-weight: 500;
       flex: 1;
-      color: #1A1714;
+      color: #FAF9F5;
     }
 
     .badge {
@@ -258,13 +260,13 @@
     /* Stats */
     table { width: 100%; border-collapse: collapse; }
 
-    thead tr { border-bottom: 1px solid #EAE8E3; }
+    thead tr { border-bottom: 1px solid rgba(255,255,255,0.1); }
 
     th {
       text-align: left;
       font-size: 11px;
       font-weight: 600;
-      color: #8C8680;
+      color: rgba(255,255,255,0.4);
       text-transform: uppercase;
       letter-spacing: 0.07em;
       padding: 0 0 12px;
@@ -274,9 +276,9 @@
 
     td {
       padding: 14px 0;
-      border-bottom: 1px solid #F0EDE8;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
       font-size: 15px;
-      color: #1A1714;
+      color: rgba(255,255,255,0.85);
       vertical-align: middle;
     }
 
@@ -293,7 +295,7 @@
 
     .bar-wrap {
       flex: 1;
-      background: #EAE8E3;
+      background: rgba(255,255,255,0.1);
       border-radius: 99px;
       height: 5px;
       max-width: 140px;
@@ -305,10 +307,10 @@
       height: 5px;
     }
 
-    .time-val { font-weight: 500; white-space: nowrap; }
+    .time-val { font-weight: 500; white-space: nowrap; color: rgba(255,255,255,0.85); }
 
     .empty {
-      color: #8C8680;
+      color: rgba(255,255,255,0.4);
       font-size: 14px;
       padding: 8px 0;
     }
@@ -325,7 +327,7 @@
       display: block;
       font-size: 11px;
       font-weight: 600;
-      color: #8C8680;
+      color: rgba(255,255,255,0.45);
       text-transform: uppercase;
       letter-spacing: 0.07em;
       margin-bottom: 6px;
@@ -335,15 +337,17 @@
     .form-field select {
       width: 100%;
       padding: 9px 12px;
-      border: 1px solid #EAE8E3;
-      border-radius: 7px;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
       font-size: 14px;
       font-family: inherit;
-      background: #FDFCFA;
-      color: #1A1714;
+      background: rgba(255,255,255,0.08);
+      color: #FAF9F5;
       outline: none;
       transition: border-color 0.15s;
     }
+
+    .form-field input::placeholder { color: rgba(255,255,255,0.35); }
 
     .form-field input:focus,
     .form-field select:focus {
@@ -381,8 +385,8 @@
 
     .karma-card {
       text-align: center;
-      background: #FDFCFA;
-      border: 1px solid #EAE8E3;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.07);
       border-radius: 10px;
       padding: 16px 12px 14px;
     }
@@ -392,18 +396,18 @@
     .karma-name {
       font-size: 13px;
       font-weight: 600;
-      color: #1A1714;
+      color: #FAF9F5;
       margin-top: 8px;
     }
 
     .karma-detail {
       font-size: 11px;
-      color: #8C8680;
+      color: rgba(255,255,255,0.45);
       margin-top: 4px;
     }
 
-    .kd-covered { color: #2a9d5c; font-weight: 500; }
-    .kd-requested { color: #c0392b; font-weight: 500; }
+    .kd-covered { color: #6ee7a0; font-weight: 500; }
+    .kd-requested { color: #fca5a5; font-weight: 500; }
     .kd-sep { margin: 0 4px; }
 
     @media (max-width: 600px) { .karma-grid { grid-template-columns: repeat(2, 1fr); } }
@@ -423,14 +427,14 @@
     }
 
     .cal-nav button {
-      background: none;
-      border: 1px solid #EAE8E3;
-      border-radius: 6px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
       width: 30px;
       height: 30px;
       cursor: pointer;
       font-size: 14px;
-      color: #1A1714;
+      color: rgba(255,255,255,0.7);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -439,7 +443,7 @@
 
     .cal-nav button:hover { border-color: var(--coral); color: var(--coral); }
 
-    .cal-month { font-size: 15px; font-weight: 600; }
+    .cal-month { font-size: 15px; font-weight: 600; color: #FAF9F5; }
 
     .cal-grid {
       display: grid;
@@ -451,7 +455,7 @@
       text-align: center;
       font-size: 11px;
       font-weight: 600;
-      color: #8C8680;
+      color: rgba(255,255,255,0.35);
       text-transform: uppercase;
       letter-spacing: 0.06em;
       padding: 4px 0 8px;
@@ -460,21 +464,21 @@
     .cal-day {
       min-height: 112px;
       border-radius: 12px;
-      border: 1px solid #EAE8E3;
+      border: 1px solid rgba(255,255,255,0.07);
       padding: 6px 8px;
       cursor: pointer;
       transition: border-color 0.15s, background 0.15s;
-      background: #FDFCFA;
+      background: rgba(255,255,255,0.04);
     }
 
-    .cal-day:hover { border-color: var(--coral); background: #fff7f9; }
+    .cal-day:hover { border-color: var(--coral); background: rgba(255,107,138,0.08); }
     .cal-day.empty { background: transparent; border-color: transparent; cursor: default; }
     .cal-day.today { border-color: var(--coral); box-shadow: 0 0 0 2px rgba(255,107,138,0.2); }
 
     .cal-day-num {
       font-size: 13px;
       font-weight: 500;
-      color: #1A1714;
+      color: rgba(255,255,255,0.7);
       margin-bottom: 4px;
     }
 
@@ -514,7 +518,8 @@
     .modal-overlay.open { display: flex; }
 
     .modal {
-      background: white;
+      background: #2A2723;
+      color: #FAF9F5;
       border-radius: 14px;
       padding: 28px 32px;
       width: 100%;
@@ -525,8 +530,9 @@
     .cal-trip-dot.series-dot { background: #ede9fe; color: #7c3aed; }
     .day-chip {
       display: flex; align-items: center; gap: 4px;
-      padding: 5px 10px; border: 1px solid #d1d5db; border-radius: 20px;
+      padding: 5px 10px; border: 1px solid rgba(255,255,255,0.15); border-radius: 20px;
       font-size: 13px; cursor: pointer; user-select: none; transition: background .15s, border-color .15s;
+      color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.05);
     }
     .day-chip:has(input:checked) {
       background: #ede9fe; border-color: #7c3aed; color: #4f46e5; font-weight: 600;
@@ -536,7 +542,7 @@
       font-size: 17px;
       font-weight: 600;
       margin-bottom: 20px;
-      color: #1A1714;
+      color: #FAF9F5;
     }
 
     .modal .form-field { margin-bottom: 14px; }
@@ -548,8 +554,8 @@
       justify-content: flex-end;
     }
 
-    .btn-secondary { background: #EAE8E3; color: #1A1714; }
-    .btn-secondary:hover { background: #d5d2cc; }
+    .btn-secondary { background: rgba(255,255,255,0.1); color: #FAF9F5; }
+    .btn-secondary:hover { background: rgba(255,255,255,0.18); }
 
     /* Upcoming list */
     .upcoming-list { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
@@ -560,15 +566,13 @@
       gap: 14px;
       padding: 16px 20px;
       border-radius: 16px;
-      border: 1px solid rgba(255,255,255,0.6);
-      background: rgba(255,255,255,0.75);
-      backdrop-filter: blur(6px);
-      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
-      transition: box-shadow 0.15s, transform 0.1s;
+      border: 1px solid rgba(255,255,255,0.07);
+      background: rgba(255,255,255,0.06);
+      transition: background 0.15s;
     }
 
     .upcoming-item:hover {
-      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+      background: rgba(255,255,255,0.1);
       transform: translateY(-1px);
     }
 
@@ -585,8 +589,8 @@
     .upcoming-date .month { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--mid); letter-spacing: 0.07em; margin-top: 2px; }
 
     .upcoming-info { flex: 1; }
-    .upcoming-info .dest { font-size: 14px; font-weight: 600; }
-    .upcoming-info .driver { font-size: 12px; color: var(--mid); margin-top: 2px; }
+    .upcoming-info .dest { font-size: 14px; font-weight: 600; color: #FAF9F5; }
+    .upcoming-info .driver { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 2px; }
 
     .upcoming-actions { display: flex; gap: 8px; }
 
@@ -609,14 +613,14 @@
       font-size: 12px;
       padding: 5px 10px;
       border-radius: 5px;
-      background: #EAE8E3;
-      color: #666;
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.5);
       border: none;
       cursor: pointer;
       font-family: inherit;
     }
 
-    .btn-remove:hover { background: #f0d0d0; color: #c00; }
+    .btn-remove:hover { background: rgba(255,80,80,0.2); color: #fca5a5; }
 
     @media (max-width: 640px) {
       /* Header */
@@ -728,21 +732,21 @@
       <div class="card-label" style="margin-bottom:0;">Driver Location</div>
       <div style="font-size:12px;color:#D4784A;font-weight:500;">● Live</div>
     </div>
-    <div style="font-size:13px;color:#6B6560;margin-bottom:12px;">
+    <div style="font-size:13px;color:rgba(255,255,255,0.55);margin-bottom:12px;">
       {{ live_location.driver_name if live_location.active else "" }} is on the way
     </div>
-    <div id="dashboard-live-map" style="width:100%;height:280px;border-radius:10px;overflow:hidden;background:#F0EDE7;"></div>
+    <div id="dashboard-live-map" style="width:100%;height:280px;border-radius:10px;overflow:hidden;background:rgba(255,255,255,0.06);"></div>
   </div>
 
   <!-- Invite Form (admin only) -->
   <div class="card">
     <div class="card-label">Invite a Parent</div>
     {% if group_name == "Carpool" or not group_name %}
-    <div style="display:flex;align-items:center;gap:12px;padding:16px;background:#FDF3EE;border-radius:8px;border:1px solid #F0C5AE;">
+    <div style="display:flex;align-items:center;gap:12px;padding:16px;background:rgba(255,255,255,0.06);border-radius:8px;border:1px solid rgba(255,255,255,0.1);">
       <span style="font-size:20px;">✏️</span>
       <div>
-        <div style="font-weight:500;color:#1A1714;margin-bottom:2px;">Name your carpool group first</div>
-        <div style="font-size:13px;color:#6B6560;">Go to <strong>Trip Settings</strong> below and give this carpool a name before inviting parents.</div>
+        <div style="font-weight:500;color:#FAF9F5;margin-bottom:2px;">Name your carpool group first</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.55);">Go to <strong>Trip Settings</strong> below and give this carpool a name before inviting parents.</div>
       </div>
     </div>
     {% else %}
@@ -756,7 +760,7 @@
       </div>
       <div class="form-field" style="margin-top:12px;margin-bottom:0;">
         <label>Add to existing family? <span style="font-weight:400;text-transform:none;font-size:11px;">(leave blank for a new family)</span></label>
-        <select name="family_id" style="width:100%;padding:9px 12px;border:1px solid #E8E5DF;border-radius:8px;font-size:14px;background:#FDFCFA;color:#1A1714;">
+        <select name="family_id" style="width:100%;padding:9px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.08);color:#FAF9F5;">
           <option value="">— New family —</option>
           {% for f in families %}
           <option value="{{ f.id }}">{{ f.name }}</option>
@@ -794,8 +798,8 @@
   <div class="card" style="padding:16px 20px">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
       <div>
-        <div style="font-weight:600;font-size:14px">Driver Assignment</div>
-        <div style="font-size:12px;color:#8C8680;margin-top:2px" id="mode-desc">
+        <div style="font-weight:600;font-size:14px;color:#FAF9F5;">Driver Assignment</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-top:2px" id="mode-desc">
           {% if assignment_mode == "auto" %}
             Rotation assigns drivers automatically when trips are added.
           {% else %}
@@ -803,17 +807,17 @@
           {% endif %}
         </div>
       </div>
-      <div style="display:flex;gap:0;border:1px solid #d1d5db;border-radius:8px;overflow:hidden;font-size:13px">
+      <div style="display:flex;gap:0;border:1px solid rgba(255,255,255,0.12);border-radius:8px;overflow:hidden;font-size:13px">
         <button id="mode-auto-btn" onclick="setAssignmentMode('auto')"
           style="padding:7px 16px;border:none;cursor:pointer;font-weight:500;transition:background .15s;
-                 background:{{ '#4f46e5' if assignment_mode == 'auto' else '#fff' }};
-                 color:{{ '#fff' if assignment_mode == 'auto' else '#374151' }}">
+                 background:{{ '#FF6B8A' if assignment_mode == 'auto' else 'rgba(255,255,255,0.07)' }};
+                 color:{{ '#fff' if assignment_mode == 'auto' else 'rgba(255,255,255,0.6)' }}">
           🔄 Auto (Rotation)
         </button>
         <button id="mode-manual-btn" onclick="setAssignmentMode('manual')"
-          style="padding:7px 16px;border:none;border-left:1px solid #d1d5db;cursor:pointer;font-weight:500;transition:background .15s;
-                 background:{{ '#4f46e5' if assignment_mode == 'manual' else '#fff' }};
-                 color:{{ '#fff' if assignment_mode == 'manual' else '#374151' }}">
+          style="padding:7px 16px;border:none;border-left:1px solid rgba(255,255,255,0.1);cursor:pointer;font-weight:500;transition:background .15s;
+                 background:{{ '#FF6B8A' if assignment_mode == 'manual' else 'rgba(255,255,255,0.07)' }};
+                 color:{{ '#fff' if assignment_mode == 'manual' else 'rgba(255,255,255,0.6)' }}">
           🙋 Volunteer
         </button>
       </div>
@@ -828,11 +832,11 @@
       <!-- Destination (shared) -->
       <div style="display:flex;gap:10px;margin-bottom:16px">
         <div style="flex:1">
-          <label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:4px">Destination</label>
+          <label style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.45);display:block;margin-bottom:4px">Destination</label>
           <input type="text" id="m-dest-name" placeholder="e.g. Camp Ramah" style="width:100%;box-sizing:border-box">
         </div>
         <div style="flex:1">
-          <label style="font-size:11px;font-weight:600;color:#6b7280;display:block;margin-bottom:4px">Address</label>
+          <label style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.45);display:block;margin-bottom:4px">Address</label>
           <input type="text" id="m-dest-addr" placeholder="123 Main St, Paramus, NJ" style="width:100%;box-sizing:border-box">
         </div>
       </div>
@@ -842,7 +846,7 @@
 
         <!-- Outbound -->
         <div style="flex:1;min-width:160px">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#6366f1;margin-bottom:12px">📤 There</div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,107,138,0.9);margin-bottom:12px">📤 There</div>
           <div class="form-field" style="margin-bottom:10px">
             <label>Arrive by</label>
             <input type="time" id="m-time" value="17:00" style="width:100%;box-sizing:border-box">
@@ -860,7 +864,7 @@
 
         <!-- Return -->
         <div style="flex:1;min-width:160px">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8C8680;margin-bottom:12px">🏠 Return <span style="font-weight:400;font-size:10px">(optional)</span></div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,0.4);margin-bottom:12px">🏠 Return <span style="font-weight:400;font-size:10px">(optional)</span></div>
           <div class="form-field" style="margin-bottom:10px">
             <label>Pickup time</label>
             <input type="time" id="m-return-time" style="width:100%;box-sizing:border-box">
@@ -879,7 +883,7 @@
       </div>
 
       <!-- Repeat toggle -->
-      <div class="form-field" style="border-top:1px solid #e5e7eb;padding-top:14px;margin-top:4px">
+      <div class="form-field" style="border-top:1px solid rgba(255,255,255,0.08);padding-top:14px;margin-top:4px">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
           <input type="checkbox" id="m-repeat" onchange="toggleRepeat(this.checked)" style="width:16px;height:16px;accent-color:#4f46e5">
           Repeat
@@ -902,7 +906,7 @@
           <label>End Date</label>
           <input type="date" id="m-end-date">
         </div>
-        <p id="m-repeat-preview" style="font-size:13px;color:#6b7280;margin:0 0 10px"></p>
+        <p id="m-repeat-preview" style="font-size:13px;color:rgba(255,255,255,0.5);margin:0 0 10px"></p>
       </div>
 
       <div class="modal-actions">
@@ -969,9 +973,9 @@
     <div style="display:flex; align-items:flex-start; gap:16px; padding:16px 0; border-top:1px solid rgba(255,255,255,0.08)">
       <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--coral),#ff9a5c);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">📤</div>
       <div style="flex:1">
-        <div style="font-size:11px;color:#8C8680;margin-bottom:4px">There · {{ next_trip.arrive_by }}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.45);margin-bottom:4px">There · {{ next_trip.arrive_by }}</div>
         <div style="font-size:26px;font-weight:800;color:#FAF9F5;letter-spacing:-0.02em;line-height:1.1">{{ next_trip.driver }}</div>
-        <div style="font-size:13px;color:#8C8680;margin-top:2px">driving to {{ next_trip.destination }}</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.45);margin-top:2px">driving to {{ next_trip.destination }}</div>
       </div>
     </div>
 
@@ -980,9 +984,9 @@
     <div style="display:flex; align-items:flex-start; gap:16px; padding:16px 0; border-top:1px solid rgba(255,255,255,0.08)">
       <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--cyan),#2db8d8);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">🏠</div>
       <div style="flex:1">
-        <div style="font-size:11px;color:#8C8680;margin-bottom:4px">Return · {{ next_trip.return_time | fmt_time }}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.45);margin-bottom:4px">Return · {{ next_trip.return_time | fmt_time }}</div>
         <div style="font-size:26px;font-weight:800;color:#FAF9F5;letter-spacing:-0.02em;line-height:1.1">{{ next_trip.return_driver or next_trip.driver }}</div>
-        <div style="font-size:13px;color:#8C8680;margin-top:2px">pickup from {{ next_trip.destination }}</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.45);margin-top:2px">pickup from {{ next_trip.destination }}</div>
       </div>
     </div>
     {% endif %}
@@ -995,11 +999,11 @@
 
       <!-- Absent toggles -->
       <div>
-        <div style="font-size:12px;font-weight:500;color:#9B9590;margin-bottom:8px;letter-spacing:0.04em;">WHO'S COMING?</div>
+        <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);margin-bottom:8px;letter-spacing:0.04em;">WHO'S COMING?</div>
         <div style="display:flex;flex-direction:column;gap:8px;" id="family-list">
           {% for fam in pickup_families %}
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:8px;border:1px solid #E8E5DF;background:{% if fam.absent %}#FFF5F5{% else %}#FAF9F5{% endif %};" id="fam-row-{{ fam.id }}">
-            <span style="font-size:14px;font-weight:500;">{{ fam.name }}</span>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:{% if fam.absent %}rgba(220,38,38,0.15){% else %}rgba(255,255,255,0.06){% endif %};" id="fam-row-{{ fam.id }}">
+            <span style="font-size:14px;font-weight:500;color:#FAF9F5;">{{ fam.name }}</span>
             <button
               onclick="toggleAbsent('{{ fam.id }}')"
               id="absent-btn-{{ fam.id }}"
@@ -1013,8 +1017,8 @@
       </div>
 
       <!-- Driver actions -->
-      <div style="border-top:1px solid #E8E5DF;padding-top:16px;">
-        <div style="font-size:12px;font-weight:500;color:#9B9590;margin-bottom:10px;letter-spacing:0.04em;">DRIVER ACTIONS</div>
+      <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;">
+        <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);margin-bottom:10px;letter-spacing:0.04em;">DRIVER ACTIONS</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <button id="ride-btn" onclick="toggleRide()"
             style="flex:1;min-width:130px;padding:11px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid;transition:all 0.2s;
@@ -1035,8 +1039,8 @@
             ✅ Kids Arrived
           </button>
         </div>
-        <div id="ride-status" style="margin-top:10px;font-size:12px;color:#9B9590;display:{% if live_location.active %}block{% else %}none{% endif %};">
-          📍 Live location is being shared on the <a href="/bulletin" target="_blank" style="color:#D4784A;">Kids Bulletin</a>
+        <div id="ride-status" style="margin-top:10px;font-size:12px;color:rgba(255,255,255,0.5);display:{% if live_location.active %}block{% else %}none{% endif %};">
+          📍 Live location is being shared on the <a href="/bulletin" target="_blank" style="color:var(--coral);">Kids Bulletin</a>
         </div>
       </div>
     </div>
@@ -1044,17 +1048,17 @@
 
   <!-- Running Late Modal -->
   <div id="late-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:16px;padding:32px;width:360px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
-      <div style="font-family:'Tiempos Text',Georgia,serif;font-size:20px;font-weight:500;margin-bottom:8px;">Running Late</div>
-      <div style="font-size:13px;color:#6B6560;margin-bottom:20px;">All pickup families will get a WhatsApp notification.</div>
+    <div style="background:#2A2723;border-radius:16px;padding:32px;width:360px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+      <div style="font-family:'Tiempos Text',Georgia,serif;font-size:20px;font-weight:500;margin-bottom:8px;color:#FAF9F5;">Running Late</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.55);margin-bottom:20px;">All pickup families will get a WhatsApp notification.</div>
       <div style="margin-bottom:20px;">
-        <label style="font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#9B9590;display:block;margin-bottom:6px;">Minutes late (optional)</label>
+        <label style="font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.45);display:block;margin-bottom:6px;">Minutes late (optional)</label>
         <input type="number" id="late-minutes" min="1" max="60" placeholder="e.g. 10"
-          style="width:100%;padding:10px 14px;border:1px solid #E8E5DF;border-radius:8px;font-size:14px;outline:none;">
+          style="width:100%;padding:10px 14px;border:1px solid rgba(255,255,255,0.12);border-radius:8px;font-size:14px;outline:none;background:rgba(255,255,255,0.08);color:#FAF9F5;">
       </div>
       <div style="display:flex;gap:10px;">
-        <button onclick="closeLateModal()" style="flex:1;padding:11px;border:1px solid #E8E5DF;border-radius:8px;font-size:13px;font-weight:500;background:#fff;cursor:pointer;">Cancel</button>
-        <button onclick="sendRunningLate()" style="flex:1;padding:11px;background:#1A1714;color:#FAF9F5;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Send Alert</button>
+        <button onclick="closeLateModal()" style="flex:1;padding:11px;border:1px solid rgba(255,255,255,0.12);border-radius:8px;font-size:13px;font-weight:500;background:rgba(255,255,255,0.08);color:#FAF9F5;cursor:pointer;">Cancel</button>
+        <button onclick="sendRunningLate()" style="flex:1;padding:11px;background:linear-gradient(135deg,var(--coral),#ff9a5c);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Send Alert</button>
       </div>
     </div>
   </div>
@@ -1253,7 +1257,7 @@
     const unassigned = isManual && !driverFid;
     const isMyFamily = MY_FAMILY_ID && driverFid === MY_FAMILY_ID;
 
-    const cardBg = unassigned ? "background:#fff5f5;border:1.5px solid #fca5a5" : "background:#f9fafb;border:1.5px solid #e5e7eb";
+    const cardBg = unassigned ? "background:rgba(220,38,38,0.12);border:1.5px solid rgba(252,165,165,0.35)" : "background:rgba(255,255,255,0.05);border:1.5px solid rgba(255,255,255,0.08)";
     const icon = isOutbound ? "📤" : "🏠";
     const label = isOutbound ? "There" : "Return";
     const timeStr = time ? fmtTime(time) : "";
@@ -1275,8 +1279,8 @@
           ${isOutbound
             ? 'background:linear-gradient(135deg,#FF6B8A,#ff9a5c);color:#fff'
             : 'background:linear-gradient(135deg,#3EC9E8,#2db8d8);color:#0d3d4a'}">${icon} ${label}</div>
-        <div style="font-size:14px;font-weight:600;color:#1f2937;min-width:70px">${timeStr || "—"}</div>
-        <div style="font-size:13px;color:#6b7280;display:flex;align-items:center;gap:4px">${driverHtml}</div>
+        <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.9);min-width:70px">${timeStr || "—"}</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.5);display:flex;align-items:center;gap:4px">${driverHtml}</div>
       </div>`;
   }
 
@@ -1289,13 +1293,13 @@
       list.innerHTML = IS_ADMIN
         ? `<div style="text-align:center;padding:32px 16px">
             <div style="font-size:40px;margin-bottom:12px">🗓️</div>
-            <div style="font-size:16px;font-weight:600;color:#1A1714;margin-bottom:6px">No trips yet</div>
-            <div style="font-size:13px;color:#8C8680">Click any date on the calendar above to add a trip.</div>
+            <div style="font-size:16px;font-weight:600;color:#FAF9F5;margin-bottom:6px">No trips yet</div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.45)">Click any date on the calendar above to add a trip.</div>
            </div>`
         : `<div style="text-align:center;padding:32px 16px">
             <div style="font-size:40px;margin-bottom:12px">🚗</div>
-            <div style="font-size:16px;font-weight:600;color:#1A1714;margin-bottom:6px">Nothing coming up</div>
-            <div style="font-size:13px;color:#8C8680">Your carpool admin hasn't scheduled any trips yet.</div>
+            <div style="font-size:16px;font-weight:600;color:#FAF9F5;margin-bottom:6px">Nothing coming up</div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.45)">Your carpool admin hasn't scheduled any trips yet.</div>
            </div>`;
       return;
     }
@@ -1319,17 +1323,17 @@
                 <div class="day">${parseInt(day)}</div>
                 <div class="month">${monthName}</div>
               </div>
-              <div style="font-size:14px;font-weight:600;color:#1f2937">${t.destination_name || ""}${seriesBadge}</div>
+              <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.9)">${t.destination_name || ""}${seriesBadge}</div>
             </div>
             ${removeBtn}
           </div>
           <!-- Outbound row -->
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid #f3f4f6">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid rgba(255,255,255,0.07)">
             ${legCard(t, "outbound")}
             ${gcalBtn}
           </div>
           <!-- Return row -->
-          ${hasReturn ? `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid #f3f4f6">
+          ${hasReturn ? `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid rgba(255,255,255,0.07)">
             ${legCard(t, "return")}
             ${gcalReturnBtn}
           </div>` : ""}
@@ -1483,12 +1487,12 @@
     const manualBtn = document.getElementById("mode-manual-btn");
     const desc = document.getElementById("mode-desc");
     if (mode === "auto") {
-      autoBtn.style.background = "#4f46e5"; autoBtn.style.color = "#fff";
-      manualBtn.style.background = "#fff"; manualBtn.style.color = "#374151";
+      autoBtn.style.background = "#FF6B8A"; autoBtn.style.color = "#fff";
+      manualBtn.style.background = "rgba(255,255,255,0.07)"; manualBtn.style.color = "rgba(255,255,255,0.6)";
       desc.textContent = "Rotation assigns drivers automatically when trips are added.";
     } else {
-      manualBtn.style.background = "#4f46e5"; manualBtn.style.color = "#fff";
-      autoBtn.style.background = "#fff"; autoBtn.style.color = "#374151";
+      manualBtn.style.background = "#FF6B8A"; manualBtn.style.color = "#fff";
+      autoBtn.style.background = "rgba(255,255,255,0.07)"; autoBtn.style.color = "rgba(255,255,255,0.6)";
       desc.textContent = "Families volunteer for open slots — unassigned rides are highlighted red.";
     }
     renderUpcoming();
@@ -1655,11 +1659,11 @@
     if (data.absent) {
       btn.textContent = "Not Coming";
       btn.style.cssText = btn.style.cssText.replace(/background:[^;]+;color:[^;]+;border-color:[^;]+/, "background:#FEE2E2;color:#DC2626;border-color:#FECACA");
-      row.style.background = "#FFF5F5";
+      row.style.background = "rgba(220,38,38,0.15)";
     } else {
       btn.textContent = "Coming ✓";
       btn.style.cssText = btn.style.cssText.replace(/background:[^;]+;color:[^;]+;border-color:[^;]+/, "background:#F0FDF4;color:#16A34A;border-color:#BBF7D0");
-      row.style.background = "#FAF9F5";
+      row.style.background = "rgba(255,255,255,0.06)";
     }
   }
 

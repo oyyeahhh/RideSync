@@ -85,21 +85,23 @@
     }
 
     .card {
-      background: rgba(255,255,255,0.88);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border-radius: 20px;
+      background: rgba(42, 39, 35, 0.93);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 28px;
       padding: 28px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05);
-      border: 1px solid rgba(255,255,255,0.7);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.18), 0 1px 4px rgba(0,0,0,0.12);
+      border: 1px solid rgba(255,255,255,0.07);
+      color: #FAF9F5;
     }
 
     .card-label {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--dark);
+      font-size: 11px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.4);
       margin-bottom: 16px;
-      letter-spacing: -0.01em;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
 
     /* Next pickup hero */
@@ -113,13 +115,13 @@
       font-size: 52px;
       font-weight: 700;
       letter-spacing: -0.03em;
-      color: var(--dark);
+      color: #FAF9F5;
       margin-bottom: 8px;
     }
 
     .next-pickup .pickup-detail {
       font-size: 16px;
-      color: #6B6560;
+      color: rgba(255,255,255,0.55);
       margin-bottom: 4px;
     }
 
@@ -142,7 +144,7 @@
       justify-content: space-between;
       align-items: center;
       padding: 14px 0;
-      border-bottom: 1px solid #F0EDE7;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
     }
 
     .schedule-item:last-child { border-bottom: none; }
@@ -150,12 +152,12 @@
     .schedule-item .trip-date {
       font-size: 13px;
       font-weight: 500;
-      color: var(--dark);
+      color: #FAF9F5;
     }
 
     .schedule-item .trip-meta {
       font-size: 12px;
-      color: var(--mid);
+      color: rgba(255,255,255,0.45);
       margin-top: 2px;
     }
 
@@ -167,7 +169,7 @@
 
     .empty-state {
       text-align: center;
-      color: var(--mid);
+      color: rgba(255,255,255,0.4);
       font-size: 14px;
       padding: 20px 0;
     }
@@ -184,20 +186,20 @@
       align-items: center;
       gap: 12px;
       padding: 12px 16px;
-      border-radius: 12px;
-      background: rgba(255,255,255,0.5);
-      border: 1px solid rgba(232,229,223,0.8);
-      transition: box-shadow 0.15s;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.07);
+      transition: background 0.15s;
     }
 
     .rotation-item.is-next {
-      background: linear-gradient(135deg, rgba(255,107,138,0.07) 0%, rgba(255,107,138,0.03) 100%);
+      background: rgba(255,107,138,0.18);
       border-color: rgba(255,107,138,0.35);
     }
 
     .rotation-item .pos {
       font-size: 12px;
-      color: var(--mid);
+      color: rgba(255,255,255,0.4);
       width: 20px;
       text-align: center;
     }
@@ -206,6 +208,7 @@
       font-size: 14px;
       font-weight: 500;
       flex: 1;
+      color: #FAF9F5;
     }
 
     .next-badge {
@@ -223,7 +226,7 @@
     footer {
       text-align: center;
       font-size: 12px;
-      color: #C5C0B8;
+      color: rgba(255,255,255,0.2);
       padding: 32px 24px;
     }
 
@@ -240,7 +243,7 @@
 <div class="header-wrap">
 <header>
   <img src="/static/carpoolsync logo.png" alt="CarpoolSync" style="height:52px;width:auto;display:block;">
-  <div class="subtitle" style="color:#8C8680;font-size:11px;margin-top:3px;">Pickup Bulletin</div>
+  <div class="subtitle" style="color:rgba(255,255,255,0.45);font-size:11px;margin-top:3px;">Pickup Bulletin</div>
 </header>
 </div>
 
@@ -266,15 +269,15 @@
       <div class="card-label" style="margin-bottom:0;">Live Tracking</div>
       <div style="font-size:12px;color:#D4784A;font-weight:500;" id="live-dot">● Live</div>
     </div>
-    <div style="font-size:13px;color:#6B6560;margin-bottom:12px;" id="tracking-status">
+    <div style="font-size:13px;color:rgba(255,255,255,0.55);margin-bottom:12px;" id="tracking-status">
       {% if live_location.active and live_location.trip_leg == 'return' %}
         🏠 <strong>{{ live_location.driver_name }}</strong> is on the way home
       {% elif live_location.active %}
         📍 <strong>{{ live_location.driver_name }}</strong> is on the way to pick up
       {% endif %}
     </div>
-    <div id="live-map" style="width:100%;height:280px;border-radius:10px;overflow:hidden;background:#F0EDE7;display:flex;align-items:center;justify-content:center;">
-      <div id="map-placeholder" style="color:#9B9590;font-size:13px;">Locating driver…</div>
+    <div id="live-map" style="width:100%;height:280px;border-radius:10px;overflow:hidden;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;">
+      <div id="map-placeholder" style="color:rgba(255,255,255,0.4);font-size:13px;">Locating driver…</div>
     </div>
 
     <!-- ETA list -->
@@ -286,28 +289,28 @@
     <div class="card-label">Pickup Times</div>
     {% if route_cache and route_cache.date == next_trip.date_raw %}
       <div style="display:flex;flex-direction:column;gap:0;">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #F0EDE7;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.08);">
           <div style="display:flex;align-items:center;gap:10px;">
-            <span style="width:28px;height:28px;background:#1A1714;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:#FAF9F5;font-weight:600;">🚗</span>
+            <span style="width:28px;height:28px;background:rgba(255,255,255,0.1);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:#FAF9F5;font-weight:600;">🚗</span>
             <div>
-              <div style="font-size:13px;font-weight:500;">{{ route_cache.driver_name }} departs</div>
+              <div style="font-size:13px;font-weight:500;color:#FAF9F5;">{{ route_cache.driver_name }} departs</div>
             </div>
           </div>
           <div style="font-size:14px;font-weight:600;color:#D4784A;">{{ route_cache.depart_at }}</div>
         </div>
         {% for stop in route_cache.schedule %}
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #F0EDE7;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.08);">
           <div style="display:flex;align-items:center;gap:10px;">
-            <span style="width:28px;height:28px;background:#F0EDE7;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#6B6560;">{{ loop.index }}</span>
-            <div style="font-size:13px;font-weight:500;">{{ stop.label }}</div>
+            <span style="width:28px;height:28px;background:rgba(255,255,255,0.08);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:rgba(255,255,255,0.55);">{{ loop.index }}</span>
+            <div style="font-size:13px;font-weight:500;color:#FAF9F5;">{{ stop.label }}</div>
           </div>
-          <div style="font-size:14px;font-weight:600;color:#1A1714;">{{ stop.pickup_time }}</div>
+          <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.85);">{{ stop.pickup_time }}</div>
         </div>
         {% endfor %}
         <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;">
           <div style="display:flex;align-items:center;gap:10px;">
             <span style="width:28px;height:28px;background:#D4784A;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;">📍</span>
-            <div style="font-size:13px;font-weight:500;">{{ route_cache.dest_name }}</div>
+            <div style="font-size:13px;font-weight:500;color:#FAF9F5;">{{ route_cache.dest_name }}</div>
           </div>
           <div style="font-size:14px;font-weight:600;color:#D4784A;">{{ route_cache.arrive_by }}</div>
         </div>
@@ -425,9 +428,9 @@
     if (!etas || etas.length === 0) { list.innerHTML = ""; return; }
     list.innerHTML = etas.map(eta => `
       <div style="display:flex;justify-content:space-between;align-items:center;
-                  padding:10px 14px;background:#FAF9F5;border:1px solid #E8E5DF;border-radius:8px;">
-        <div style="font-size:13px;font-weight:500;">${eta.name}</div>
-        <div style="font-size:13px;font-weight:700;color:${eta.minutes <= 2 ? '#16A34A' : '#D4784A'};">
+                  padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:8px;">
+        <div style="font-size:13px;font-weight:500;color:#FAF9F5;">${eta.name}</div>
+        <div style="font-size:13px;font-weight:700;color:${eta.minutes <= 2 ? '#6ee7a0' : '#D4784A'};">
           ${eta.label}
         </div>
       </div>`).join("");
