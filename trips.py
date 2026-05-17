@@ -1,23 +1,28 @@
 """
-Trip history log. Each completed trip is saved to trips.json.
+Per-group trip history log.
 """
 
 import json
 from datetime import datetime
 from pathlib import Path
-from storage import DATA_DIR
-
-TRIPS_FILE = DATA_DIR / "trips.json"
+from storage import group_dir
 
 
-def load_trips() -> list:
-    if TRIPS_FILE.exists():
-        return json.loads(TRIPS_FILE.read_text())
+def _file(group_id: str) -> Path:
+    return group_dir(group_id) / "trips.json"
+
+
+def load_trips(group_id: str) -> list:
+    f = _file(group_id)
+    if f.exists():
+        return json.loads(f.read_text())
     return []
 
 
-def record_trip(driver_family_id: str, driver_name: str, miles: float, minutes: int, arrival: datetime, pickup_family_ids: list) -> None:
-    trips = load_trips()
+def record_trip(driver_family_id: str, driver_name: str, miles: float,
+                minutes: int, arrival: datetime, pickup_family_ids: list,
+                group_id: str) -> None:
+    trips = load_trips(group_id)
     trips.append({
         "date": arrival.strftime("%Y-%m-%d"),
         "driver_family_id": driver_family_id,
@@ -26,12 +31,11 @@ def record_trip(driver_family_id: str, driver_name: str, miles: float, minutes: 
         "minutes": minutes,
         "pickups": pickup_family_ids,
     })
-    TRIPS_FILE.write_text(json.dumps(trips, indent=2))
+    _file(group_id).write_text(json.dumps(trips, indent=2))
 
 
-def get_stats() -> dict:
-    """Returns per-family stats: trip count, total miles, and total drive time."""
-    trips = load_trips()
+def get_stats(group_id: str) -> dict:
+    trips = load_trips(group_id)
     stats = {}
     for trip in trips:
         fid = trip["driver_family_id"]

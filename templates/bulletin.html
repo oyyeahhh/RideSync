@@ -441,7 +441,7 @@
 
   async function pollLocation() {
     try {
-      const res = await fetch("/get-location");
+      const res = await fetch("/get-location?group_id={{ group_id }}");
       const data = await res.json();
       const card = document.getElementById("tracking-card");
 

@@ -1,14 +1,6 @@
 """
-Edit this file with your actual carpool families.
-
-For v0, the data lives in code. When we add a database, this gets replaced by
-a seed script that loads the same data into Postgres. The shape doesn't change.
-
-Use any unique IDs you want (uuid4, short strings, whatever). I'm using short
-human-readable strings to make debugging easier.
-
-Addresses don't need lat/long here — the geocoder fills those in and caches
-them in geocode_cache.json on first run.
+Per-group family storage. Each group's families live in its group directory.
+All public functions take group_id as a parameter.
 """
 
 import json
@@ -16,168 +8,52 @@ import uuid
 from pathlib import Path
 
 from models import Group, Family, Guardian, Kid, Address, Destination
-from storage import DATA_DIR, CODE_DIR
+from storage import DATA_DIR, CODE_DIR, group_dir
 
-FAMILIES_FILE = DATA_DIR / "families.json"
-_SEED_FAMILIES_FILE = CODE_DIR / "families.json"  # seed file bundled with code
-
-
-# The one group, for now.
-GROUP = Group(id="grp_main", name="Teaneck Carpool")
+_SEED_FAMILIES_FILE = CODE_DIR / "families.json"
 
 
-FAMILIES = [
-    Family(
-        id="fam_nadler",
-        group_id=GROUP.id,
-        name="Nadler Family",
-        guardians=[
-            Guardian(
-                id="g_nadler",
-                group_id=GROUP.id,
-                family_id="fam_nadler",
-                name="Nadler Parent",
-                phone="+19173997404",
-                email="",
-                is_driver=True,
-            ),
-        ],
-        kids=[],
-        addresses=[
-            Address(
-                id="addr_nadler_home",
-                group_id=GROUP.id,
-                family_id="fam_nadler",
-                label="Home",
-                street="1163 E Laurelton Parkway, Teaneck, NJ",
-            ),
-        ],
-    ),
-    Family(
-        id="fam_bickel",
-        group_id=GROUP.id,
-        name="Bickel Family",
-        guardians=[
-            Guardian(
-                id="g_bickel",
-                group_id=GROUP.id,
-                family_id="fam_bickel",
-                name="Bickel Parent",
-                phone="+19173997404",
-                email="",
-                is_driver=True,
-            ),
-        ],
-        kids=[],
-        addresses=[
-            Address(
-                id="addr_bickel_home",
-                group_id=GROUP.id,
-                family_id="fam_bickel",
-                label="Home",
-                street="1291 Princeton Rd, Teaneck, NJ",
-            ),
-        ],
-    ),
-    Family(
-        id="fam_heiding",
-        group_id=GROUP.id,
-        name="Heiding Family",
-        guardians=[
-            Guardian(
-                id="g_heiding",
-                group_id=GROUP.id,
-                family_id="fam_heiding",
-                name="Heiding Parent",
-                phone="+19173997404",
-                email="",
-                is_driver=True,
-            ),
-        ],
-        kids=[],
-        addresses=[
-            Address(
-                id="addr_heiding_home",
-                group_id=GROUP.id,
-                family_id="fam_heiding",
-                label="Home",
-                street="415 Sagamore Ave, Teaneck, NJ",
-            ),
-        ],
-    ),
-    Family(
-        id="fam_tracer",
-        group_id=GROUP.id,
-        name="Tracer Family",
-        guardians=[
-            Guardian(
-                id="g_tracer",
-                group_id=GROUP.id,
-                family_id="fam_tracer",
-                name="Tracer Parent",
-                phone="+19173997404",
-                email="",
-                is_driver=True,
-            ),
-        ],
-        kids=[],
-        addresses=[
-            Address(
-                id="addr_tracer_home",
-                group_id=GROUP.id,
-                family_id="fam_tracer",
-                label="Home",
-                street="335 Griggs Ave, Teaneck, NJ",
-            ),
-        ],
-    ),
-]
+def _families_file(group_id: str) -> Path:
+    return group_dir(group_id) / "families.json"
 
 
-# === Destinations ===
-
-DESTINATIONS = [
-    Destination(
-        id="dest_powerup",
-        group_id=GROUP.id,
-        name="Power Up Arena",
-        street="Garden State Plaza Blvd Store 2145, Paramus, NJ 07652",
-    ),
-]
-
-
-def _load_families_json() -> list[dict]:
-    if FAMILIES_FILE.exists():
-        return json.loads(FAMILIES_FILE.read_text())
-    # On first deploy DATA_DIR may be empty — fall back to seed file in code dir
-    if _SEED_FAMILIES_FILE.exists() and _SEED_FAMILIES_FILE != FAMILIES_FILE:
+def _seed_data(group_id: str) -> list[dict]:
+    """Return seed families for the legacy grp_main group, empty list otherwise."""
+    if group_id == "grp_main" and _SEED_FAMILIES_FILE.exists():
         return json.loads(_SEED_FAMILIES_FILE.read_text())
     return []
 
 
-def _save_families_json(data: list[dict]) -> None:
-    FAMILIES_FILE.write_text(json.dumps(data, indent=2))
+def _load_families_json(group_id: str) -> list[dict]:
+    f = _families_file(group_id)
+    if f.exists():
+        return json.loads(f.read_text())
+    return _seed_data(group_id)
 
 
-def _dict_to_family(d: dict) -> Family:
+def _save_families_json(data: list[dict], group_id: str) -> None:
+    _families_file(group_id).write_text(json.dumps(data, indent=2))
+
+
+def _dict_to_family(d: dict, group_id: str) -> Family:
     return Family(
         id=d["id"],
-        group_id="grp_main",
+        group_id=group_id,
         name=d["name"],
         guardians=[Guardian(
             id=f"g_{d['id']}",
-            group_id="grp_main",
+            group_id=group_id,
             family_id=d["id"],
             name=d["name"],
             phone=d.get("phone", ""),
             email=d.get("email", ""),
             is_driver=True,
         )],
-        kids=[Kid(id=f"kid_{i}_{d['id']}", group_id="grp_main", family_id=d["id"], name=c)
+        kids=[Kid(id=f"kid_{i}_{d['id']}", group_id=group_id, family_id=d["id"], name=c)
               for i, c in enumerate(d.get("children", []))],
         addresses=[Address(
             id=f"addr_{d['id']}_home",
-            group_id="grp_main",
+            group_id=group_id,
             family_id=d["id"],
             label="Home",
             street=d.get("address", ""),
@@ -185,14 +61,11 @@ def _dict_to_family(d: dict) -> Family:
     )
 
 
-def get_all_family_ids() -> list[str]:
-    data = _load_families_json()
-    if data:
-        return [f["id"] for f in data]
-    return [f.id for f in FAMILIES]
+def get_all_family_ids(group_id: str) -> list[str]:
+    return [f["id"] for f in _load_families_json(group_id)]
 
 
-def add_family(name: str, address: str, phone: str, children: list[str]) -> dict:
+def add_family(name: str, address: str, phone: str, children: list[str], group_id: str) -> dict:
     """Create a new family entry, persist it, and return the dict."""
     slug = name.lower().split()[-1] if name else "family"
     family_id = f"fam_{slug}_{uuid.uuid4().hex[:4]}"
@@ -203,25 +76,40 @@ def add_family(name: str, address: str, phone: str, children: list[str]) -> dict
         "phone": phone,
         "children": children,
     }
-    data = _load_families_json()
+    data = _load_families_json(group_id)
     data.append(entry)
-    _save_families_json(data)
+    _save_families_json(data, group_id)
     return entry
 
 
-def get_family(family_id: str) -> Family:
-    """Look up a family by ID — checks families.json first, then hardcoded list."""
-    for d in _load_families_json():
+def get_family(family_id: str, group_id: str) -> Family:
+    """Look up a family by ID within the given group."""
+    for d in _load_families_json(group_id):
         if d["id"] == family_id:
-            return _dict_to_family(d)
-    for f in FAMILIES:
-        if f.id == family_id:
-            return f
-    raise ValueError(f"No family with id {family_id}")
+            return _dict_to_family(d, group_id)
+    raise ValueError(f"No family with id {family_id} in group {group_id}")
+
+
+# Destinations are currently hardcoded globally; kept for backward compat.
+_DESTINATIONS = [
+    Destination(
+        id="dest_powerup",
+        group_id="grp_main",
+        name="Power Up Arena",
+        street="Garden State Plaza Blvd Store 2145, Paramus, NJ 07652",
+    ),
+    Destination(
+        id="dest_main",
+        group_id="",
+        name="",
+        street="",
+    ),
+]
 
 
 def get_destination(dest_id: str) -> Destination:
-    for d in DESTINATIONS:
+    for d in _DESTINATIONS:
         if d.id == dest_id:
             return d
-    raise ValueError(f"No destination with id {dest_id}")
+    # Return a blank destination rather than crashing
+    return Destination(id=dest_id, group_id="", name="", street="")

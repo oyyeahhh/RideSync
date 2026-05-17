@@ -15,23 +15,23 @@ from absences import get_absences
 MATRIX_URL = "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
 
 
-def compute_etas(driver_lat: float, driver_lng: float, trip_date: str) -> list[dict]:
+def compute_etas(driver_lat: float, driver_lng: float, trip_date: str, group_id: str = "grp_main") -> list[dict]:
     """
     Returns a list of dicts sorted by ETA:
       [{family_id, name, minutes, lat, lng}, ...]
     Families that are absent or are the driver are excluded.
     """
-    rotation_data = load_rotation()
-    order = rotation_data.get("order", get_all_family_ids())
+    rotation_data = load_rotation(group_id)
+    order = rotation_data.get("order", get_all_family_ids(group_id))
     current_index = rotation_data.get("current_index", 0)
     driver_id = order[current_index] if order else None
-    absences = get_absences(trip_date)
+    absences = get_absences(trip_date, group_id)
 
     pickup_families = []
-    for fid in get_all_family_ids():
+    for fid in get_all_family_ids(group_id):
         if fid == driver_id or fid in absences:
             continue
-        family = get_family(fid)
+        family = get_family(fid, group_id)
         addr = family.primary_address
         if not addr.latitude or not addr.longitude:
             geocode_address(addr)

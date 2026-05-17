@@ -1,63 +1,79 @@
 """
-Shared trip configuration. Edit via the dashboard or trip_config.json directly.
+Per-group trip configuration stored in trip_config.json inside each group's directory.
+All public functions take group_id as their first parameter.
 """
 
 import json
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
-from storage import DATA_DIR
 
-CONFIG_FILE = DATA_DIR / "trip_config.json"
+from storage import group_dir
 
-def _load_family_ids() -> list[str]:
-    families_file = Path(__file__).parent / "families.json"
-    if families_file.exists():
-        return [f["id"] for f in json.loads(families_file.read_text())]
-    return ["fam_nadler", "fam_bickel", "fam_heiding", "fam_tracer"]
-
-ALL_FAMILY_IDS = _load_family_ids()
-ADMIN_PHONE = "+19173997404"
+# Keep ADMIN_PHONE for backwards compat with SMS webhook
+ADMIN_PHONE = ""
 
 
-def load_config() -> dict:
-    return json.loads(CONFIG_FILE.read_text())
+def _file(group_id: str) -> Path:
+    return group_dir(group_id) / "trip_config.json"
 
 
-def save_config(data: dict) -> None:
-    CONFIG_FILE.write_text(json.dumps(data, indent=2))
+def _default() -> dict:
+    return {
+        "arrival_date": "",
+        "arrival_time": "17:00",
+        "return_time": "",
+        "return_driver_family_id": "",
+        "return_driver_name": "",
+        "destination_name": "",
+        "destination_address": "",
+        "buffer_minutes": 10,
+        "group_name": "Carpool",
+        "timezone": "America/New_York",
+        "destination_id": "dest_main",
+        "assignment_mode": "auto",
+    }
 
 
-def arrival_time() -> datetime:
-    cfg = load_config()
-    tz = ZoneInfo(cfg["timezone"])
-    dt_str = f"{cfg['arrival_date']} {cfg['arrival_time']}"
-    return datetime.strptime(dt_str, "%Y-%m-%d %H:%M").replace(tzinfo=tz)
+def load_config(group_id: str) -> dict:
+    f = _file(group_id)
+    if not f.exists():
+        return _default()
+    return json.loads(f.read_text())
 
 
-def get_destination_id() -> str:
-    return load_config()["destination_id"]
+def save_config(data: dict, group_id: str) -> None:
+    _file(group_id).write_text(json.dumps(data, indent=2))
 
 
-def get_buffer_minutes() -> int:
-    return load_config().get("buffer_minutes", 5)
+def arrival_time(group_id: str) -> datetime:
+    cfg = load_config(group_id)
+    tz = ZoneInfo(cfg.get("timezone", "America/New_York"))
+    date_str = cfg.get("arrival_date", "")
+    time_str = cfg.get("arrival_time", "17:00")
+    if not date_str:
+        # Default to today if not configured
+        return datetime.now(tz)
+    return datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M").replace(tzinfo=tz)
 
 
-def get_group_name() -> str:
-    return load_config().get("group_name", "Carpool")
+def get_destination_id(group_id: str) -> str:
+    return load_config(group_id).get("destination_id", "dest_main")
 
 
-def get_assignment_mode() -> str:
-    """'auto' = rotation assigns drivers; 'manual' = families volunteer."""
-    return load_config().get("assignment_mode", "auto")
+def get_buffer_minutes(group_id: str) -> int:
+    return load_config(group_id).get("buffer_minutes", 5)
 
 
-def set_assignment_mode(mode: str) -> None:
-    cfg = load_config()
+def get_group_name(group_id: str) -> str:
+    return load_config(group_id).get("group_name", "Carpool")
+
+
+def get_assignment_mode(group_id: str) -> str:
+    return load_config(group_id).get("assignment_mode", "auto")
+
+
+def set_assignment_mode(mode: str, group_id: str) -> None:
+    cfg = load_config(group_id)
     cfg["assignment_mode"] = mode
-    save_config(cfg)
-
-
-# Keep these as module-level constants for backwards compat
-DESTINATION_ID = property(get_destination_id)
-BUFFER_MINUTES = 5
+    save_config(cfg, group_id)

@@ -28,9 +28,9 @@ from config import (
     arrival_time, get_destination_id, load_config, save_config,
     get_group_name, get_assignment_mode, set_assignment_mode,
 )
-from storage import DATA_DIR, CODE_DIR
+from storage import DATA_DIR, CODE_DIR, group_dir, migrate_legacy_data
 from families import get_family, get_destination, get_all_family_ids, add_family
-from rotation import _load as load_rotation, add_to_rotation, set_driver as _set_driver
+from rotation import _load as _load_rotation, add_to_rotation, set_driver as _set_driver
 from trips import get_stats, load_trips
 from schedule import load_schedule, save_schedule, add_trip, remove_trip, remove_series, add_recurring_trips, claim_trip
 from karma import get_karma, record_swap_request as _record_swap_req, record_swap_cover as _record_swap_cover
@@ -40,13 +40,16 @@ from auth import (
     verify_password, create_user,
     generate_invite_token, verify_invite_token, mark_invite_used,
 )
+from groups import create_group as _create_group, get_group, list_groups
 from sms import send_sms
 from absences import toggle_absent, get_absences
 from route_cache import load as load_route_cache
 from location import start_ride, stop_ride, update_location, get_location
-from eta import compute_etas
 
 load_dotenv()
+
+# Run legacy data migration on startup so existing single-group data is accessible
+migrate_legacy_data("grp_main")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -95,6 +98,11 @@ def current_user() -> dict | None:
     return get_user_by_id(uid)
 
 
+def gid() -> str | None:
+    """Return the current user's group_id from the session."""
+    return session.get("group_id")
+
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -116,13 +124,13 @@ def admin_required(f):
 
 # ── Utility ───────────────────────────────────────────────────────────────────
 
-def gcal_url(trip: dict) -> str:
+def gcal_url(trip: dict, group_id: str) -> str:
     """Build a Google Calendar 'add event' URL for the outbound leg."""
     tz = ZoneInfo("America/New_York")
     arrival = datetime.strptime(f"{trip['date']} {trip['arrival_time']}", "%Y-%m-%d %H:%M").replace(tzinfo=tz)
 
     start = None
-    route_cache = load_route_cache()
+    route_cache = load_route_cache(group_id)
     if route_cache and route_cache.get("date") == trip["date"]:
         try:
             depart_str = route_cache["depart_at"]
@@ -132,38 +140,40 @@ def gcal_url(trip: dict) -> str:
             pass
 
     if start is None:
-        cfg = load_config()
+        cfg = load_config(group_id)
         start = arrival - timedelta(minutes=cfg.get("buffer_minutes", 10))
 
     pickup_start = start.strftime("%-I:%M %p")
     fmt = "%Y%m%dT%H%M%S"
-    title = quote(f"{get_group_name()} — {trip['destination_name']} (There)")
+    group_name = get_group_name(group_id)
+    title = quote(f"{group_name} — {trip['destination_name']} (There)")
     details = quote(
         f"Driver: {trip['driver_name']}\n"
         f"Pickup starts: {pickup_start}\n"
         f"Arrive by: {arrival.strftime('%-I:%M %p')}"
     )
-    location = quote(f"{trip['destination_address']} ({get_group_name()})")
+    location = quote(f"{trip['destination_address']} ({group_name})")
     dates = f"{start.strftime(fmt)}/{arrival.strftime(fmt)}"
     return f"https://calendar.google.com/calendar/render?action=TEMPLATE&text={title}&dates={dates}&details={details}&location={location}"
 
 
-def gcal_url_return(trip: dict) -> str:
+def gcal_url_return(trip: dict, group_id: str) -> str:
     """Build a Google Calendar 'add event' URL for the return leg."""
     if not trip.get("return_time"):
         return ""
     tz = ZoneInfo("America/New_York")
     fmt = "%Y%m%dT%H%M%S"
-    cfg = load_config()
+    cfg = load_config(group_id)
     pickup = datetime.strptime(f"{trip['date']} {trip['return_time']}", "%Y-%m-%d %H:%M").replace(tzinfo=tz)
     arrive_home = pickup + timedelta(minutes=cfg.get("buffer_minutes", 10) + 20)
     driver = trip.get("return_driver_name") or trip.get("driver_name", "")
-    title = quote(f"{get_group_name()} — {trip['destination_name']} (Return)")
+    group_name = get_group_name(group_id)
+    title = quote(f"{group_name} — {trip['destination_name']} (Return)")
     details = quote(
         f"Driver: {driver}\n"
         f"Pickup from {trip['destination_name']}: {pickup.strftime('%-I:%M %p')}"
     )
-    location = quote(f"{trip['destination_address']} ({get_group_name()})")
+    location = quote(f"{trip['destination_address']} ({group_name})")
     dates = f"{pickup.strftime(fmt)}/{arrive_home.strftime(fmt)}"
     return f"https://calendar.google.com/calendar/render?action=TEMPLATE&text={title}&dates={dates}&details={details}&location={location}"
 
@@ -185,6 +195,7 @@ def login():
         user = get_user_by_email(email)
         if user and verify_password(password, user["password_hash"]):
             session["user_id"] = user["id"]
+            session["group_id"] = user.get("group_id", "")
             return redirect(url_for("dashboard"))
         else:
             error = "Invalid email or password."
@@ -196,6 +207,51 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.route("/create-group", methods=["GET", "POST"])
+def create_group_route():
+    """New admin flow: create a brand-new carpool group."""
+    if session.get("user_id"):
+        return redirect(url_for("dashboard"))
+
+    error = None
+    form = {}
+
+    if request.method == "POST":
+        form = {
+            "group_name": request.form.get("group_name", "").strip(),
+            "name": request.form.get("name", "").strip(),
+            "email": request.form.get("email", "").strip(),
+            "phone": request.form.get("phone", "").strip(),
+        }
+        password = request.form.get("password", "")
+
+        if not form["group_name"]:
+            error = "Please name your carpool group."
+        elif not form["name"]:
+            error = "Please enter your name."
+        elif not form["email"]:
+            error = "Please enter your email."
+        elif len(password) < 8:
+            error = "Password must be at least 8 characters."
+        elif get_user_by_email(form["email"]):
+            error = "An account with that email already exists."
+        else:
+            group = _create_group(form["group_name"])
+            user = create_user(
+                phone=form["phone"],
+                name=form["name"],
+                email=form["email"],
+                password=password,
+                role="admin",
+                group_id=group["id"],
+            )
+            session["user_id"] = user["id"]
+            session["group_id"] = group["id"]
+            return redirect(url_for("dashboard"))
+
+    return render_template("create_group.html", error=error, form=form)
 
 
 @app.route("/signup", methods=["GET", "POST"])
@@ -218,6 +274,7 @@ def signup():
             "address": request.form.get("address", "").strip(),
         }
         password = request.form.get("password", "")
+        invite_group_id = invite.get("group_id", "")
 
         if not form["name"]:
             error = "Please enter your name."
@@ -244,8 +301,9 @@ def signup():
                         address=form["address"],
                         phone=invite["phone"],
                         children=[form["child_name"]] if form["child_name"] else [],
+                        group_id=invite_group_id,
                     )
-                    add_to_rotation(family["id"])
+                    add_to_rotation(family["id"], invite_group_id)
                     assigned_family_id = family["id"]
 
             if not error:
@@ -258,9 +316,11 @@ def signup():
                     family_id=assigned_family_id,
                     child_name=form["child_name"],
                     address=form["address"],
+                    group_id=invite_group_id,
                 )
                 mark_invite_used(token)
                 session["user_id"] = user["id"]
+                session["group_id"] = invite_group_id
                 return redirect(url_for("dashboard"))
 
     # Pre-fill family name suggestion from invite if available
@@ -281,7 +341,8 @@ def signup():
 @login_required
 @admin_required
 def invite():
-    group_name = get_group_name()
+    group_id = gid()
+    group_name = get_group_name(group_id)
     if not group_name or group_name == "Carpool":
         return redirect(url_for("dashboard"))
 
@@ -297,14 +358,14 @@ def invite():
     family_name = ""
     if family_id:
         try:
-            family_name = get_family(family_id).name
+            family_name = get_family(family_id, group_id).name
         except ValueError:
             family_id = ""
 
-    token = generate_invite_token(phone, family_id=family_id, family_name=family_name)
+    token = generate_invite_token(phone, group_id=group_id, family_id=family_id, family_name=family_name)
     signup_url = url_for("signup", token=token, _external=True)
     message = (
-        f"You've been invited to join {get_group_name()}!\n\n"
+        f"You've been invited to join {group_name}!\n\n"
         f"Click the link below to create your account:\n{signup_url}"
     )
     whatsapp_ok = True
@@ -322,34 +383,38 @@ def invite():
 @login_required
 def dashboard():
     user = current_user()
-    cfg = load_config()
-    trip_time = arrival_time()
-    rotation_data = load_rotation()
-    order = rotation_data.get("order", get_all_family_ids())
+    group_id = gid()
+    if not group_id:
+        return redirect(url_for("create_group_route"))
+
+    cfg = load_config(group_id)
+    trip_time = arrival_time(group_id)
+    rotation_data = _load_rotation(group_id)
+    order = rotation_data.get("order", get_all_family_ids(group_id))
     current_index = rotation_data.get("current_index", 0)
     next_driver_id = order[current_index] if order else None
 
     rotation = []
     for fid in order:
-        family = get_family(fid)
+        family = get_family(fid, group_id)
         rotation.append({"name": family.name, "id": fid, "is_next": fid == next_driver_id})
 
-    next_driver_name = get_family(next_driver_id).name if next_driver_id else "—"
-    default_dest = get_destination(get_destination_id())
+    next_driver_name = get_family(next_driver_id, group_id).name if next_driver_id else "—"
+    default_dest = get_destination(get_destination_id(group_id))
     dest_name = cfg.get("destination_name") or default_dest.name
     if not cfg.get("destination_name"):
         cfg["destination_name"] = default_dest.name
     if not cfg.get("destination_address"):
         cfg["destination_address"] = default_dest.street
 
-    stats = get_stats()
+    stats = get_stats(group_id)
     max_minutes = max((s["minutes"] for s in stats.values()), default=1) or 1
     for s in stats.values():
         s["hours"] = s["minutes"] // 60
         s["mins"] = s["minutes"] % 60
         s["bar_pct"] = round(s["minutes"] / max_minutes * 100)
 
-    raw_trips = load_trips()
+    raw_trips = load_trips(group_id)
     history = []
     for t in reversed(raw_trips):
         mins = t.get("minutes", 0)
@@ -360,33 +425,33 @@ def dashboard():
             "pickups": len(t.get("pickups", [])),
         })
 
-    schedule = load_schedule()
+    schedule = load_schedule(group_id)
     for trip in schedule:
-        trip["gcal_url"] = gcal_url(trip)
-        trip["gcal_url_return"] = gcal_url_return(trip)
+        trip["gcal_url"] = gcal_url(trip, group_id)
+        trip["gcal_url_return"] = gcal_url_return(trip, group_id)
 
-    families = [{"id": fid, "name": get_family(fid).name} for fid in get_all_family_ids()]
-    raw_karma = {k["family_id"]: k for k in get_karma()}
+    families = [{"id": fid, "name": get_family(fid, group_id).name} for fid in get_all_family_ids(group_id)]
+    raw_karma = {k["family_id"]: k for k in get_karma(group_id)}
     karma = []
-    for fid in get_all_family_ids():
+    for fid in get_all_family_ids(group_id):
         if fid in raw_karma:
             karma.append(raw_karma[fid])
         else:
             karma.append({
                 "family_id": fid,
-                "name": get_family(fid).name,
+                "name": get_family(fid, group_id).name,
                 "requested": 0,
                 "covered": 0,
                 "score": 0,
             })
 
-    trip_date = arrival_time().strftime("%Y-%m-%d")
-    absences = get_absences(trip_date)
+    trip_date = arrival_time(group_id).strftime("%Y-%m-%d")
+    absences = get_absences(trip_date, group_id)
     pickup_families = []
-    for fid in get_all_family_ids():
+    for fid in get_all_family_ids(group_id):
         if fid == next_driver_id:
             continue
-        family = get_family(fid)
+        family = get_family(fid, group_id)
         pickup_families.append({
             "id": fid,
             "name": family.name,
@@ -403,11 +468,12 @@ def dashboard():
         else:
             invite_status = f"WhatsApp failed. Share this link manually with {invite_phone}: {invite_link}"
 
-    group_name = get_group_name()
+    group_name = get_group_name(group_id)
 
     return render_template(
         "dashboard.html",
         group_name=group_name,
+        group_id=group_id,
         current_user=user,
         next_trip={
             "date": trip_time.strftime("%A, %B %d, %Y"),
@@ -429,9 +495,9 @@ def dashboard():
         pickup_families=pickup_families,
         next_driver_id=next_driver_id,
         trip_date=trip_date,
-        live_location=get_location(),
+        live_location=get_location(group_id),
         maps_api_key=os.environ.get("GOOGLE_MAPS_API_KEY", ""),
-        assignment_mode=get_assignment_mode(),
+        assignment_mode=get_assignment_mode(group_id),
     )
 
 
@@ -441,7 +507,8 @@ def dashboard():
 @login_required
 @admin_required
 def save_trip():
-    cfg = load_config()
+    group_id = gid()
+    cfg = load_config(group_id)
     cfg["arrival_date"] = request.form["arrival_date"]
     cfg["arrival_time"] = request.form["arrival_time"]
     cfg["return_time"] = request.form.get("return_time", "").strip()
@@ -452,7 +519,7 @@ def save_trip():
     cfg["buffer_minutes"] = int(request.form.get("buffer_minutes", 5))
     if request.form.get("group_name", "").strip():
         cfg["group_name"] = request.form.get("group_name").strip()
-    save_config(cfg)
+    save_config(cfg, group_id)
     return redirect(url_for("dashboard"))
 
 
@@ -461,7 +528,8 @@ def save_trip():
 @app.route("/calendar.ics")
 @login_required
 def calendar_feed():
-    ics = build_ics()
+    group_id = gid()
+    ics = build_ics(group_id)
     return Response(ics, mimetype="text/calendar", headers={
         "Content-Disposition": "inline; filename=carpool.ics"
     })
@@ -469,13 +537,13 @@ def calendar_feed():
 
 # ── Schedule ──────────────────────────────────────────────────────────────────
 
-def _rotation_pairs_from(start_index: int) -> list[tuple[str, str]]:
+def _rotation_pairs_from(start_index: int, group_id: str) -> list[tuple[str, str]]:
     """Return (family_id, name) pairs for the rotation, starting at start_index."""
-    rot = load_rotation()
+    rot = _load_rotation(group_id)
     order = rot.get("order", [])
     if not order:
         return []
-    pairs = [(fid, get_family(fid).name) for fid in order]
+    pairs = [(fid, get_family(fid, group_id).name) for fid in order]
     return pairs[start_index:] + pairs[:start_index]
 
 
@@ -483,18 +551,19 @@ def _rotation_pairs_from(start_index: int) -> list[tuple[str, str]]:
 @login_required
 @admin_required
 def schedule_add():
+    group_id = gid()
     data = request.json
     driver_fid = data.get("driver_family_id", "")
     driver_name = data.get("driver_name", "")
 
     # Auto mode: if driver not supplied, pull from rotation
-    if get_assignment_mode() == "auto" and not driver_fid:
-        rot = load_rotation()
+    if get_assignment_mode(group_id) == "auto" and not driver_fid:
+        rot = _load_rotation(group_id)
         order = rot.get("order", [])
         idx = rot.get("current_index", 0)
         if order:
             driver_fid = order[idx]
-            driver_name = get_family(driver_fid).name
+            driver_name = get_family(driver_fid, group_id).name
 
     trip = add_trip(
         date=data["date"],
@@ -506,9 +575,10 @@ def schedule_add():
         destination_address=data["destination_address"],
         driver_family_id=driver_fid,
         driver_name=driver_name,
+        group_id=group_id,
     )
-    trip["gcal_url"] = gcal_url(trip)
-    trip["gcal_url_return"] = gcal_url_return(trip)
+    trip["gcal_url"] = gcal_url(trip, group_id)
+    trip["gcal_url_return"] = gcal_url_return(trip, group_id)
     return jsonify(trip)
 
 
@@ -516,7 +586,8 @@ def schedule_add():
 @login_required
 @admin_required
 def schedule_remove(trip_id):
-    remove_trip(trip_id)
+    group_id = gid()
+    remove_trip(trip_id, group_id)
     return jsonify({"ok": True})
 
 
@@ -524,7 +595,8 @@ def schedule_remove(trip_id):
 @login_required
 @admin_required
 def schedule_remove_series(series_id):
-    count = remove_series(series_id)
+    group_id = gid()
+    count = remove_series(series_id, group_id)
     return jsonify({"ok": True, "removed": count})
 
 
@@ -532,28 +604,30 @@ def schedule_remove_series(series_id):
 @login_required
 @admin_required
 def schedule_set_assignment_mode():
+    group_id = gid()
     mode = request.json.get("mode", "auto")
     if mode not in ("auto", "manual"):
         return jsonify({"error": "invalid mode"}), 400
-    set_assignment_mode(mode)
+    set_assignment_mode(mode, group_id)
     return jsonify({"ok": True, "mode": mode})
 
 
 @app.route("/schedule/claim/<trip_id>/<leg>", methods=["POST"])
 @login_required
 def schedule_claim(trip_id, leg):
+    group_id = gid()
     if leg not in ("outbound", "return"):
         return jsonify({"error": "invalid leg"}), 400
     user = current_user()
     family_id = user.get("family_id")
     if not family_id:
         return jsonify({"error": "no family linked to your account"}), 400
-    family = get_family(family_id)
-    trip = claim_trip(trip_id, leg, family_id, family.name)
+    family = get_family(family_id, group_id)
+    trip = claim_trip(trip_id, leg, family_id, family.name, group_id)
     if not trip:
         return jsonify({"error": "trip not found"}), 404
-    trip["gcal_url"] = gcal_url(trip)
-    trip["gcal_url_return"] = gcal_url_return(trip)
+    trip["gcal_url"] = gcal_url(trip, group_id)
+    trip["gcal_url_return"] = gcal_url_return(trip, group_id)
     return jsonify({"ok": True, "trip": trip})
 
 
@@ -561,17 +635,18 @@ def schedule_claim(trip_id, leg):
 @login_required
 @admin_required
 def schedule_add_recurring():
+    group_id = gid()
     data = request.json
     driver_fid = data.get("driver_family_id", "")
     driver_name = data.get("driver_name", "")
-    auto_mode = get_assignment_mode() == "auto"
+    auto_mode = get_assignment_mode(group_id) == "auto"
 
     # Build a sequence of drivers for auto mode (cycles through rotation)
     rot_sequence: list[tuple[str, str]] = []
     if auto_mode and not driver_fid:
-        rot = load_rotation()
+        rot = _load_rotation(group_id)
         idx = rot.get("current_index", 0)
-        base = _rotation_pairs_from(idx)
+        base = _rotation_pairs_from(idx, group_id)
         if base:
             rot_sequence = base  # will be indexed with modulo in loop below
 
@@ -583,7 +658,7 @@ def schedule_add_recurring():
         end = date.fromisoformat(data["end_date"])
         series_id = str(uuid.uuid4())[:12]
         rot_n = len(rot_sequence)
-        trips_list = load_schedule()
+        trips_list = load_schedule(group_id)
         created = []
         rot_idx = 0
         while cur <= end:
@@ -607,7 +682,7 @@ def schedule_add_recurring():
                 created.append(trip)
             cur += timedelta(days=1)
         trips_list.sort(key=lambda t: t["date"])
-        save_schedule(trips_list)
+        save_schedule(trips_list, group_id)
     else:
         created = add_recurring_trips(
             start_date=data["start_date"],
@@ -621,50 +696,53 @@ def schedule_add_recurring():
             destination_address=data["destination_address"],
             driver_family_id=driver_fid,
             driver_name=driver_name,
+            group_id=group_id,
         )
 
     for trip in created:
-        trip["gcal_url"] = gcal_url(trip)
-        trip["gcal_url_return"] = gcal_url_return(trip)
+        trip["gcal_url"] = gcal_url(trip, group_id)
+        trip["gcal_url_return"] = gcal_url_return(trip, group_id)
     return jsonify({"ok": True, "trips": created, "count": len(created)})
 
 
 @app.route("/toggle-absent", methods=["POST"])
 @login_required
 def toggle_absent_route():
+    group_id = gid()
     data = request.json or {}
     family_id = data.get("family_id")
     user = current_user()
     if user.get("role") != "admin" and user.get("family_id") != family_id:
         return jsonify({"error": "forbidden"}), 403
-    trip_date = arrival_time().strftime("%Y-%m-%d")
-    now_absent = toggle_absent(trip_date, family_id)
+    trip_date = arrival_time(group_id).strftime("%Y-%m-%d")
+    now_absent = toggle_absent(trip_date, family_id, group_id)
     return jsonify({"absent": now_absent})
 
 
 @app.route("/running-late", methods=["POST"])
 @login_required
 def running_late():
+    group_id = gid()
     data = request.json or {}
     minutes = data.get("minutes", "")
-    cfg = load_config()
-    trip_date = arrival_time().strftime("%Y-%m-%d")
-    absences = get_absences(trip_date)
-    rotation_data = load_rotation()
-    order = rotation_data.get("order", get_all_family_ids())
+    cfg = load_config(group_id)
+    trip_date = arrival_time(group_id).strftime("%Y-%m-%d")
+    absences = get_absences(trip_date, group_id)
+    rotation_data = _load_rotation(group_id)
+    order = rotation_data.get("order", get_all_family_ids(group_id))
     current_index = rotation_data.get("current_index", 0)
     driver_id = order[current_index] if order else None
-    driver_name = get_family(driver_id).name if driver_id else "The driver"
+    driver_name = get_family(driver_id, group_id).name if driver_id else "The driver"
 
     msg = f"⏰ {driver_name} is running late"
     if minutes:
         msg += f" (~{minutes} min)"
     msg += ". Hang tight!"
 
-    for fid in get_all_family_ids():
+    for fid in get_all_family_ids(group_id):
         if fid == driver_id or fid in absences:
             continue
-        family = get_family(fid)
+        family = get_family(fid, group_id)
         try:
             send_sms(to_phone=family.guardians[0].phone, message=msg)
         except Exception as e:
@@ -676,22 +754,23 @@ def running_late():
 @app.route("/arrived", methods=["POST"])
 @login_required
 def arrived():
-    cfg = load_config()
+    group_id = gid()
+    cfg = load_config(group_id)
     dest_name = cfg.get("destination_name", "the destination")
-    trip_date = arrival_time().strftime("%Y-%m-%d")
-    absences = get_absences(trip_date)
-    rotation_data = load_rotation()
-    order = rotation_data.get("order", get_all_family_ids())
+    trip_date = arrival_time(group_id).strftime("%Y-%m-%d")
+    absences = get_absences(trip_date, group_id)
+    rotation_data = _load_rotation(group_id)
+    order = rotation_data.get("order", get_all_family_ids(group_id))
     current_index = rotation_data.get("current_index", 0)
     driver_id = order[current_index] if order else None
-    driver_name = get_family(driver_id).name if driver_id else "The driver"
+    driver_name = get_family(driver_id, group_id).name if driver_id else "The driver"
 
     msg = f"✅ Kids have arrived safely at {dest_name}! Thanks {driver_name}!"
 
-    for fid in get_all_family_ids():
+    for fid in get_all_family_ids(group_id):
         if fid == driver_id or fid in absences:
             continue
-        family = get_family(fid)
+        family = get_family(fid, group_id)
         try:
             send_sms(to_phone=family.guardians[0].phone, message=msg)
         except Exception as e:
@@ -703,79 +782,91 @@ def arrived():
 @app.route("/start-ride", methods=["POST"])
 @login_required
 def start_ride_route():
+    group_id = gid()
     user = current_user()
-    start_ride(driver_name=user.get("name", "Driver"))
+    start_ride(driver_name=user.get("name", "Driver"), group_id=group_id)
     return jsonify({"ok": True})
 
 
 @app.route("/start-return", methods=["POST"])
 @login_required
 def start_return_route():
+    group_id = gid()
     user = current_user()
-    start_ride(driver_name=user.get("name", "Driver"), trip_leg="return")
+    start_ride(driver_name=user.get("name", "Driver"), group_id=group_id, trip_leg="return")
     return jsonify({"ok": True})
 
 
 @app.route("/stop-ride", methods=["POST"])
 @login_required
 def stop_ride_route():
-    stop_ride()
+    group_id = gid()
+    stop_ride(group_id)
     return jsonify({"ok": True})
 
 
 @app.route("/update-location", methods=["POST"])
 @login_required
 def update_location_route():
+    from eta import compute_etas
+    group_id = gid()
     data = request.json or {}
     lat, lng = data["lat"], data["lng"]
-    update_location(lat=lat, lng=lng)
-    trip_date = arrival_time().strftime("%Y-%m-%d")
+    update_location(lat=lat, lng=lng, group_id=group_id)
+    trip_date = arrival_time(group_id).strftime("%Y-%m-%d")
     try:
-        etas = compute_etas(lat, lng, trip_date)
+        etas = compute_etas(lat, lng, trip_date, group_id)
     except Exception:
         etas = []
-    loc = get_location()
+    loc = get_location(group_id)
     loc["etas"] = etas
-    from location import _save as save_location
-    save_location(loc)
+    from location import _save as _save_location
+    _save_location(loc, group_id)
     return jsonify({"ok": True})
 
 
 @app.route("/get-location")
 def get_location_route():
-    return jsonify(get_location())
+    group_id = request.args.get("group_id", "")
+    if not group_id:
+        return jsonify({"active": False})
+    return jsonify(get_location(group_id))
 
 
-@app.route("/bulletin")
-def bulletin():
-    cfg = load_config()
-    trip_time = arrival_time()
-    rotation_data = load_rotation()
-    order = rotation_data.get("order", get_all_family_ids())
+@app.route("/bulletin/<group_id>")
+def bulletin(group_id):
+    if not get_group(group_id):
+        return "Group not found", 404
+
+    cfg = load_config(group_id)
+    trip_time = arrival_time(group_id)
+    rotation_data = _load_rotation(group_id)
+    order = rotation_data.get("order", get_all_family_ids(group_id))
     current_index = rotation_data.get("current_index", 0)
     next_driver_id = order[current_index] if order else None
-    next_driver_name = get_family(next_driver_id).name if next_driver_id else "—"
-    default_dest = get_destination(get_destination_id())
+    next_driver_name = get_family(next_driver_id, group_id).name if next_driver_id else "—"
+    default_dest = get_destination(get_destination_id(group_id))
     dest_name = cfg.get("destination_name") or default_dest.name
 
-    schedule = load_schedule()
+    schedule = load_schedule(group_id)
     rotation = []
     for i, fid in enumerate(order):
-        family = get_family(fid)
+        family = get_family(fid, group_id)
         rotation.append({
             "name": family.name,
             "is_next": fid == next_driver_id,
             "position": i + 1,
         })
 
-    route_cache = load_route_cache()
-    live_location = get_location()
+    route_cache = load_route_cache(group_id)
+    live_location = get_location(group_id)
 
     return render_template(
         "bulletin.html",
         maps_api_key=os.environ.get("GOOGLE_MAPS_API_KEY", ""),
         live_location=live_location,
-        group_name=get_group_name(),
+        group_name=get_group_name(group_id),
+        group_id=group_id,
         route_cache=route_cache,
         next_trip={
             "date": trip_time.strftime("%A, %B %d, %Y"),
@@ -794,44 +885,55 @@ def bulletin():
 # ── SMS Webhook (Twilio) ──────────────────────────────────────────────────────
 # Handles inbound SMS replies: YES confirmations, SWAP requests, swap volunteers.
 
-CONFIRMATIONS_FILE = DATA_DIR / "confirmations.json"
-SWAP_FILE = DATA_DIR / "swap_state.json"
+def _confirmations_file(group_id: str):
+    return group_dir(group_id) / "confirmations.json"
+
+def _swap_file(group_id: str):
+    return group_dir(group_id) / "swap_state.json"
 
 
-def _load_confirmations() -> dict:
-    return json.loads(CONFIRMATIONS_FILE.read_text()) if CONFIRMATIONS_FILE.exists() else {}
+def _load_confirmations(group_id: str) -> dict:
+    f = _confirmations_file(group_id)
+    return json.loads(f.read_text()) if f.exists() else {}
 
-def _save_confirmations(data: dict) -> None:
-    CONFIRMATIONS_FILE.write_text(json.dumps(data, indent=2))
+def _save_confirmations(data: dict, group_id: str) -> None:
+    _confirmations_file(group_id).write_text(json.dumps(data, indent=2))
 
-def _load_swap() -> dict:
-    return json.loads(SWAP_FILE.read_text()) if SWAP_FILE.exists() else {}
+def _load_swap(group_id: str) -> dict:
+    f = _swap_file(group_id)
+    return json.loads(f.read_text()) if f.exists() else {}
 
-def _save_swap(data: dict) -> None:
-    SWAP_FILE.write_text(json.dumps(data, indent=2))
+def _save_swap(data: dict, group_id: str) -> None:
+    _swap_file(group_id).write_text(json.dumps(data, indent=2))
 
-def _phone_to_family(phone: str):
-    from families import get_all_family_ids, get_family
-    for fid in get_all_family_ids():
-        fam = get_family(fid)
-        if fam.guardians and fam.guardians[0].phone == phone:
-            return fam
-    return None
+
+def _phone_to_family_and_group(phone: str):
+    """Find a family across all groups by phone number."""
+    for group in list_groups():
+        gid_val = group["id"]
+        for fid in get_all_family_ids(gid_val):
+            try:
+                fam = get_family(fid, gid_val)
+                if fam.guardians and fam.guardians[0].phone == phone:
+                    return fam, gid_val
+            except Exception:
+                continue
+    return None, None
+
 
 def _handle_swap(from_phone: str, reason: str) -> str:
-    from datetime import datetime, timezone, timedelta
+    from datetime import timezone, timedelta
     from rotation import next_driver as _next_driver
-    family = _phone_to_family(from_phone)
+    family, group_id = _phone_to_family_and_group(from_phone)
     if not family:
         return "Sorry, your number isn't registered in this carpool."
-    if family.id != _next_driver():
+    if family.id != _next_driver(group_id):
         return "You're not the driver for the next trip, so no swap needed."
     now = datetime.now(timezone.utc)
-    trip_time = arrival_time()
+    trip_time = arrival_time(group_id)
     if now >= trip_time - timedelta(days=1):
         return "It's less than 1 day before the trip — too late to swap automatically. Please contact the admin directly."
-    from families import get_all_family_ids, get_family
-    others = [get_family(fid) for fid in get_all_family_ids() if fid != family.id]
+    others = [get_family(fid, group_id) for fid in get_all_family_ids(group_id) if fid != family.id]
     asked = []
     for other in others:
         phone = other.guardians[0].phone if other.guardians else ""
@@ -844,36 +946,42 @@ def _handle_swap(from_phone: str, reason: str) -> str:
                 asked.append(phone)
             except Exception as e:
                 logger.error("Failed to send swap request SMS to %s: %s", phone, e)
-    _record_swap_req(family.id, family.name)
+    _record_swap_req(family.id, family.name, group_id)
     _save_swap({"pending": True, "original_driver_id": family.id,
                 "original_driver_phone": from_phone, "reason": reason,
-                "asked_phones": asked, "confirmed_driver_id": None})
+                "asked_phones": asked, "confirmed_driver_id": None,
+                "group_id": group_id}, group_id)
     return f"Got it! Asked {len(asked)} other drivers. We'll let you know who takes over."
 
+
 def _handle_yes_for_swap(from_phone: str) -> str | None:
-    swap = _load_swap()
-    if not swap.get("pending"):
-        return None
-    if from_phone not in swap.get("asked_phones", []):
-        return None
-    if swap.get("confirmed_driver_id"):
-        return "Thanks, but someone already volunteered to drive!"
-    family = _phone_to_family(from_phone)
-    if not family:
-        return None
-    _set_driver(family.id)
-    swap["pending"] = False
-    swap["confirmed_driver_id"] = family.id
-    _save_swap(swap)
-    _record_swap_cover(family.id, family.name)
-    trip_time = arrival_time()
-    send_sms(to_phone=swap["original_driver_phone"],
-             message=f"Great news! {family.name} will drive on {trip_time.strftime('%a %b %d')}. You're off the hook!")
-    for phone in swap["asked_phones"]:
-        if phone != from_phone:
-            send_sms(to_phone=phone,
-                     message=f"{family.name} has volunteered to drive on {trip_time.strftime('%a %b %d')}. No need to respond.")
-    return f"You're confirmed as driver on {trip_time.strftime('%a %b %d')}! You'll get route details closer to the trip."
+    # Check across all groups for a pending swap that asked this phone
+    for group in list_groups():
+        gid_val = group["id"]
+        swap = _load_swap(gid_val)
+        if not swap.get("pending"):
+            continue
+        if from_phone not in swap.get("asked_phones", []):
+            continue
+        if swap.get("confirmed_driver_id"):
+            return "Thanks, but someone already volunteered to drive!"
+        family, _ = _phone_to_family_and_group(from_phone)
+        if not family:
+            return None
+        _set_driver(family.id, gid_val)
+        swap["pending"] = False
+        swap["confirmed_driver_id"] = family.id
+        _save_swap(swap, gid_val)
+        _record_swap_cover(family.id, family.name, gid_val)
+        trip_time = arrival_time(gid_val)
+        send_sms(to_phone=swap["original_driver_phone"],
+                 message=f"Great news! {family.name} will drive on {trip_time.strftime('%a %b %d')}. You're off the hook!")
+        for phone in swap["asked_phones"]:
+            if phone != from_phone:
+                send_sms(to_phone=phone,
+                         message=f"{family.name} has volunteered to drive on {trip_time.strftime('%a %b %d')}. No need to respond.")
+        return f"You're confirmed as driver on {trip_time.strftime('%a %b %d')}! You'll get route details closer to the trip."
+    return None
 
 
 @app.route("/sms", methods=["POST"])
@@ -899,17 +1007,22 @@ def sms_webhook():
     if upper == "YES":
         reply = _handle_yes_for_swap(from_number)
         if reply is None:
-            confs = _load_confirmations()
-            confs[from_number] = raw_body
-            _save_confirmations(confs)
+            # Store confirmation in whatever group this phone belongs to
+            _, group_id = _phone_to_family_and_group(from_number)
+            if group_id:
+                confs = _load_confirmations(group_id)
+                confs[from_number] = raw_body
+                _save_confirmations(confs, group_id)
             reply = "Got it, confirmed!"
     elif upper.startswith("SWAP"):
         reason = raw_body[4:].strip() or "no reason given"
         reply = _handle_swap(from_number, reason)
     else:
-        confs = _load_confirmations()
-        confs[from_number] = raw_body
-        _save_confirmations(confs)
+        _, group_id = _phone_to_family_and_group(from_number)
+        if group_id:
+            confs = _load_confirmations(group_id)
+            confs[from_number] = raw_body
+            _save_confirmations(confs, group_id)
         reply = f"Got it! We'll pick you up at: {raw_body}"
 
     if reply:

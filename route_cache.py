@@ -1,17 +1,18 @@
 """
-Caches the last computed route so the bulletin page can show pickup times.
+Per-group route cache.
 """
 
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from storage import DATA_DIR
-
-CACHE_FILE = DATA_DIR / "route_cache.json"
+from storage import group_dir
 
 
-def save(result: dict, driver_name: str, dest_name: str) -> None:
-    """Save pickup schedule from a compute_optimal_route result."""
+def _file(group_id: str) -> Path:
+    return group_dir(group_id) / "route_cache.json"
+
+
+def save(result: dict, driver_name: str, dest_name: str, group_id: str) -> None:
     depart = result["depart_at"]
     legs = result["leg_durations_seconds"]
     pickups = result["ordered_pickups"]
@@ -36,10 +37,11 @@ def save(result: dict, driver_name: str, dest_name: str) -> None:
         "date": arrival.strftime("%Y-%m-%d"),
         "schedule": schedule,
     }
-    CACHE_FILE.write_text(json.dumps(cache, indent=2))
+    _file(group_id).write_text(json.dumps(cache, indent=2))
 
 
-def load() -> dict | None:
-    if not CACHE_FILE.exists():
+def load(group_id: str) -> dict | None:
+    f = _file(group_id)
+    if not f.exists():
         return None
-    return json.loads(CACHE_FILE.read_text())
+    return json.loads(f.read_text())

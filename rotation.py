@@ -1,77 +1,57 @@
 """
-Driver rotation tracker.
-
-Stores the rotation order and current position in rotation.json.
-Call next_driver() to get who drives next, and record_trip() after a trip runs.
+Per-group driver rotation tracker.
 """
 
 import json
 from pathlib import Path
-from storage import DATA_DIR
-
-ROTATION_FILE = DATA_DIR / "rotation.json"
+from storage import group_dir
 
 
-def _load() -> dict:
-    if ROTATION_FILE.exists():
-        return json.loads(ROTATION_FILE.read_text())
+def _file(group_id: str) -> Path:
+    return group_dir(group_id) / "rotation.json"
+
+
+def _load(group_id: str) -> dict:
+    f = _file(group_id)
+    if f.exists():
+        return json.loads(f.read_text())
     return {"order": [], "current_index": 0}
 
 
-def _save(data: dict) -> None:
-    ROTATION_FILE.write_text(json.dumps(data, indent=2))
+def _save(data: dict, group_id: str) -> None:
+    _file(group_id).write_text(json.dumps(data, indent=2))
 
 
-def setup_rotation(family_ids: list[str]) -> None:
-    """Initialize the rotation order. Call once to set up."""
-    _save({"order": family_ids, "current_index": 0})
-    print(f"Rotation set: {' -> '.join(family_ids)} (repeating)")
+def setup_rotation(family_ids: list[str], group_id: str) -> None:
+    _save({"order": family_ids, "current_index": 0}, group_id)
 
 
-def next_driver() -> str:
-    """Returns the family_id of the next driver without advancing the rotation."""
-    data = _load()
+def next_driver(group_id: str) -> str | None:
+    data = _load(group_id)
     if not data["order"]:
-        raise RuntimeError("Rotation not set up. Run setup_rotation() first.")
+        return None
     return data["order"][data["current_index"]]
 
 
-def record_trip() -> str:
-    """Advance the rotation after a trip. Returns the next driver's family_id."""
-    data = _load()
+def record_trip(group_id: str) -> str | None:
+    data = _load(group_id)
     if not data["order"]:
-        raise RuntimeError("Rotation not set up.")
+        return None
     data["current_index"] = (data["current_index"] + 1) % len(data["order"])
-    _save(data)
+    _save(data, group_id)
     return data["order"][data["current_index"]]
 
 
-def set_driver(family_id: str) -> None:
-    """Force a specific family to be next driver (used after a swap)."""
-    data = _load()
+def set_driver(family_id: str, group_id: str) -> None:
+    data = _load(group_id)
     if family_id not in data["order"]:
-        raise ValueError(f"{family_id} not in rotation")
+        raise ValueError(f"{family_id} not in rotation for group {group_id}")
     data["current_index"] = data["order"].index(family_id)
-    _save(data)
+    _save(data, group_id)
 
 
-def add_to_rotation(family_id: str) -> None:
-    """Append a new family to the end of the rotation."""
-    data = _load()
+def add_to_rotation(family_id: str, group_id: str) -> None:
+    data = _load(group_id)
     if family_id not in data["order"]:
         data["order"].append(family_id)
-        _save(data)
-
-
-def show_rotation() -> None:
-    """Print the current rotation state."""
-    data = _load()
-    if not data["order"]:
-        print("Rotation not set up yet.")
-        return
-    order = data["order"]
-    current = data["current_index"]
-    print("Driver rotation:")
-    for i, fid in enumerate(order):
-        marker = " <- next" if i == current else ""
-        print(f"  {i+1}. {fid}{marker}")
+        _save(data, group_id)
