@@ -642,18 +642,64 @@ def dashboard():
 def save_trip():
     group_id = gid()
     cfg = load_config(group_id)
-    cfg["arrival_date"] = request.form["arrival_date"]
-    cfg["arrival_time"] = request.form["arrival_time"]
-    cfg["return_time"] = request.form.get("return_time", "").strip()
-    cfg["driver_family_id"] = request.form.get("driver_family_id", "").strip()
-    cfg["driver_name"] = request.form.get("driver_name", "").strip()
-    cfg["return_driver_family_id"] = request.form.get("return_driver_family_id", "").strip()
-    cfg["return_driver_name"] = request.form.get("return_driver_name", "").strip()
-    cfg["destination_name"] = request.form.get("destination_name", "").strip()
-    cfg["destination_address"] = request.form.get("destination_address", "").strip()
-    cfg["buffer_minutes"] = int(request.form.get("buffer_minutes", 5))
-    if request.form.get("group_name", "").strip():
-        cfg["group_name"] = request.form.get("group_name").strip()
+
+    arrival_date        = request.form["arrival_date"]
+    arrival_time        = request.form["arrival_time"]
+    return_time         = request.form.get("return_time", "").strip()
+    driver_family_id    = request.form.get("driver_family_id", "").strip()
+    driver_name         = request.form.get("driver_name", "").strip()
+    return_driver_fid   = request.form.get("return_driver_family_id", "").strip()
+    return_driver_name  = request.form.get("return_driver_name", "").strip()
+    destination_name    = request.form.get("destination_name", "").strip()
+    destination_address = request.form.get("destination_address", "").strip()
+    buffer_minutes      = int(request.form.get("buffer_minutes", 5))
+    group_name          = request.form.get("group_name", "").strip()
+
+    # Persist defaults to config
+    cfg.update({
+        "arrival_date": arrival_date,
+        "arrival_time": arrival_time,
+        "return_time": return_time,
+        "driver_family_id": driver_family_id,
+        "driver_name": driver_name,
+        "return_driver_family_id": return_driver_fid,
+        "return_driver_name": return_driver_name,
+        "destination_name": destination_name,
+        "destination_address": destination_address,
+        "buffer_minutes": buffer_minutes,
+    })
+    if group_name:
+        cfg["group_name"] = group_name
+
+    # Sync to schedule: update the linked trip or create a new one
+    trip_fields = dict(
+        date=arrival_date,
+        arrival_time=arrival_time,
+        return_time=return_time,
+        driver_family_id=driver_family_id,
+        driver_name=driver_name,
+        return_driver_family_id=return_driver_fid,
+        return_driver_name=return_driver_name,
+        destination_name=destination_name,
+        destination_address=destination_address,
+    )
+    linked_id = cfg.get("linked_trip_id", "")
+    updated = update_trip(linked_id, group_id, **trip_fields) if linked_id else None
+    if not updated:
+        new_trip = add_trip(
+            date=arrival_date,
+            arrival_time=arrival_time,
+            destination_name=destination_name,
+            destination_address=destination_address,
+            driver_family_id=driver_family_id,
+            driver_name=driver_name,
+            group_id=group_id,
+            return_time=return_time,
+            return_driver_family_id=return_driver_fid,
+            return_driver_name=return_driver_name,
+        )
+        cfg["linked_trip_id"] = new_trip["id"]
+
     save_config(cfg, group_id)
     return redirect(url_for("dashboard"))
 
