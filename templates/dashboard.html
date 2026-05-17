@@ -883,11 +883,16 @@
       </div>
     </div>
     {% else %}
-    <form method="POST" action="/invite">
+    <form method="POST" action="/invite" id="inviteForm">
+      <input type="hidden" name="phone" id="invitePhoneHidden">
       <div class="invite-row">
         <div class="form-field">
           <label>Phone Number</label>
-          <input type="tel" name="phone" placeholder="+1 (201) 555-0100" required>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:9px 10px;font-size:14px;color:#FAF9F5;white-space:nowrap;flex-shrink:0;">+1</div>
+            <input type="tel" id="inviteAreaCode" maxlength="3" placeholder="201" style="width:64px;flex-shrink:0;text-align:center;" required>
+            <input type="tel" id="inviteLocalNum" maxlength="7" placeholder="5550100" style="flex:1;" required>
+          </div>
         </div>
         <button type="submit">Send Invite</button>
       </div>
@@ -1807,5 +1812,37 @@
     Bulletin
   </a>
 </nav>
+
+<script>
+  // Auto-advance from area code to local number, and combine into E.164 on submit
+  const areaInput = document.getElementById('inviteAreaCode');
+  const localInput = document.getElementById('inviteLocalNum');
+  const phoneHidden = document.getElementById('invitePhoneHidden');
+  const inviteForm = document.getElementById('inviteForm');
+
+  if (areaInput) {
+    areaInput.addEventListener('input', () => {
+      areaInput.value = areaInput.value.replace(/\D/g, '');
+      if (areaInput.value.length === 3) localInput.focus();
+    });
+    localInput.addEventListener('input', () => {
+      localInput.value = localInput.value.replace(/\D/g, '');
+    });
+    inviteForm.addEventListener('submit', (e) => {
+      const area = areaInput.value.trim();
+      const local = localInput.value.trim();
+      if (area.length !== 3 || local.length !== 7) {
+        e.preventDefault();
+        areaInput.setCustomValidity('Enter a 3-digit area code');
+        localInput.setCustomValidity('Enter a 7-digit number');
+        inviteForm.reportValidity();
+        return;
+      }
+      areaInput.setCustomValidity('');
+      localInput.setCustomValidity('');
+      phoneHidden.value = `+1${area}${local}`;
+    });
+  }
+</script>
 </body>
 </html>
