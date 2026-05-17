@@ -40,6 +40,7 @@ from auth import (
     get_user_by_email, get_user_by_id,
     verify_password, create_user,
     generate_invite_token, verify_invite_token, mark_invite_used,
+    generate_reset_token, verify_reset_token, mark_reset_used, update_password,
 )
 from groups import create_group as _create_group, get_group, list_groups
 from sms import send_sms, SANDBOX_NUMBER, SANDBOX_KEYWORD
@@ -247,6 +248,50 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    sent = False
+    error = None
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        user = get_user_by_email(email)
+        if user and user.get("phone"):
+            token = generate_reset_token(user["id"])
+            reset_url = url_for("reset_password", token=token, _external=True)
+            try:
+                send_sms(
+                    to_phone=user["phone"],
+                    message=f"Reset your CarpoolSync password:\n{reset_url}\n\nThis link expires in 1 hour.",
+                )
+            except Exception as e:
+                logger.error("Password reset SMS failed for %s: %s", email, e)
+        # Always show "sent" to avoid revealing whether an email exists
+        sent = True
+    return render_template("forgot_password.html", sent=sent, error=error)
+
+
+@app.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    reset = verify_reset_token(token)
+    if not reset:
+        return render_template("forgot_password.html", sent=False,
+                               error="This reset link is invalid or has expired.")
+    error = None
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm_password", "")
+        if len(password) < 8:
+            error = "Password must be at least 8 characters."
+        elif password != confirm:
+            error = "Passwords don't match."
+        else:
+            update_password(reset["user_id"], password)
+            mark_reset_used(token)
+            return render_template("login.html", error=None,
+                                   success="Password updated! Please sign in.")
+    return render_template("reset_password.html", token=token, error=error)
 
 
 @app.route("/create-group", methods=["GET", "POST"])

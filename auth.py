@@ -117,3 +117,61 @@ def mark_invite_used(token: str) -> None:
         if invite["token"] == token:
             invite["used"] = True
     _save_invites(invites)
+
+
+# ── Password reset tokens ─────────────────────────────────────────────────────
+
+RESETS_FILE = DATA_DIR / "resets.json"
+
+
+def _load_resets() -> list:
+    if RESETS_FILE.exists():
+        return json.loads(RESETS_FILE.read_text())
+    return []
+
+
+def _save_resets(resets: list) -> None:
+    RESETS_FILE.write_text(json.dumps(resets, indent=2))
+
+
+def generate_reset_token(user_id: str) -> str:
+    resets = _load_resets()
+    # Invalidate any existing unused tokens for this user
+    for r in resets:
+        if r["user_id"] == user_id:
+            r["used"] = True
+    token = str(uuid.uuid4())
+    resets.append({
+        "token": token,
+        "user_id": user_id,
+        "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "used": False,
+    })
+    _save_resets(resets)
+    return token
+
+
+def verify_reset_token(token: str) -> dict | None:
+    from datetime import timedelta
+    for r in _load_resets():
+        if r["token"] == token and not r["used"]:
+            created = datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))
+            if datetime.now(timezone.utc) - created < timedelta(hours=1):
+                return r
+    return None
+
+
+def mark_reset_used(token: str) -> None:
+    resets = _load_resets()
+    for r in resets:
+        if r["token"] == token:
+            r["used"] = True
+    _save_resets(resets)
+
+
+def update_password(user_id: str, new_password: str) -> None:
+    users = _load_users()
+    for u in users:
+        if u["id"] == user_id:
+            u["password_hash"] = _hash_password(new_password)
+    _save_users(users)
