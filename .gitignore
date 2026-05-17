@@ -5,3 +5,7 @@ __pycache__/
 .DS_Store
 individual_ics/
 .claude/
+
+# Data files — managed at runtime, not in git
+*.json
+!package.json
