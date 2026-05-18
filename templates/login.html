@@ -143,9 +143,31 @@
     <div style="background:#F0FAF3;border:1px solid #B7DFC4;border-radius:7px;padding:10px 13px;font-size:14px;color:#1A5C30;margin-bottom:18px;">{{ success }}</div>
     {% endif %}
 
+    {% if magic_sent %}
+    <div style="background:#F0FAF3;border:1px solid #B7DFC4;border-radius:7px;padding:12px 14px;font-size:14px;color:#1A5C30;margin-bottom:18px;">
+      <strong>📧 Check your email.</strong><br>
+      We sent a one-tap sign-in link to <strong>{{ email }}</strong>. Click it on this device to sign in. Link expires in 1 hour.
+    </div>
+    {% endif %}
+
     {% if error %}
     <div class="error-banner">{{ error }}</div>
     {% endif %}
+
+    {# Magic-link form — preferred sign-in path #}
+    <form method="POST" action="/auth/magic-link" style="margin-bottom:18px;">
+      <div class="form-field">
+        <label>Email</label>
+        <input type="email" name="email" value="{{ email or '' }}" autocomplete="email" required placeholder="you@example.com">
+      </div>
+      <button type="submit" class="btn-submit">📧 Email me a sign-in link</button>
+    </form>
+
+    <div style="display:flex;align-items:center;gap:12px;margin:18px 0;font-size:12px;color:#B0ABA5;text-transform:uppercase;letter-spacing:0.08em;">
+      <div style="flex:1;height:1px;background:#EAE8E3;"></div>
+      <span>or sign in with password</span>
+      <div style="flex:1;height:1px;background:#EAE8E3;"></div>
+    </div>
 
     <form method="POST" action="/login">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

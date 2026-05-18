@@ -542,6 +542,71 @@ def login():
     return render_template("login.html", error=error, email=email)
 
 
+# ── Magic-link sign-in (Supabase) ─────────────────────────────────────────────
+# Additive to the existing password login. The user enters their email, we ask
+# Supabase to mail them a one-time link; clicking it lands on /auth/callback
+# where we set the Flask session.
+
+@csrf.exempt
+@app.route("/auth/magic-link", methods=["POST"])
+def auth_magic_link_send():
+    """Send a magic-link email via Supabase. Rate-limited per IP + email."""
+    from auth_supabase import send_magic_link
+    email = (request.form.get("email", "") or "").strip().lower()
+    ip = _client_ip()
+
+    if _rate_limited(f"magic:ip:{ip}", max_hits=5, window_seconds=300) or \
+       _rate_limited(f"magic:email:{email}", max_hits=3, window_seconds=300):
+        return render_template("login.html",
+                               error="Too many requests. Please wait a few minutes.",
+                               email=email), 429
+
+    redirect_url = url_for("auth_callback", _external=True)
+    result = send_magic_link(email, redirect_url)
+    if not result["ok"]:
+        return render_template("login.html",
+                               error=result["error"] or "Could not send the sign-in link.",
+                               email=email), 400
+
+    return render_template("login.html",
+                           email=email,
+                           magic_sent=True)
+
+
+@app.route("/auth/callback")
+def auth_callback():
+    """Receive the Supabase magic-link callback. Exchange the code for a
+    session, find or attach the internal user record, and log them in."""
+    from auth_supabase import exchange_code_for_session, find_or_link_internal_user
+
+    code = request.args.get("code", "")
+    if not code:
+        return render_template("login.html",
+                               error="Sign-in link is missing or expired. Please request a new one."), 400
+
+    supa_user = exchange_code_for_session(code)
+    if not supa_user:
+        return render_template("login.html",
+                               error="Sign-in link is invalid or expired. Please request a new one."), 400
+
+    internal = find_or_link_internal_user(supa_user["id"], supa_user["email"])
+    if not internal:
+        # First-time magic-link signer with no internal account yet.
+        # Stash the verified email so /create-group can pre-fill it and
+        # the user finishes signup without re-typing.
+        session["pending_supabase_uid"] = supa_user["id"]
+        session["pending_email"] = supa_user["email"]
+        return redirect(url_for("create_group_route"))
+
+    # Existing user → set the session and we're in.
+    session["user_id"] = internal["id"]
+    session["group_id"] = internal.get("group_id", "")
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(days=30)
+    logger.info("Magic-link login OK for user_id=%s", internal["id"])
+    return redirect(url_for("dashboard"))
+
+
 @app.route("/emergency-login")
 def emergency_login():
     """
