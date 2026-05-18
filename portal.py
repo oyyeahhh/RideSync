@@ -1984,6 +1984,22 @@ def admin_users():
     flash_msg = session.pop("admin_flash", None)
     flash_error = session.pop("admin_flash_error", None)
     stale_groups = _stale_groups(group_id)
+
+    # Find duplicate accounts across ALL groups that share the admin's email
+    # (case-insensitive). Useful when accounts were created in earlier deploys
+    # that ended up in different groups.
+    from auth import _load_users
+    my_email = (user.get("email") or "").lower()
+    duplicates = []
+    if my_email:
+        matching = sorted(
+            [u for u in _load_users() if (u.get("email") or "").lower() == my_email],
+            key=lambda u: u.get("joined_at", ""),
+            reverse=True,
+        )
+        if len(matching) > 1:
+            duplicates = matching  # newest first; first one is the "keeper"
+
     return render_template(
         "admin_users.html",
         users=users,
@@ -1991,7 +2007,53 @@ def admin_users():
         flash_msg=flash_msg,
         flash_error=flash_error,
         stale_groups=stale_groups,
+        duplicates=duplicates,
     )
+
+
+@app.route("/admin/users/dedupe", methods=["POST"])
+@login_required
+@admin_required
+def admin_dedupe_self():
+    """Delete every account sharing the admin's email except the newest one.
+    The newest one becomes the canonical account; the session is updated to
+    point at it so the admin doesn't get logged out."""
+    from auth import _load_users
+    user = current_user()
+    my_email = (user.get("email") or "").lower()
+    if not my_email:
+        session["admin_flash_error"] = "Your account has no email on file."
+        return redirect(url_for("admin_users"))
+
+    matching = sorted(
+        [u for u in _load_users() if (u.get("email") or "").lower() == my_email],
+        key=lambda u: u.get("joined_at", ""),
+        reverse=True,
+    )
+    if len(matching) <= 1:
+        session["admin_flash"] = "No duplicates found for your email."
+        return redirect(url_for("admin_users"))
+
+    keeper = matching[0]
+    to_delete = matching[1:]
+    deleted = 0
+    for u in to_delete:
+        try:
+            delete_user(u["id"])
+            deleted += 1
+        except Exception as e:
+            logger.error("Dedupe: failed to delete user %s: %s", u["id"], e)
+
+    # Make sure the session points at the keeper, so the admin stays logged in
+    # even if their previous user_id was one of the deleted rows.
+    session["user_id"] = keeper["id"]
+    session["group_id"] = keeper.get("group_id", "")
+
+    session["admin_flash"] = (
+        f"Deleted {deleted} duplicate account(s) for {my_email}. "
+        f"Kept the newest (joined {keeper.get('joined_at', '')[:10]})."
+    )
+    return redirect(url_for("admin_users"))
 
 
 @app.route("/admin/users/delete/<user_id>", methods=["POST"])

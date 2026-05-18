@@ -427,6 +427,43 @@
     {% endfor %}
     {% endif %}
 
+    {% if duplicates %}
+    <div class="cleanup-section">
+      <h2>Duplicate accounts on your email</h2>
+      <p>
+        We found {{ duplicates | length }} accounts using <strong>{{ duplicates[0].email }}</strong>
+        across one or more groups. The newest one will be kept; the rest will be deleted.
+      </p>
+      {% for u in duplicates %}
+      <div class="cleanup-group-row">
+        <div class="cleanup-group-info">
+          <div>
+            <strong>{{ u.name or '(no name)' }}</strong>
+            {% if loop.first %}
+            <span class="you-badge" style="margin-left:6px;">Keep (newest)</span>
+            {% else %}
+            <span class="role-badge role-parent" style="margin-left:6px;">Will delete</span>
+            {% endif %}
+          </div>
+          <div class="gid">
+            id: {{ u.id }} &middot; group: {{ u.group_id or '(none)' }} &middot;
+            joined: {{ u.joined_at[:10] if u.joined_at else '?' }}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+      <form
+        method="POST"
+        action="/admin/users/dedupe"
+        onsubmit="return confirm('Delete {{ duplicates | length - 1 }} older account(s) for {{ duplicates[0].email }}? The newest one will be kept.');"
+        style="margin-top:14px;"
+      >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-delete">&#128465; Delete {{ duplicates | length - 1 }} older account{{ 's' if duplicates|length - 1 != 1 else '' }}</button>
+      </form>
+    </div>
+    {% endif %}
+
     {% if stale_groups %}
     <div class="cleanup-section">
       <h2>Leftover groups</h2>
