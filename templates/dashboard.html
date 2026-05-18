@@ -770,7 +770,14 @@
         </div>
       </div>
       <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;">
-        <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);margin-bottom:10px;letter-spacing:0.04em;">DRIVER ACTIONS</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);letter-spacing:0.04em;">DRIVER ACTIONS</div>
+          {% if IS_ADMIN %}
+          <button onclick="sendRoute()" id="send-route-btn" style="padding:6px 14px;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.15);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
+            🗺 Send Route to Driver
+          </button>
+          {% endif %}
+        </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <button id="ride-btn" onclick="toggleRide()"
             style="flex:1;min-width:130px;padding:11px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid;transition:all 0.2s;
@@ -961,6 +968,19 @@
         <div class="form-field">
           <label>Group Name</label>
           <input type="text" name="group_name" value="{{ cfg.group_name or group_name }}" placeholder="e.g. Teaneck Soccer Carpool">
+        </div>
+        <div class="form-field">
+          <label>Timezone</label>
+          <select name="timezone">
+            {% set tz = cfg.get('timezone', 'America/New_York') %}
+            <option value="America/New_York"     {% if tz == 'America/New_York' %}selected{% endif %}>Eastern (ET)</option>
+            <option value="America/Chicago"      {% if tz == 'America/Chicago' %}selected{% endif %}>Central (CT)</option>
+            <option value="America/Denver"       {% if tz == 'America/Denver' %}selected{% endif %}>Mountain (MT)</option>
+            <option value="America/Los_Angeles"  {% if tz == 'America/Los_Angeles' %}selected{% endif %}>Pacific (PT)</option>
+            <option value="America/Phoenix"      {% if tz == 'America/Phoenix' %}selected{% endif %}>Arizona (no DST)</option>
+            <option value="America/Anchorage"    {% if tz == 'America/Anchorage' %}selected{% endif %}>Alaska (AKT)</option>
+            <option value="Pacific/Honolulu"     {% if tz == 'Pacific/Honolulu' %}selected{% endif %}>Hawaii (HT)</option>
+          </select>
         </div>
       </div>
       <button type="submit">Save</button>
@@ -1716,6 +1736,25 @@
     });
     closeLateModal();
     alert("Running late alert sent to all pickup families!");
+  }
+
+  async function sendRoute() {
+    const btn = document.getElementById("send-route-btn");
+    btn.textContent = "⏳ Computing…";
+    btn.disabled = true;
+    try {
+      const res = await fetch("/send-route", { method: "POST", headers: {"Content-Type": "application/json"}, body: "{}" });
+      const data = await res.json();
+      if (data.ok) {
+        alert(`✅ Route sent to ${data.driver} covering ${data.pickups} pickup(s).`);
+      } else {
+        alert(`❌ ${data.error}`);
+      }
+    } catch (e) {
+      alert("Something went wrong sending the route.");
+    }
+    btn.textContent = "🗺 Send Route to Driver";
+    btn.disabled = false;
   }
 
   async function confirmArrived() {

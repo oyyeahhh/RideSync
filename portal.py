@@ -41,11 +41,14 @@ from auth import (
     verify_password, create_user,
     generate_invite_token, verify_invite_token, mark_invite_used,
     generate_reset_token, verify_reset_token, mark_reset_used, update_password,
+    purge_old_tokens,
 )
 from groups import create_group as _create_group, get_group, list_groups
-from sms import send_sms, SANDBOX_NUMBER, SANDBOX_KEYWORD
+from sms import send_sms, send_route_sms, SANDBOX_NUMBER, SANDBOX_KEYWORD
 from absences import toggle_absent, get_absences
-from route_cache import load as load_route_cache
+from route_cache import load as load_route_cache, save as save_route_cache
+from routing import compute_optimal_route, build_maps_url
+from geocode import geocode_address
 from location import start_ride, stop_ride, update_location, get_location
 
 load_dotenv()
@@ -171,7 +174,7 @@ def admin_required(f):
 
 def gcal_url(trip: dict, group_id: str) -> str:
     """Build a Google Calendar 'add event' URL for the outbound leg."""
-    tz = ZoneInfo("America/New_York")
+    tz = ZoneInfo(load_config(group_id).get("timezone", "America/New_York"))
     arrival = datetime.strptime(f"{trip['date']} {trip['arrival_time']}", "%Y-%m-%d %H:%M").replace(tzinfo=tz)
 
     start = None
@@ -206,7 +209,7 @@ def gcal_url_return(trip: dict, group_id: str) -> str:
     """Build a Google Calendar 'add event' URL for the return leg."""
     if not trip.get("return_time"):
         return ""
-    tz = ZoneInfo("America/New_York")
+    tz = ZoneInfo(load_config(group_id).get("timezone", "America/New_York"))
     fmt = "%Y%m%dT%H%M%S"
     cfg = load_config(group_id)
     pickup = datetime.strptime(f"{trip['date']} {trip['return_time']}", "%Y-%m-%d %H:%M").replace(tzinfo=tz)
@@ -241,6 +244,10 @@ def login():
         if user and verify_password(password, user["password_hash"]):
             session["user_id"] = user["id"]
             session["group_id"] = user.get("group_id", "")
+            try:
+                purge_old_tokens()
+            except Exception as e:
+                logger.error("Token purge failed: %s", e)
             return redirect(url_for("dashboard"))
         else:
             error = "Invalid email or password."
@@ -696,6 +703,9 @@ def save_trip():
     })
     if group_name:
         cfg["group_name"] = group_name
+    timezone_val = request.form.get("timezone", "").strip()
+    if timezone_val:
+        cfg["timezone"] = timezone_val
 
     # Sync to schedule: update the linked trip or create a new one
     trip_fields = dict(
@@ -1026,6 +1036,109 @@ def arrived():
         logger.error("Failed to record trip history: %s", e)
 
     return jsonify({"ok": True})
+
+
+@app.route("/send-route", methods=["POST"])
+@login_required
+@admin_required
+def send_route():
+    """Compute optimal pickup route and SMS it to the driver."""
+    group_id = gid()
+    cfg = load_config(group_id)
+    tz = ZoneInfo(cfg.get("timezone", "America/New_York"))
+
+    # Get next scheduled trip
+    today_str = date.today().isoformat()
+    schedule = load_schedule(group_id)
+    upcoming = sorted([t for t in schedule if t["date"] >= today_str], key=lambda t: t["date"])
+    if not upcoming:
+        return jsonify({"ok": False, "error": "No upcoming trips scheduled."})
+
+    trip = upcoming[0]
+    arrival_dt = datetime.strptime(
+        f"{trip['date']} {trip['arrival_time']}", "%Y-%m-%d %H:%M"
+    ).replace(tzinfo=tz)
+
+    # Determine driver
+    driver_family_id = trip.get("driver_family_id") or ""
+    if not driver_family_id:
+        rotation_data = _load_rotation(group_id)
+        order = rotation_data.get("order", [])
+        idx = rotation_data.get("current_index", 0)
+        driver_family_id = order[idx] if order else ""
+    if not driver_family_id:
+        return jsonify({"ok": False, "error": "No driver assigned for this trip."})
+
+    try:
+        driver = get_family(driver_family_id, group_id)
+    except Exception:
+        return jsonify({"ok": False, "error": "Driver family not found."})
+
+    # Geocode driver
+    try:
+        geocode_address(driver.primary_address)
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Could not geocode driver address: {e}"})
+
+    # Build pickups
+    absences = get_absences(trip["date"], group_id)
+    pickups = []
+    for fid in get_all_family_ids(group_id):
+        if fid == driver_family_id or fid in absences:
+            continue
+        try:
+            f = get_family(fid, group_id)
+            addr = f.primary_address
+            geocode_address(addr)
+            pickups.append({"id": fid, "lat": addr.latitude, "lng": addr.longitude, "label": f.name})
+        except Exception as e:
+            logger.warning("Skipping family %s in route: %s", fid, e)
+
+    # Destination
+    dest_name = trip.get("destination_name") or cfg.get("destination_name", "destination")
+    dest_address = trip.get("destination_address") or cfg.get("destination_address", "")
+    if not dest_address:
+        return jsonify({"ok": False, "error": "No destination address set."})
+
+    from models import Destination as _Dest
+    dest = _Dest(id="custom", group_id=group_id, name=dest_name, street=dest_address)
+    try:
+        geocode_address(dest)
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Could not geocode destination: {e}"})
+
+    # Compute route
+    driver_addr = driver.primary_address
+    result = compute_optimal_route(
+        driver_lat=driver_addr.latitude,
+        driver_lng=driver_addr.longitude,
+        pickups=pickups,
+        dest_lat=dest.latitude,
+        dest_lng=dest.longitude,
+        arrival_time=arrival_dt,
+        buffer_minutes=cfg.get("buffer_minutes", 15),
+    )
+    save_route_cache(result, driver_name=driver.name, dest_name=dest_name)
+
+    # SMS the driver
+    driver_phone = driver.guardians[0].phone if driver.guardians else ""
+    if driver_phone:
+        maps_url = build_maps_url(result)
+        try:
+            send_route_sms(
+                to_phone=driver_phone,
+                result=result,
+                driver_name=driver.name,
+                dest_name=dest_name,
+                maps_url=maps_url,
+            )
+        except Exception as e:
+            logger.error("Route SMS failed: %s", e)
+            return jsonify({"ok": False, "error": f"Route computed but SMS failed: {e}"})
+    else:
+        return jsonify({"ok": False, "error": "Driver has no phone number on file."})
+
+    return jsonify({"ok": True, "driver": driver.name, "pickups": len(pickups)})
 
 
 @app.route("/start-ride", methods=["POST"])

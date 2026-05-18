@@ -5,7 +5,7 @@ Users and invites are stored globally; each carries a group_id.
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import bcrypt
 from storage import DATA_DIR
@@ -117,6 +117,28 @@ def mark_invite_used(token: str) -> None:
         if invite["token"] == token:
             invite["used"] = True
     _save_invites(invites)
+
+
+def purge_old_tokens() -> None:
+    """Remove used invites older than 30 days and used/expired resets older than 7 days."""
+    cutoff_invites = datetime.now(timezone.utc) - timedelta(days=30)
+    cutoff_resets  = datetime.now(timezone.utc) - timedelta(days=7)
+
+    invites = _load_invites()
+    invites = [
+        i for i in invites
+        if not i.get("used") or
+        datetime.fromisoformat(i["created_at"].replace("Z", "+00:00")) > cutoff_invites
+    ]
+    _save_invites(invites)
+
+    resets = _load_resets()
+    resets = [
+        r for r in resets
+        if not r.get("used") and
+        datetime.fromisoformat(r["created_at"].replace("Z", "+00:00")) > cutoff_resets
+    ]
+    _save_resets(resets)
 
 
 # ── Password reset tokens ─────────────────────────────────────────────────────
