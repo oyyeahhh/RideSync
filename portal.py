@@ -492,6 +492,7 @@ def gcal_url_return(trip: dict, group_id: str) -> str:
 
 # ── Auth routes ───────────────────────────────────────────────────────────────
 
+@csrf.exempt
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if session.get("user_id"):
@@ -539,6 +540,43 @@ def login():
                                email_masked, ip, user.get("id", "?"), hash_len, len(password))
 
     return render_template("login.html", error=error, email=email)
+
+
+@app.route("/emergency-login")
+def emergency_login():
+    """
+    Recovery: if EMERGENCY_LOGIN_TOKEN is set in Railway env vars, anyone who
+    visits /emergency-login?token=<that-value> gets logged in as the user whose
+    email matches EMERGENCY_RESET_EMAIL (or the first user in the system if
+    that's not set). Skips bcrypt entirely — pure session bypass.
+
+    Use ONLY when normal login is broken. Delete the env var right after.
+    """
+    expected = os.environ.get("EMERGENCY_LOGIN_TOKEN", "")
+    if not expected:
+        return "Emergency login is disabled. Set EMERGENCY_LOGIN_TOKEN in Railway.", 403
+    if request.args.get("token", "") != expected:
+        logger.warning("Emergency login: bad token from %s", _client_ip())
+        return "Bad token.", 403
+
+    from auth import _load_users, get_user_by_email
+    target_email = os.environ.get("EMERGENCY_RESET_EMAIL", "").strip().lower()
+    user = get_user_by_email(target_email) if target_email else None
+    if not user:
+        users = _load_users()
+        if not users:
+            return ("No users exist on this app yet. "
+                    "Go to <a href='/create-group'>/create-group</a> to make an account."), 200
+        user = users[0]  # fall back to first user
+
+    session.clear()
+    session["user_id"] = user["id"]
+    session["group_id"] = user.get("group_id", "")
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(days=30)
+    logger.warning("EMERGENCY LOGIN granted: user_id=%s email=%s",
+                   user["id"], user.get("email", "")[:3] + "***")
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/logout")
