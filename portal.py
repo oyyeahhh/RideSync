@@ -32,7 +32,7 @@ from config import (
 from storage import DATA_DIR, CODE_DIR, group_dir, migrate_legacy_data
 from families import get_family, get_destination, get_all_family_ids, add_family
 from rotation import _load as _load_rotation, add_to_rotation, set_driver as _set_driver
-from trips import get_stats, load_trips
+from trips import get_stats, load_trips, record_trip
 from schedule import load_schedule, save_schedule, add_trip, update_trip, remove_trip, remove_series, add_recurring_trips, claim_trip
 from karma import get_karma, record_swap_request as _record_swap_req, record_swap_cover as _record_swap_cover
 from cal_feed import build_ics
@@ -99,7 +99,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+_secret = os.environ.get("SECRET_KEY", "")
+if not _secret:
+    logger.error("SECRET_KEY is not set — using an insecure default. Set SECRET_KEY in your environment.")
+    _secret = "dev-secret-change-me"
+app.secret_key = _secret
 
 
 @app.template_filter("fmt_time")
@@ -493,7 +497,14 @@ def invite():
         logger.error("Invite WhatsApp failed for %s: %s", phone, e)
         whatsapp_ok = False
 
-    return redirect(url_for("dashboard", invite_link=signup_url, invite_phone=phone, whatsapp_ok=int(whatsapp_ok)))
+    # Store invite result in session flash instead of URL params
+    if whatsapp_ok:
+        session["invite_status"] = f"Invite sent to {phone} via WhatsApp."
+    else:
+        session["invite_status"] = f"WhatsApp failed. Share this link manually with {phone}: {signup_url}"
+    session["invite_link"] = signup_url
+
+    return redirect(url_for("dashboard"))
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -620,15 +631,8 @@ def dashboard():
             "absent": fid in absences,
         })
 
-    invite_link = request.args.get("invite_link")
-    invite_phone = request.args.get("invite_phone")
-    whatsapp_ok = request.args.get("whatsapp_ok", "1") == "1"
-    invite_status = None
-    if invite_link:
-        if whatsapp_ok:
-            invite_status = f"Invite sent to {invite_phone} via WhatsApp. Signup link: {invite_link}"
-        else:
-            invite_status = f"WhatsApp failed. Share this link manually with {invite_phone}: {invite_link}"
+    invite_status = session.pop("invite_status", None)
+    invite_link = session.pop("invite_link", None)
 
     group_name = get_group_name(group_id)
 
@@ -996,14 +1000,30 @@ def arrived():
 
     msg = f"✅ Kids have arrived safely at {dest_name}! Thanks {driver_name}!"
 
+    pickup_ids = []
     for fid in get_all_family_ids(group_id):
         if fid == driver_id or fid in absences:
             continue
         family = get_family(fid, group_id)
+        pickup_ids.append(fid)
         try:
             send_sms(to_phone=family.guardians[0].phone, message=msg)
         except Exception as e:
             logger.error("Failed to send arrival SMS to family %s: %s", fid, e)
+
+    # Record trip in history
+    try:
+        record_trip(
+            driver_family_id=driver_id or "",
+            driver_name=driver_name,
+            miles=0.0,
+            minutes=0,
+            arrival=datetime.now(),
+            pickup_family_ids=pickup_ids,
+            group_id=group_id,
+        )
+    except Exception as e:
+        logger.error("Failed to record trip history: %s", e)
 
     return jsonify({"ok": True})
 
