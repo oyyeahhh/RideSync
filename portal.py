@@ -503,7 +503,7 @@ def login():
 
     if request.method == "POST":
         email = request.form.get("email", "").strip()
-        password = request.form.get("password", "")
+        password = request.form.get("password", "").strip()
 
         # Rate limit: 10 attempts per 5 minutes per IP, 8 per email.
         ip = _client_ip()
@@ -842,7 +842,7 @@ def reset_password(token):
                                error="This reset link is invalid or has expired.")
     error = None
     if request.method == "POST":
-        password = request.form.get("password", "")
+        password = request.form.get("password", "").strip()
         confirm = request.form.get("confirm_password", "")
         if len(password) < 8:
             error = "Password must be at least 8 characters."
@@ -878,7 +878,7 @@ def create_group_route():
             "child_name":  request.form.get("child_name", "").strip(),
             "address":     request.form.get("address", "").strip(),
         }
-        password = request.form.get("password", "")
+        password = request.form.get("password", "").strip()
 
         # Normalize phone to E.164
         digits = re.sub(r'\D', '', form["phone"])
@@ -919,6 +919,23 @@ def create_group_route():
                 address=form["address"],
                 group_id=group["id"],
             )
+
+            # CRITICAL: verify the bcrypt hash actually works when read back
+            # from disk. Catches atomic-write or volume-sync issues that
+            # would otherwise produce a "ghost" account you can't log into.
+            from auth import verify_password as _verify
+            reloaded = get_user_by_email(form["email"])
+            if not reloaded or not _verify(password, reloaded.get("password_hash", "")):
+                logger.error("CRITICAL: signup persistence check failed for %s "
+                             "(user_id=%s). Account may not be loginable.",
+                             form["email"][:3] + "***", user.get("id"))
+                # Don't block the signup — log them in via the session we
+                # already set. Show a clear warning on the welcome page.
+                session["signup_persistence_warning"] = True
+            else:
+                logger.info("Signup OK + verified for %s (user_id=%s)",
+                            form["email"][:3] + "***", user.get("id"))
+
             session["user_id"] = user["id"]
             session["group_id"] = group["id"]
             session["just_created_group"] = group["name"]
@@ -932,9 +949,16 @@ def create_group_route():
 def welcome():
     """One-shot celebratory landing page shown right after creating a group."""
     group_name = session.pop("just_created_group", None)
+    persistence_warning = session.pop("signup_persistence_warning", False)
     if not group_name:
         return redirect(url_for("dashboard"))
-    return render_template("welcome.html", group_name=group_name)
+    user = current_user()
+    return render_template(
+        "welcome.html",
+        group_name=group_name,
+        user_email=user.get("email", "") if user else "",
+        persistence_warning=persistence_warning,
+    )
 
 
 @app.route("/signup", methods=["GET", "POST"])
@@ -956,7 +980,7 @@ def signup():
             "child_name": request.form.get("child_name", "").strip(),
             "address": request.form.get("address", "").strip(),
         }
-        password = request.form.get("password", "")
+        password = request.form.get("password", "").strip()
         invite_group_id = invite.get("group_id", "")
 
         if not form["name"]:

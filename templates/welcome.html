@@ -162,6 +162,12 @@
     <h1>Welcome to <em>{{ group_name }}</em>!</h1>
     <p>Your carpool group is ready to roll. Here&rsquo;s what to do next:</p>
 
+    {% if persistence_warning %}
+    <div style="background:#FDF0EC;border:1px solid #E8B8A4;border-radius:12px;padding:14px 18px;margin-bottom:18px;color:#8B3A1E;font-size:14px;text-align:left;">
+      ⚠️ <strong>Heads up:</strong> we had trouble verifying your password was saved correctly. You&rsquo;re logged in now, but please go to <strong>Manage Users</strong> from the dashboard and reset your password before logging out, just to be safe.
+    </div>
+    {% endif %}
+
     <div class="next-steps">
       <h2>Quick start</h2>
       <ul>
@@ -170,6 +176,10 @@
         <li><span class="num">3</span><span><strong>Add a recurring schedule</strong> so the rotation auto-assigns drivers.</span></li>
         <li><span class="num">4</span><span><strong>Grab the Kid Bulletin URL</strong> for your kitchen iPad.</span></li>
       </ul>
+    </div>
+
+    <div style="background:#F4F2ED;border:1px solid #EAE8E3;border-radius:12px;padding:14px 18px;margin-bottom:24px;text-align:left;font-size:13px;color:#6E6862;line-height:1.55;">
+      <strong style="color:#1A1714;">💡 Locked out later?</strong> Use the <a href="/forgot-password" style="color:#D4784A;">Forgot password</a> link on the sign-in page — it sends a reset link via WhatsApp. {% if user_email %}<br>Your sign-in email: <strong style="color:#1A1714;font-family:ui-monospace,monospace;">{{ user_email }}</strong>{% endif %}
     </div>
 
     <a href="/" class="btn">Take me to the dashboard →</a>
