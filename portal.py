@@ -788,6 +788,19 @@ def health():
     from groups import list_groups
     groups = list_groups()
     status = "⚠️ EPHEMERAL" if is_ephemeral else "✅ PERSISTENT"
+
+    # Supabase migration status
+    from supabase_client import health_check as _supa_health
+    supa = _supa_health()
+    if not supa["configured"]:
+        supa_line = "❌ NOT CONFIGURED — missing env: " + ", ".join(supa.get("missing_env", []))
+        if not supa.get("sdk_installed"):
+            supa_line += " (supabase-py not installed)"
+    elif supa["ok"]:
+        supa_line = f"✅ CONNECTED ({supa.get('url', '')})"
+    else:
+        supa_line = f"⚠️  CONFIGURED but connection failed: {supa.get('error', 'unknown')}"
+
     return f"""<pre>
 CarpoolSync Health Check
 ========================
@@ -796,6 +809,8 @@ DATA_DIR path: {DATA_DIR}
 Writable     : {writable}
 Storage      : {status}
 Groups       : {len(groups)} ({', '.join(g['id'] for g in groups) or 'none'})
+
+Supabase     : {supa_line}
 
 {"⚠️  WARNING: DATA_DIR is the code directory." if is_ephemeral else "✅  Data will survive redeploys."}
 {"Set DATA_DIR=/data and mount a Railway volume at /data." if is_ephemeral else ""}
