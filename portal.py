@@ -226,11 +226,10 @@ def _csrf_cookie(response):
 
 @app.errorhandler(404)
 def _not_found(e):
-    """Return JSON for API-ish paths, plain HTML otherwise."""
+    """Return JSON for API-ish paths, friendly mascot page otherwise."""
     if request.path.startswith(("/admin/", "/api/", "/send-route", "/save-trip", "/schedule/")):
         return jsonify({"ok": False, "error": "Not found"}), 404
-    return ("<h2>404 — Not found</h2>"
-            "<p><a href='/dashboard'>Back to dashboard</a></p>"), 404
+    return render_template("404.html"), 404
 
 
 @app.errorhandler(500)
@@ -841,9 +840,20 @@ def create_group_route():
             )
             session["user_id"] = user["id"]
             session["group_id"] = group["id"]
-            return redirect(url_for("dashboard"))
+            session["just_created_group"] = group["name"]
+            return redirect(url_for("welcome"))
 
     return render_template("create_group.html", error=error, form=form)
+
+
+@app.route("/welcome")
+@login_required
+def welcome():
+    """One-shot celebratory landing page shown right after creating a group."""
+    group_name = session.pop("just_created_group", None)
+    if not group_name:
+        return redirect(url_for("dashboard"))
+    return render_template("welcome.html", group_name=group_name)
 
 
 @app.route("/signup", methods=["GET", "POST"])

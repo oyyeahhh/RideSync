@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lost in the carpool — CarpoolSync</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500;600&family=Tiempos+Text:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Styrene A", ui-sans-serif, system-ui, sans-serif;
+      background: linear-gradient(160deg, #FAF9F5 0%, #FFE8D5 100%);
+      color: #1A1714;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .wrap {
+      text-align: center;
+      max-width: 640px;
+    }
+    .mascot {
+      width: clamp(220px, 50vw, 400px);
+      height: auto;
+      margin-bottom: 8px;
+      animation: drift 6s ease-in-out infinite;
+    }
+    @keyframes drift {
+      0%, 100% { transform: translateX(0) translateY(0); }
+      25%      { transform: translateX(-8px) translateY(-4px); }
+      75%      { transform: translateX(8px) translateY(-4px); }
+    }
+    .code {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      color: #D4784A;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    h1 {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: clamp(28px, 5vw, 38px);
+      font-weight: 500;
+      line-height: 1.15;
+      margin-bottom: 14px;
+      letter-spacing: -0.01em;
+    }
+    p {
+      font-size: 16px;
+      color: #6E6862;
+      margin-bottom: 28px;
+      line-height: 1.55;
+    }
+    .cta {
+      display: inline-flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .btn {
+      display: inline-block;
+      padding: 12px 26px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      font-family: inherit;
+      transition: transform 0.1s, background 0.15s;
+    }
+    .btn-primary {
+      background: #1A1714;
+      color: #FAF9F5;
+    }
+    .btn-primary:hover { background: #D4784A; transform: translateY(-1px); }
+    .btn-secondary {
+      background: #FFFFFF;
+      color: #1A1714;
+      border: 1px solid #EAE8E3;
+    }
+    .btn-secondary:hover { border-color: #D4784A; color: #D4784A; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <img src="/static/carpool-car.png" alt="" class="mascot">
+    <div class="code">404</div>
+    <h1>This page got picked up by the carpool</h1>
+    <p>We couldn&rsquo;t find what you were looking for. It probably hopped in someone else&rsquo;s car. Let&rsquo;s get you back to a real one.</p>
+    <div class="cta">
+      <a href="/" class="btn btn-primary">Back to Dashboard</a>
+      <a href="/about" class="btn btn-secondary">What is CarpoolSync?</a>
+    </div>
+  </div>
+</body>
+</html>

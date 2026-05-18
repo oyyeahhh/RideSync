@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to CarpoolSync 🎉</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500;600&family=Tiempos+Text:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Styrene A", ui-sans-serif, system-ui, sans-serif;
+      background: linear-gradient(160deg, #FFF7EE 0%, #FFE8D5 60%, #FFD3B5 100%);
+      color: #1A1714;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      overflow: hidden;
+    }
+
+    /* Floating confetti dots */
+    .confetti {
+      position: fixed;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      opacity: 0.85;
+      animation: fall 6s linear infinite;
+      pointer-events: none;
+    }
+    @keyframes fall {
+      0%   { transform: translateY(-20vh) rotate(0deg);   opacity: 0; }
+      10%  { opacity: 0.85; }
+      90%  { opacity: 0.85; }
+      100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+    }
+
+    .wrap {
+      text-align: center;
+      max-width: 640px;
+      position: relative;
+      z-index: 1;
+    }
+    .mascot {
+      width: clamp(240px, 50vw, 440px);
+      height: auto;
+      margin-bottom: 8px;
+      animation: drive-in 1.2s cubic-bezier(0.16,1,0.3,1) backwards, bobble 4s ease-in-out 1.2s infinite;
+    }
+    @keyframes drive-in {
+      from { transform: translateX(-110vw) rotate(-6deg); }
+      to   { transform: translateX(0) rotate(0); }
+    }
+    @keyframes bobble {
+      0%, 100% { transform: translateY(0) rotate(0); }
+      50%      { transform: translateY(-8px) rotate(1deg); }
+    }
+    .eyebrow {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      color: #D4784A;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      animation: fade 1s ease-out 0.8s backwards;
+    }
+    h1 {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: clamp(28px, 5.5vw, 42px);
+      font-weight: 500;
+      line-height: 1.15;
+      margin-bottom: 12px;
+      letter-spacing: -0.01em;
+      animation: fade 1s ease-out 1s backwards;
+    }
+    h1 em {
+      color: #D4784A;
+      font-style: italic;
+    }
+    p {
+      font-size: 16px;
+      color: #6E6862;
+      margin-bottom: 28px;
+      line-height: 1.6;
+      animation: fade 1s ease-out 1.2s backwards;
+    }
+    @keyframes fade {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .next-steps {
+      background: #FFFFFF;
+      border-radius: 18px;
+      padding: 22px 24px;
+      margin-bottom: 24px;
+      text-align: left;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.06);
+      animation: fade 1s ease-out 1.4s backwards;
+    }
+    .next-steps h2 {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #8C8680;
+      margin-bottom: 12px;
+    }
+    .next-steps ul {
+      list-style: none;
+      padding: 0;
+    }
+    .next-steps li {
+      padding: 6px 0;
+      font-size: 15px;
+      color: #1A1714;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .next-steps li .num {
+      flex-shrink: 0;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: #FFE8D5;
+      color: #D4784A;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+    }
+    .btn {
+      display: inline-block;
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 500;
+      text-decoration: none;
+      font-family: inherit;
+      background: #1A1714;
+      color: #FAF9F5;
+      transition: transform 0.1s, background 0.15s, box-shadow 0.15s;
+      animation: fade 1s ease-out 1.6s backwards;
+    }
+    .btn:hover {
+      background: #D4784A;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(212,120,74,0.25);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Confetti (procedurally placed via JS) -->
+
+  <div class="wrap">
+    <img src="/static/carpool-car.png" alt="" class="mascot">
+    <div class="eyebrow">🎉 Carpool created</div>
+    <h1>Welcome to <em>{{ group_name }}</em>!</h1>
+    <p>Your carpool group is ready to roll. Here&rsquo;s what to do next:</p>
+
+    <div class="next-steps">
+      <h2>Quick start</h2>
+      <ul>
+        <li><span class="num">1</span><span><strong>Invite the other families</strong> — they get a WhatsApp link to join. (Tell them to text &ldquo;join material-burn&rdquo; to <strong>+1 415 523 8886</strong> first so WhatsApp works.)</span></li>
+        <li><span class="num">2</span><span><strong>Set your destination &amp; arrival time</strong> in Trip Settings.</span></li>
+        <li><span class="num">3</span><span><strong>Add a recurring schedule</strong> so the rotation auto-assigns drivers.</span></li>
+        <li><span class="num">4</span><span><strong>Grab the Kid Bulletin URL</strong> for your kitchen iPad.</span></li>
+      </ul>
+    </div>
+
+    <a href="/" class="btn">Take me to the dashboard →</a>
+  </div>
+
+  <script>
+    // Toss some confetti dots around
+    const colors = ['#FF6B8A','#3EC9E8','#FFC857','#D4784A','#6FCF7E'];
+    for (let i = 0; i < 24; i++) {
+      const c = document.createElement('div');
+      c.className = 'confetti';
+      c.style.left = Math.random() * 100 + 'vw';
+      c.style.background = colors[i % colors.length];
+      c.style.animationDelay = (Math.random() * 4) + 's';
+      c.style.animationDuration = (4 + Math.random() * 4) + 's';
+      c.style.width = c.style.height = (6 + Math.random() * 10) + 'px';
+      document.body.appendChild(c);
+    }
+  </script>
+</body>
+</html>
