@@ -35,6 +35,10 @@ def save(result: dict, driver_name: str, dest_name: str, group_id: str) -> None:
         "arrive_by": arrival.strftime("%I:%M %p"),
         "date": arrival.strftime("%Y-%m-%d"),
         "schedule": schedule,
+        # Persist these so /arrived can credit the driver with real miles/minutes
+        # in trip history (stats panel reads from trips.json).
+        "total_miles": result.get("total_miles", 0),
+        "leg_durations_seconds": legs,
     }
     atomic_write_json(_file(group_id), cache)
 

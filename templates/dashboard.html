@@ -772,9 +772,9 @@
       <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
           <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);letter-spacing:0.04em;">DRIVER ACTIONS</div>
-          {% if IS_ADMIN %}
+          {% if IS_ADMIN or (current_user.family_id and current_user.family_id == next_driver_id) %}
           <button onclick="sendRoute()" id="send-route-btn" style="padding:6px 14px;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.15);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
-            🗺 Send Route to Driver
+            {% if IS_ADMIN %}🗺 Send Route to Driver{% else %}🗺 Send My Route{% endif %}
           </button>
           {% endif %}
         </div>
@@ -810,9 +810,9 @@
     <div class="cal-header">
       <div class="card-label" style="margin-bottom:0">Schedule</div>
       <div style="display:flex;align-items:center;gap:12px">
-        <a href="/calendar.ics" class="btn-gcal" style="font-size:12px;padding:6px 12px;border-radius:6px;text-decoration:none" title="Subscribe in Google Calendar">
-          Subscribe in Google Calendar
-        </a>
+        <button type="button" onclick="showCalendarSubscribe()" class="btn-gcal" style="font-size:12px;padding:6px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.7);cursor:pointer;font-family:inherit;" title="Get a subscribable calendar URL">
+          📅 Subscribe to Calendar
+        </button>
         <div class="cal-nav">
           <button onclick="changeMonth(-1)">&#8592;</button>
           <span class="cal-month" id="cal-month-label"></span>
@@ -1149,6 +1149,40 @@
     {% else %}
     <p class="empty">No trips recorded yet.</p>
     {% endif %}
+  </div>
+
+  <!-- Calendar Subscribe Modal -->
+  <div id="cal-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#2A2723;border-radius:16px;padding:28px;width:520px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+      <div style="font-family:'Tiempos Text',Georgia,serif;font-size:20px;font-weight:500;margin-bottom:6px;color:#FAF9F5;">📅 Subscribe to Carpool Calendar</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.55);margin-bottom:18px;line-height:1.5;">
+        Copy this URL and paste it into Google Calendar or Apple Calendar as a new
+        <strong>subscribed calendar</strong> (not "import"). Your schedule will stay
+        in sync automatically.
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <input id="cal-url" type="text" readonly value="Loading…"
+          style="flex:1;padding:10px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:8px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(255,255,255,0.06);color:#FAF9F5;outline:none;">
+        <button onclick="copyCalUrl()" id="cal-copy-btn"
+          style="padding:10px 16px;background:#FAF9F5;color:#1A1714;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">
+          Copy
+        </button>
+      </div>
+      <details style="font-size:12px;color:rgba(255,255,255,0.55);margin-bottom:18px;">
+        <summary style="cursor:pointer;color:rgba(255,255,255,0.75);">How to add it (Google / Apple)</summary>
+        <div style="margin-top:10px;line-height:1.6;">
+          <strong>Google Calendar:</strong> Other calendars → <em>+</em> → From URL → paste.<br>
+          <strong>Apple Calendar (Mac):</strong> File → New Calendar Subscription → paste.<br>
+          <strong>iPhone:</strong> Settings → Calendar → Accounts → Add Account → Other → Add Subscribed Calendar.
+        </div>
+      </details>
+      <div style="display:flex;justify-content:flex-end;">
+        <button onclick="closeCalModal()"
+          style="padding:10px 18px;border:1px solid rgba(255,255,255,0.12);border-radius:8px;font-size:13px;font-weight:500;background:rgba(255,255,255,0.08);color:#FAF9F5;cursor:pointer;">
+          Done
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Running Late Modal -->
@@ -1767,6 +1801,43 @@
       btn.textContent = "Coming ✓";
       btn.style.cssText = btn.style.cssText.replace(/background:[^;]+;color:[^;]+;border-color:[^;]+/, "background:rgba(62,201,232,0.12);color:#3EC9E8;border-color:rgba(62,201,232,0.35)");
       row.style.background = "rgba(255,255,255,0.06)";
+    }
+  }
+
+  // ── Calendar subscribe modal ───────────────────────────────────────────────
+  let _calUrlCache = null;
+  async function showCalendarSubscribe() {
+    const modal = document.getElementById("cal-modal");
+    const input = document.getElementById("cal-url");
+    modal.style.display = "flex";
+    if (!_calUrlCache) {
+      try {
+        const res = await fetch("/calendar/subscribe-url");
+        const data = await res.json();
+        _calUrlCache = data.url || "";
+      } catch (e) {
+        _calUrlCache = "";
+      }
+    }
+    input.value = _calUrlCache || "Could not generate URL — please refresh and try again.";
+    if (_calUrlCache) input.select();
+  }
+
+  function closeCalModal() {
+    document.getElementById("cal-modal").style.display = "none";
+  }
+
+  async function copyCalUrl() {
+    const input = document.getElementById("cal-url");
+    const btn = document.getElementById("cal-copy-btn");
+    try {
+      await navigator.clipboard.writeText(input.value);
+      const orig = btn.textContent;
+      btn.textContent = "✓ Copied";
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    } catch (e) {
+      input.select();
+      document.execCommand("copy");
     }
   }
 

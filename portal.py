@@ -1374,10 +1374,12 @@ def arrived():
 
 @app.route("/send-route", methods=["POST"])
 @login_required
-@admin_required
 def send_route():
-    """Compute optimal pickup route and SMS it to the driver."""
+    """Compute optimal pickup route and SMS it to the driver.
+    Admins can always trigger this; non-admin parents can only trigger it
+    when they ARE the next assigned driver (so they can pre-fetch their own route)."""
     group_id = gid()
+    user = current_user()
     cfg = load_config(group_id)
     tz = ZoneInfo(cfg.get("timezone", "America/New_York"))
 
@@ -1402,6 +1404,14 @@ def send_route():
         driver_family_id = order[idx] if order else ""
     if not driver_family_id:
         return jsonify({"ok": False, "error": "No driver assigned for this trip."})
+
+    # Authorization: admins always allowed; otherwise the caller must be the
+    # active driver for the next trip (so they can fetch their own route).
+    if user.get("role") != "admin" and user.get("family_id") != driver_family_id:
+        return jsonify({
+            "ok": False,
+            "error": "Only an admin or the assigned driver can send this route.",
+        }), 403
 
     try:
         driver = get_family(driver_family_id, group_id)
