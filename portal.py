@@ -13,7 +13,7 @@ import uuid
 from datetime import date, datetime, timedelta
 from functools import wraps
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, quote_plus
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
@@ -454,13 +454,16 @@ def gcal_url(trip: dict, group_id: str) -> str:
     pickup_start = start.strftime("%-I:%M %p")
     fmt = "%Y%m%dT%H%M%S"
     group_name = get_group_name(group_id)
-    title = quote(f"{group_name} — {trip['destination_name']} (There)")
-    details = quote(
+    title = quote_plus(f"{group_name} — {trip['destination_name']} (There)")
+    details = quote_plus(
         f"Driver: {trip['driver_name']}\n"
         f"Pickup starts: {pickup_start}\n"
         f"Arrive by: {arrival.strftime('%-I:%M %p')}"
     )
-    location = quote(f"{trip['destination_address']} ({group_name})")
+    # Location must be a clean address only — Google Calendar autocompletes
+    # this against Google Maps, so any non-address text (like our group name
+    # in parens) makes it fall back to weird-looking suggestions.
+    location = quote_plus((trip.get("destination_address") or "").strip())
     dates = f"{start.strftime(fmt)}/{arrival.strftime(fmt)}"
     return f"https://calendar.google.com/calendar/render?action=TEMPLATE&text={title}&dates={dates}&details={details}&location={location}"
 
@@ -476,12 +479,13 @@ def gcal_url_return(trip: dict, group_id: str) -> str:
     arrive_home = pickup + timedelta(minutes=cfg.get("buffer_minutes", 10) + 20)
     driver = trip.get("return_driver_name") or trip.get("driver_name", "")
     group_name = get_group_name(group_id)
-    title = quote(f"{group_name} — {trip['destination_name']} (Return)")
-    details = quote(
+    title = quote_plus(f"{group_name} — {trip['destination_name']} (Return)")
+    details = quote_plus(
         f"Driver: {driver}\n"
         f"Pickup from {trip['destination_name']}: {pickup.strftime('%-I:%M %p')}"
     )
-    location = quote(f"{trip['destination_address']} ({group_name})")
+    # Clean address only — see note in gcal_url().
+    location = quote_plus((trip.get("destination_address") or "").strip())
     dates = f"{pickup.strftime(fmt)}/{arrive_home.strftime(fmt)}"
     return f"https://calendar.google.com/calendar/render?action=TEMPLATE&text={title}&dates={dates}&details={details}&location={location}"
 
