@@ -513,8 +513,27 @@ def login():
             logger.warning("Login rate-limited for email=%s ip=%s", email[:3] + "***", ip)
             return render_template("login.html", error=error, email=email), 429
 
-        user = get_user_by_email(email)
-        if user and verify_password(password, user["password_hash"]):
+        # Optional Supabase Auth path — gated by USE_SUPABASE_AUTH=1 env var.
+        # When enabled, password verification happens against Supabase Auth;
+        # we then look up the internal user record by supabase_uid or email.
+        use_supabase = os.environ.get("USE_SUPABASE_AUTH", "").strip() == "1"
+        login_ok = False
+        user = None
+        if use_supabase:
+            from auth_supabase import signin_with_password, find_or_link_internal_user
+            result = signin_with_password(email, password)
+            if result["ok"]:
+                user = find_or_link_internal_user(result["supabase_uid"], email)
+                login_ok = user is not None
+            if not login_ok and not result["ok"] and "configured" in (result.get("error") or "").lower():
+                # Supabase wasn't actually wired up — fall through to legacy.
+                use_supabase = False
+
+        if not use_supabase:
+            user = get_user_by_email(email)
+            login_ok = bool(user and verify_password(password, user["password_hash"]))
+
+        if login_ok and user:
             remember = request.form.get("remember") == "on"
             session["user_id"] = user["id"]
             session["group_id"] = user.get("group_id", "")
@@ -978,6 +997,22 @@ def create_group_route():
         elif get_user_by_email(form["email"]):
             error = "An account with that email already exists."
         else:
+            # If Supabase Auth is enabled, create the Supabase user FIRST.
+            # If that fails (duplicate email, password too weak, Supabase down),
+            # bail out before creating any local records.
+            supabase_uid = None
+            if os.environ.get("USE_SUPABASE_AUTH", "").strip() == "1":
+                from auth_supabase import signup_with_password
+                s = signup_with_password(form["email"], password)
+                if not s["ok"]:
+                    error = s["error"] or "Could not create your account. Please try again."
+                else:
+                    supabase_uid = s["supabase_uid"]
+
+            if error:
+                # Re-render the form with the error and the prior input.
+                return render_template("create_group.html", error=error, form=form)
+
             group = _create_group(form["group_name"])
             # Create the admin's family and add to rotation
             family = add_family(
@@ -999,6 +1034,20 @@ def create_group_route():
                 address=form["address"],
                 group_id=group["id"],
             )
+
+            # If we created a Supabase Auth user above, link its UID into the
+            # local user record so the next login can find this user even if
+            # the password hash on disk gets corrupted/wiped.
+            if supabase_uid:
+                from auth import _load_users, _save_users
+                _users = _load_users()
+                for _u in _users:
+                    if _u.get("id") == user["id"]:
+                        _u["supabase_uid"] = supabase_uid
+                        break
+                _save_users(_users)
+                user["supabase_uid"] = supabase_uid
+                logger.info("Linked supabase_uid=%s to internal user_id=%s", supabase_uid, user["id"])
 
             # CRITICAL: verify the bcrypt hash actually works when read back
             # from disk. Catches atomic-write or volume-sync issues that

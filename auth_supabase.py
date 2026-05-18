@@ -78,6 +78,73 @@ def exchange_code_for_session(code: str) -> Optional[dict]:
         return None
 
 
+def signup_with_password(email: str, password: str) -> dict:
+    """Create a Supabase Auth user with email + password. Returns
+    {ok: bool, supabase_uid: str | None, error: str | None}.
+
+    Requires 'Confirm email' to be OFF in Supabase Auth settings, otherwise
+    the user can't sign in until they click an email confirmation link.
+    """
+    email = (email or "").strip().lower()
+    if not email or "@" not in email:
+        return {"ok": False, "supabase_uid": None, "error": "Invalid email."}
+    if not password or len(password) < 8:
+        return {"ok": False, "supabase_uid": None, "error": "Password must be at least 8 characters."}
+    if not is_configured():
+        return {"ok": False, "supabase_uid": None, "error": "Supabase is not configured."}
+
+    try:
+        # Use service client + admin API so we don't need email confirmation
+        # AND we skip the email-confirm round trip entirely.
+        client = get_service_client()
+        resp = client.auth.admin.create_user({
+            "email": email,
+            "password": password,
+            "email_confirm": True,  # mark as confirmed without sending an email
+        })
+        user = resp.user if hasattr(resp, "user") else resp
+        uid = user.id if hasattr(user, "id") else (user.get("id") if isinstance(user, dict) else None)
+        if not uid:
+            return {"ok": False, "supabase_uid": None, "error": "Supabase didn't return a user id."}
+        logger.info("Supabase signup created uid=%s for %s***", uid, email[:3])
+        return {"ok": True, "supabase_uid": uid, "error": None}
+    except Exception as e:
+        msg = str(e)
+        if "already" in msg.lower() or "duplicate" in msg.lower():
+            return {"ok": False, "supabase_uid": None, "error": "An account with that email already exists."}
+        logger.error("Supabase signup failed for %s***: %s", email[:3], e)
+        return {"ok": False, "supabase_uid": None, "error": f"Signup failed: {msg}"}
+
+
+def signin_with_password(email: str, password: str) -> dict:
+    """Verify email+password against Supabase Auth. Returns
+    {ok: bool, supabase_uid: str | None, error: str | None}.
+    """
+    email = (email or "").strip().lower()
+    if not email or not password:
+        return {"ok": False, "supabase_uid": None, "error": "Email and password required."}
+    if not is_configured():
+        return {"ok": False, "supabase_uid": None, "error": "Supabase is not configured."}
+
+    try:
+        client = get_anon_client()
+        resp = client.auth.sign_in_with_password({"email": email, "password": password})
+        user = resp.user if hasattr(resp, "user") else None
+        if user is None and hasattr(resp, "data"):
+            user = resp.data.user if hasattr(resp.data, "user") else None
+        uid = user.id if user and hasattr(user, "id") else None
+        if not uid:
+            return {"ok": False, "supabase_uid": None, "error": "Invalid email or password."}
+        return {"ok": True, "supabase_uid": uid, "error": None}
+    except Exception as e:
+        # Supabase returns a specific error for bad credentials; normalize.
+        msg = str(e).lower()
+        if "invalid" in msg or "credential" in msg or "password" in msg:
+            return {"ok": False, "supabase_uid": None, "error": "Invalid email or password."}
+        logger.error("Supabase signin failed for %s***: %s", email[:3], e)
+        return {"ok": False, "supabase_uid": None, "error": "Could not sign in. Please try again."}
+
+
 def find_or_link_internal_user(supabase_uid: str, email: str) -> Optional[dict]:
     """Look up our internal user record by either supabase_uid or email.
     If found by email but no supabase_uid yet, attach it. Returns the

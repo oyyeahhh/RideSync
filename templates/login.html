@@ -154,31 +154,17 @@
     <div class="error-banner">{{ error }}</div>
     {% endif %}
 
-    {# Magic-link form — preferred sign-in path #}
-    <form method="POST" action="/auth/magic-link" style="margin-bottom:18px;">
-      <div class="form-field">
-        <label>Email</label>
-        <input type="email" name="email" value="{{ email or '' }}" autocomplete="email" required placeholder="you@example.com">
-      </div>
-      <button type="submit" class="btn-submit">📧 Email me a sign-in link</button>
-    </form>
-
-    <div style="display:flex;align-items:center;gap:12px;margin:18px 0;font-size:12px;color:#B0ABA5;text-transform:uppercase;letter-spacing:0.08em;">
-      <div style="flex:1;height:1px;background:#EAE8E3;"></div>
-      <span>or sign in with password</span>
-      <div style="flex:1;height:1px;background:#EAE8E3;"></div>
-    </div>
-
-    <form method="POST" action="/login">
+    {# Primary: password sign-in. Magic link is a secondary option below. #}
+    <form method="POST" action="/login" id="pw-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-field">
-        <label>Email</label>
-        <input type="email" name="email" value="{{ email or '' }}" autocomplete="email" required autofocus>
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" name="email" value="{{ email or '' }}" autocomplete="username" required autofocus>
       </div>
       <div class="form-field">
-        <label>Password</label>
+        <label for="pw-input">Password</label>
         <div style="position:relative;">
-          <input type="password" name="password" id="pw-input" autocomplete="current-password" required style="padding-right:42px;">
+          <input type="password" id="pw-input" name="password" autocomplete="current-password" required style="padding-right:42px;">
           <button type="button" onclick="togglePw()" id="pw-toggle"
             style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:transparent;border:0;cursor:pointer;font-size:16px;padding:4px 6px;color:#8C8680;"
             title="Show/hide password" aria-label="Show password">👁</button>
@@ -198,6 +184,30 @@
       </label>
       <button type="submit" class="btn-submit">Sign In</button>
     </form>
+
+    <div style="display:flex;align-items:center;gap:12px;margin:22px 0 14px;font-size:11px;color:#B0ABA5;text-transform:uppercase;letter-spacing:0.08em;">
+      <div style="flex:1;height:1px;background:#EAE8E3;"></div>
+      <span>or</span>
+      <div style="flex:1;height:1px;background:#EAE8E3;"></div>
+    </div>
+
+    {# Magic-link is now an inline button that re-uses the email field above.
+       Single email input on the page = no autofill confusion. #}
+    <form method="POST" action="/auth/magic-link" id="magic-form" style="margin-bottom:6px;">
+      <input type="hidden" name="email" id="magic-email-mirror" value="{{ email or '' }}">
+      <button type="submit" id="magic-btn" class="btn-submit"
+        style="background:transparent;color:#1A1714;border:1px solid #EAE8E3;font-weight:500;"
+        onmouseover="this.style.borderColor='#D4784A';this.style.color='#D4784A'"
+        onmouseout="this.style.borderColor='#EAE8E3';this.style.color='#1A1714'">
+        📧 Email me a sign-in link instead
+      </button>
+    </form>
+    <script>
+      // Keep the magic-link form's hidden email in sync with what's typed above.
+      const _le = document.getElementById('login-email');
+      const _me = document.getElementById('magic-email-mirror');
+      if (_le && _me) _le.addEventListener('input', () => { _me.value = _le.value; });
+    </script>
 
     <a href="/forgot-password" style="display:block;text-align:center;margin-top:16px;font-size:14px;color:#8C8680;text-decoration:none;">Forgot password?</a>
 
