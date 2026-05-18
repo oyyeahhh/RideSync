@@ -105,6 +105,39 @@ def _bootstrap_legacy_group() -> None:
 
 _bootstrap_legacy_group()
 
+
+def _emergency_password_reset() -> None:
+    """
+    Emergency recovery path: if both EMERGENCY_RESET_EMAIL and
+    EMERGENCY_RESET_PASSWORD are set as Railway env vars, reset that user's
+    password on app startup and log the action. Then DELETE the env vars and
+    redeploy. Safe because only someone with Railway dashboard access can set
+    env vars in the first place.
+    """
+    target_email = os.environ.get("EMERGENCY_RESET_EMAIL", "").strip().lower()
+    new_password = os.environ.get("EMERGENCY_RESET_PASSWORD", "")
+    if not target_email or not new_password:
+        return
+    if len(new_password) < 8:
+        print("[EMERGENCY RESET] Password too short (need 8+ chars). Skipping.")
+        return
+    try:
+        from auth import get_user_by_email, update_password
+        user = get_user_by_email(target_email)
+        if not user:
+            print(f"[EMERGENCY RESET] No user with email {target_email!r} — nothing to do.")
+            return
+        update_password(user["id"], new_password)
+        print(f"[EMERGENCY RESET] ✅ Password reset for {target_email} (user_id={user['id']}).")
+        print("[EMERGENCY RESET] IMPORTANT: remove EMERGENCY_RESET_EMAIL and "
+              "EMERGENCY_RESET_PASSWORD from Railway env vars and redeploy.")
+    except Exception as e:
+        print(f"[EMERGENCY RESET] Failed: {e}")
+
+
+_emergency_password_reset()
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
@@ -425,8 +458,13 @@ def login():
 
         user = get_user_by_email(email)
         if user and verify_password(password, user["password_hash"]):
+            remember = request.form.get("remember") == "on"
             session["user_id"] = user["id"]
             session["group_id"] = user.get("group_id", "")
+            if remember:
+                # "Remember me" → 30-day rolling session.
+                session.permanent = True
+                app.permanent_session_lifetime = timedelta(days=30)
             try:
                 purge_old_tokens()
             except Exception as e:
