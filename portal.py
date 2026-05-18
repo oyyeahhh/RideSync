@@ -505,6 +505,12 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.route("/about")
+def about():
+    """Public landing/marketing page. No login required."""
+    return render_template("about.html")
+
+
 @app.route("/health")
 def health():
     data_dir_env = os.environ.get("DATA_DIR", "NOT SET")

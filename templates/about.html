@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CarpoolSync — The carpool app that actually works</title>
+  <meta name="description" content="A simple, beautiful carpool coordinator for parents. Smart driver rotation, WhatsApp invites, route optimization, and live tracking — built for real families.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500;600;700&family=Tiempos+Text:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cream:   #FAF9F5;
+      --paper:   #FFFFFF;
+      --ink:     #1A1714;
+      --mid:     #6E6862;
+      --soft:    #8C8680;
+      --muted:   #B0ABA5;
+      --border:  #EAE8E3;
+      --orange:  #D4784A;
+      --orange-d:#C4633A;
+      --coral:   #FF6B8A;
+      --cyan:    #3EC9E8;
+      --green:   #1A5C30;
+      --green-bg:#F0FAF3;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Styrene A", ui-sans-serif, system-ui, sans-serif;
+      background: var(--cream);
+      color: var(--ink);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Hero ──────────────────────────────────────────────────────────────── */
+    .hero {
+      padding: 64px 24px 56px;
+      text-align: center;
+      max-width: 880px;
+      margin: 0 auto;
+    }
+    .hero img.logo {
+      height: 180px;
+      width: auto;
+      margin-bottom: 18px;
+    }
+    .hero h1 {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: clamp(34px, 5vw, 52px);
+      font-weight: 500;
+      letter-spacing: -0.015em;
+      line-height: 1.1;
+      margin-bottom: 18px;
+      color: var(--ink);
+    }
+    .hero h1 em {
+      font-style: italic;
+      color: var(--orange);
+    }
+    .hero p.subhead {
+      font-size: clamp(16px, 2vw, 19px);
+      color: var(--mid);
+      max-width: 620px;
+      margin: 0 auto 32px;
+    }
+    .hero-cta {
+      display: inline-flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .btn {
+      display: inline-block;
+      padding: 13px 28px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 500;
+      text-decoration: none;
+      font-family: inherit;
+      transition: transform 0.1s, box-shadow 0.15s, background 0.15s;
+      border: 1px solid transparent;
+    }
+    .btn-primary {
+      background: var(--ink);
+      color: var(--cream);
+    }
+    .btn-primary:hover {
+      background: var(--orange);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(212, 120, 74, 0.25);
+    }
+    .btn-secondary {
+      background: var(--paper);
+      color: var(--ink);
+      border-color: var(--border);
+    }
+    .btn-secondary:hover {
+      border-color: var(--orange);
+      color: var(--orange);
+    }
+
+    /* ── Section base ─────────────────────────────────────────────────────── */
+    section {
+      padding: 56px 24px;
+    }
+    section.alt {
+      background: var(--paper);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+    .eyebrow {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--orange);
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: clamp(26px, 3.5vw, 36px);
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+      margin-bottom: 14px;
+    }
+    .section-sub {
+      font-size: 16px;
+      color: var(--mid);
+      max-width: 600px;
+      margin-bottom: 40px;
+    }
+
+    /* ── Feature grid ─────────────────────────────────────────────────────── */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+    }
+    .feature {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+    }
+    .feature:hover {
+      border-color: #D4CFC7;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.04);
+    }
+    .feature-icon {
+      font-size: 28px;
+      margin-bottom: 14px;
+      display: block;
+    }
+    .feature h3 {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: 19px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: var(--ink);
+    }
+    .feature p {
+      font-size: 14.5px;
+      color: var(--mid);
+      line-height: 1.55;
+    }
+
+    /* ── How it works ─────────────────────────────────────────────────────── */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 28px;
+      counter-reset: step;
+    }
+    .step {
+      position: relative;
+      padding-left: 56px;
+    }
+    .step::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: -4px;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--orange);
+      color: var(--cream);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: 18px;
+      font-weight: 500;
+    }
+    .step h3 {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: 19px;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    .step p {
+      font-size: 14.5px;
+      color: var(--mid);
+    }
+
+    /* ── Quote / highlight ────────────────────────────────────────────────── */
+    .highlight {
+      background: linear-gradient(135deg, rgba(212,120,74,0.06), rgba(62,201,232,0.06));
+      border: 1px solid rgba(212,120,74,0.15);
+      border-radius: 18px;
+      padding: 36px 32px;
+      text-align: center;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+    .highlight p {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-style: italic;
+      font-size: clamp(18px, 2.5vw, 22px);
+      color: var(--ink);
+      line-height: 1.4;
+    }
+
+    /* ── Final CTA ────────────────────────────────────────────────────────── */
+    .final-cta {
+      text-align: center;
+      padding: 72px 24px 80px;
+      background: var(--ink);
+      color: var(--cream);
+    }
+    .final-cta h2 {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 500;
+      margin-bottom: 14px;
+    }
+    .final-cta p {
+      color: rgba(255,255,255,0.7);
+      font-size: 17px;
+      margin-bottom: 28px;
+      max-width: 540px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .final-cta .btn-primary {
+      background: var(--orange);
+      color: #FFF;
+    }
+    .final-cta .btn-primary:hover {
+      background: var(--orange-d);
+    }
+    .final-cta .btn-secondary {
+      background: transparent;
+      color: var(--cream);
+      border-color: rgba(255,255,255,0.2);
+    }
+    .final-cta .btn-secondary:hover {
+      border-color: var(--cream);
+      color: var(--cream);
+    }
+
+    /* ── Footer ───────────────────────────────────────────────────────────── */
+    footer {
+      padding: 28px 24px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      background: var(--paper);
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 600px) {
+      .hero { padding: 40px 20px 36px; }
+      .hero img.logo { height: 130px; }
+      section { padding: 44px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HERO -->
+  <header class="hero">
+    <img src="/static/carpoolsynclogo.png" alt="CarpoolSync" class="logo">
+    <h1>The carpool app <em>that actually works</em>.</h1>
+    <p class="subhead">
+      A simple coordinator for parents who are tired of group-chat chaos.
+      Smart driver rotation, WhatsApp invites, optimized pickup routes, and a
+      live status board the whole family can check.
+    </p>
+    <div class="hero-cta">
+      <a href="/create-group" class="btn btn-primary">Start a new carpool</a>
+      <a href="/login" class="btn btn-secondary">Sign in</a>
+    </div>
+  </header>
+
+  <!-- HOW IT WORKS -->
+  <section class="alt">
+    <div class="container">
+      <div class="eyebrow">How it works</div>
+      <h2 class="section-title">Set it up in under 5 minutes</h2>
+      <p class="section-sub">
+        One parent creates the group. Everyone else joins by tapping a link
+        sent over WhatsApp. After that, the app handles the daily logistics.
+      </p>
+      <div class="steps">
+        <div class="step">
+          <h3>Create the group</h3>
+          <p>Name your carpool, set the destination, and add your home address. Done in 30 seconds.</p>
+        </div>
+        <div class="step">
+          <h3>Invite families</h3>
+          <p>Type each parent&rsquo;s phone number. They get a one-tap WhatsApp link to sign up.</p>
+        </div>
+        <div class="step">
+          <h3>Set the schedule</h3>
+          <p>Add trips one at a time, or generate a full recurring schedule (e.g. every Tues & Thurs at 5pm).</p>
+        </div>
+        <div class="step">
+          <h3>Drive smart</h3>
+          <p>The app picks the next driver, optimizes the pickup route, and sends it to them automatically.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section>
+    <div class="container">
+      <div class="eyebrow">Everything you need</div>
+      <h2 class="section-title">Built for real families</h2>
+      <p class="section-sub">
+        Not a group chat. Not a spreadsheet. A purpose-built coordinator that
+        knows who drives when, where everyone lives, and what to do when plans
+        change at 4:48pm.
+      </p>
+
+      <div class="feature-grid">
+
+        <div class="feature">
+          <span class="feature-icon">🔁</span>
+          <h3>Smart driver rotation</h3>
+          <p>Auto-rotates through families fairly. Skips anyone marked absent. Persists across recurring schedules.</p>
+        </div>
+
+        <div class="feature">
+          <span class="feature-icon">📅</span>
+          <h3>Recurring schedules</h3>
+          <p>Generate weeks of trips at once. Pick the days, the arrival time, and let auto-rotation assign drivers.</p>
+        </div>
+
+        <div class="feature">
+          <span class="feature-icon">🗺️</span>
+          <h3>Optimized pickup routes</h3>
+          <p>Google Maps figures out the fastest pickup order from the driver&rsquo;s house to the destination.</p>
+        </div>
+
+        <div class="feature">
+          <span class="feature-icon">⏰</span>
+          <h3>Auto-sent routes</h3>
+          <p>Two hours before each trip, the driver gets a WhatsApp with their pickup list and a tap-to-navigate link.</p>
+        </div>
+
+        <div class="feature">
+          <span class="feature-icon">📍</span>
+          <h3>Live driver tracking</h3>
+          <p>Driver starts the ride; every other family can see them moving on a shared map until kids arrive.</p>
+        </div>
+
+        <div class="feature">
+          <span class="feature-icon">📺</span>
+          <h3>Kitchen-TV bulletin board</h3>
+          <p>A clean status screen showing today&rsquo;s driver, ETA, rotation, and live location — perfect for the fridge tablet.</p>
+        </div>
+
+        <div class="feature">
+          <span class="feature-icon">💬</span>
+          <h3>WhatsApp invites &amp; alerts</h3>
+          <p>Invitations, route reminders, and &ldquo;running late&rdquo; alerts all go through WhatsApp — no app to install.</p>
+        </div>
+
+        <div class="feature">
+          <span class="feature-icon">🚫</span>
+          <h3>Absences in one tap</h3>
+          <p>Kid sick? Tap absent. They&rsquo;re skipped from the route automatically and the driver gets the new list.</p>
+        </div>
+
+        <div class="feature">
+          <span class="feature-icon">🔄</span>
+          <h3>Swap requests</h3>
+          <p>Can&rsquo;t drive your day? Text SWAP to the app and the first parent to reply YES gets credit.</p>
+        </div>
+
+        <div class="feature">
+          <span class="feature-icon">⭐</span>
+          <h3>Fairness karma</h3>
+          <p>The app quietly tracks who covers for whom, so no one feels taken advantage of over the long run.</p>
+        </div>
+
+        <div class="feature">
+          <span class="feature-icon">📊</span>
+          <h3>Trip history &amp; stats</h3>
+          <p>See miles driven and hours behind the wheel for every family. Useful for cost-sharing or just bragging rights.</p>
+        </div>
+
+        <div class="feature">
+          <span class="feature-icon">📲</span>
+          <h3>Calendar subscriptions</h3>
+          <p>Subscribe in Google Calendar or Apple Calendar — your carpool dates stay synced on every device automatically.</p>
+        </div>
+
+        <div class="feature">
+          <span class="feature-icon">🚨</span>
+          <h3>Running-late alerts</h3>
+          <p>One tap sends a WhatsApp to every family with the new estimated arrival. No more frantic group-text guessing.</p>
+        </div>
+
+        <div class="feature">
+          <span class="feature-icon">✅</span>
+          <h3>&ldquo;Kids arrived&rdquo; confirmations</h3>
+          <p>Driver taps Arrived; every parent gets a peace-of-mind ping with the destination name. Rotation advances.</p>
+        </div>
+
+        <div class="feature">
+          <span class="feature-icon">👥</span>
+          <h3>Admin controls</h3>
+          <p>Manage members, reset passwords, remove old accounts. Cascade cleanup keeps the rotation accurate.</p>
+        </div>
+
+        <div class="feature">
+          <span class="feature-icon">🔐</span>
+          <h3>Built secure</h3>
+          <p>CSRF protection, rate limits, atomic data writes, group isolation, password resets via WhatsApp. The boring parts done right.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- HIGHLIGHT -->
+  <section class="alt">
+    <div class="highlight">
+      <p>
+        &ldquo;Group chats were the worst part of my week.
+        Now the app just tells me when I&rsquo;m driving and who to pick up.
+        I never think about carpool until 4:50pm.&rdquo;
+      </p>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="final-cta">
+    <h2>Ready to stop coordinating?</h2>
+    <p>Start a carpool group in under a minute. Invite the other families. Let the app handle the rest.</p>
+    <div class="hero-cta">
+      <a href="/create-group" class="btn btn-primary">Create a carpool group</a>
+      <a href="/login" class="btn btn-secondary">I have an account</a>
+    </div>
+  </section>
+
+  <footer>
+    Made by parents, for parents. © CarpoolSync.
+  </footer>
+
+</body>
+</html>
