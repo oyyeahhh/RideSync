@@ -41,7 +41,7 @@ from auth import (
     verify_password, create_user,
     generate_invite_token, verify_invite_token, mark_invite_used,
     generate_reset_token, verify_reset_token, mark_reset_used, update_password,
-    purge_old_tokens,
+    purge_old_tokens, delete_user, get_users_by_group,
 )
 from groups import create_group as _create_group, get_group, list_groups
 from sms import send_sms, send_route_sms, SANDBOX_NUMBER, SANDBOX_KEYWORD
@@ -1643,6 +1643,55 @@ def _start_scheduler() -> None:
 import sys as _sys
 if "pytest" not in _sys.modules and os.environ.get("FLASK_TESTING") != "1":
     _start_scheduler()
+
+
+# ── Admin: User Management ────────────────────────────────────────────────────
+
+@app.route("/admin/users")
+@login_required
+@admin_required
+def admin_users():
+    group_id = gid()
+    users = get_users_by_group(group_id)
+    user = current_user()
+    flash_msg = session.pop("admin_flash", None)
+    flash_error = session.pop("admin_flash_error", None)
+    return render_template(
+        "admin_users.html",
+        users=users,
+        current_user=user,
+        flash_msg=flash_msg,
+        flash_error=flash_error,
+    )
+
+
+@app.route("/admin/users/delete/<user_id>", methods=["POST"])
+@login_required
+@admin_required
+def admin_delete_user(user_id):
+    user = current_user()
+    if user and user.get("id") == user_id:
+        session["admin_flash_error"] = "You cannot delete your own account."
+        return redirect(url_for("admin_users"))
+    deleted = delete_user(user_id)
+    if deleted:
+        session["admin_flash"] = "User deleted successfully."
+    else:
+        session["admin_flash_error"] = "User not found."
+    return redirect(url_for("admin_users"))
+
+
+@app.route("/admin/users/reset-password/<user_id>", methods=["POST"])
+@login_required
+@admin_required
+def admin_reset_password(user_id):
+    new_password = request.form.get("new_password", "").strip()
+    if len(new_password) < 8:
+        session["admin_flash_error"] = "Password must be at least 8 characters."
+        return redirect(url_for("admin_users"))
+    update_password(user_id, new_password)
+    session["admin_flash"] = "Password updated successfully."
+    return redirect(url_for("admin_users"))
 
 
 if __name__ == "__main__":

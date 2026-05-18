@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Users — CarpoolSync</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500;600&family=Tiempos+Text:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cyan: #3EC9E8;
+      --coral: #FF6B8A;
+      --dark: #1A1714;
+      --cream: #FAF9F5;
+      --mid: #8C8680;
+      --border: #E8E5DF;
+      --orange: #D4784A;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Styrene A", ui-sans-serif, system-ui, sans-serif;
+      background-color: #1A1714;
+      background-image: url('/static/background.png');
+      background-size: cover;
+      background-position: center top;
+      background-attachment: fixed;
+      color: var(--cream);
+      min-height: 100vh;
+      padding: 32px 16px 64px;
+    }
+
+    .page-wrap {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .logo-wrap {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.5);
+      text-decoration: none;
+      margin-bottom: 20px;
+      transition: color 0.15s;
+    }
+    .back-link:hover { color: var(--cream); }
+
+    h1 {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: 26px;
+      font-weight: 500;
+      color: var(--cream);
+      margin-bottom: 6px;
+    }
+
+    .page-subtitle {
+      font-size: 13px;
+      color: rgba(255,255,255,0.45);
+      margin-bottom: 28px;
+    }
+
+    /* Flash messages */
+    .flash {
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      margin-bottom: 20px;
+      font-weight: 500;
+    }
+    .flash-success {
+      background: rgba(62, 201, 232, 0.15);
+      border: 1px solid rgba(62, 201, 232, 0.35);
+      color: var(--cyan);
+    }
+    .flash-error {
+      background: rgba(255, 107, 138, 0.15);
+      border: 1px solid rgba(255, 107, 138, 0.35);
+      color: var(--coral);
+    }
+
+    /* User cards */
+    .user-card {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-bottom: 12px;
+      transition: border-color 0.15s;
+    }
+    .user-card:hover {
+      border-color: rgba(255,255,255,0.18);
+    }
+
+    .user-main {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .user-info { flex: 1; min-width: 0; }
+
+    .user-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--cream);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .you-badge {
+      font-size: 11px;
+      font-weight: 500;
+      background: rgba(62, 201, 232, 0.18);
+      color: var(--cyan);
+      border: 1px solid rgba(62, 201, 232, 0.3);
+      border-radius: 99px;
+      padding: 2px 8px;
+    }
+
+    .role-badge {
+      font-size: 11px;
+      font-weight: 500;
+      border-radius: 99px;
+      padding: 2px 8px;
+    }
+    .role-admin {
+      background: rgba(255, 107, 138, 0.15);
+      color: var(--coral);
+      border: 1px solid rgba(255, 107, 138, 0.25);
+    }
+    .role-parent {
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.55);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .user-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 18px;
+      margin-top: 8px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.5);
+    }
+
+    .user-meta span { display: flex; align-items: center; gap: 5px; }
+
+    .user-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      border: none;
+      border-radius: 8px;
+      padding: 7px 14px;
+      cursor: pointer;
+      transition: opacity 0.15s, filter 0.15s;
+      text-decoration: none;
+    }
+    .btn:hover:not(:disabled) { opacity: 0.82; }
+    .btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .btn-reset {
+      background: rgba(62, 201, 232, 0.15);
+      border: 1px solid rgba(62, 201, 232, 0.3);
+      color: var(--cyan);
+    }
+    .btn-reset:hover:not(:disabled) {
+      background: rgba(62, 201, 232, 0.25);
+    }
+
+    .btn-delete {
+      background: rgba(255, 107, 138, 0.12);
+      border: 1px solid rgba(255, 107, 138, 0.25);
+      color: var(--coral);
+    }
+    .btn-delete:hover:not(:disabled) {
+      background: rgba(255, 107, 138, 0.22);
+    }
+
+    /* Reset password inline form */
+    .reset-form-wrap {
+      display: none;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .reset-form-wrap.open { display: block; }
+
+    .reset-form-inner {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .reset-form-inner input[type="password"] {
+      flex: 1;
+      min-width: 180px;
+      padding: 8px 12px;
+      font-size: 14px;
+      font-family: inherit;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      color: var(--cream);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .reset-form-inner input[type="password"]:focus {
+      border-color: var(--cyan);
+    }
+    .reset-form-inner input[type="password"]::placeholder {
+      color: rgba(255,255,255,0.3);
+    }
+
+    .btn-submit-reset {
+      background: var(--cyan);
+      color: #1A1714;
+      font-weight: 600;
+      border: none;
+    }
+    .btn-submit-reset:hover { opacity: 0.85; }
+
+    .btn-cancel {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.55);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: rgba(255,255,255,0.4);
+      font-size: 14px;
+    }
+
+    @media (max-width: 540px) {
+      .user-main { flex-direction: column; }
+      .user-actions { justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+
+    <div class="logo-wrap">
+      <img src="/static/carpoolsynclogo.png" style="height:100px" alt="CarpoolSync">
+    </div>
+
+    <a href="/dashboard" class="back-link">
+      &#8592; Back to Dashboard
+    </a>
+
+    <h1>Manage Users</h1>
+    <p class="page-subtitle">{{ users | length }} member{{ 's' if users | length != 1 else '' }} in this group</p>
+
+    {% if flash_msg %}
+    <div class="flash flash-success">{{ flash_msg }}</div>
+    {% endif %}
+    {% if flash_error %}
+    <div class="flash flash-error">{{ flash_error }}</div>
+    {% endif %}
+
+    {% if not users %}
+    <div class="empty-state">No users found in this group.</div>
+    {% else %}
+    {% for u in users %}
+    {% set is_me = (u.id == current_user.id) %}
+    <div class="user-card">
+      <div class="user-main">
+        <div class="user-info">
+          <div class="user-name">
+            {{ u.name or '(no name)' }}
+            {% if is_me %}<span class="you-badge">You</span>{% endif %}
+            <span class="role-badge {{ 'role-admin' if u.role == 'admin' else 'role-parent' }}">
+              {{ u.role or 'parent' }}
+            </span>
+          </div>
+          <div class="user-meta">
+            {% if u.email %}
+            <span>&#9993; {{ u.email }}</span>
+            {% endif %}
+            {% if u.phone %}
+            <span>&#128222; {{ u.phone }}</span>
+            {% endif %}
+            {% if u.family_id %}
+            <span>&#128106; Family ID: {{ u.family_id[:8] }}</span>
+            {% endif %}
+            {% if u.joined_at %}
+            <span>&#128197; Joined {{ u.joined_at[:10] }}</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="user-actions">
+          <button
+            class="btn btn-reset"
+            onclick="toggleResetForm('reset-{{ u.id }}')"
+            type="button"
+          >
+            &#128274; Reset Password
+          </button>
+
+          {% if is_me %}
+          <button class="btn btn-delete" disabled title="You cannot delete your own account">
+            &#128465; Delete
+          </button>
+          {% else %}
+          <form
+            method="POST"
+            action="/admin/users/delete/{{ u.id }}"
+            onsubmit="return confirm('Delete {{ u.name or u.email }}? This cannot be undone.');"
+            style="display:inline;"
+          >
+            <button type="submit" class="btn btn-delete">&#128465; Delete</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Inline reset password form -->
+      <div class="reset-form-wrap" id="reset-{{ u.id }}">
+        <form method="POST" action="/admin/users/reset-password/{{ u.id }}" class="reset-form-inner">
+          <input
+            type="password"
+            name="new_password"
+            placeholder="New password (min 8 characters)"
+            minlength="8"
+            required
+          >
+          <button type="submit" class="btn btn-submit-reset">Set Password</button>
+          <button
+            type="button"
+            class="btn btn-cancel"
+            onclick="toggleResetForm('reset-{{ u.id }}')"
+          >Cancel</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+  </div>
+
+  <script>
+    function toggleResetForm(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.toggle('open');
+      if (el.classList.contains('open')) {
+        const input = el.querySelector('input[type="password"]');
+        if (input) input.focus();
+      }
+    }
+  </script>
+</body>
+</html>

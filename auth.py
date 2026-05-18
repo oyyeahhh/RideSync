@@ -197,3 +197,18 @@ def update_password(user_id: str, new_password: str) -> None:
         if u["id"] == user_id:
             u["password_hash"] = _hash_password(new_password)
     _save_users(users)
+
+
+def delete_user(user_id: str) -> bool:
+    """Remove a user by ID. Returns True if a user was removed, False if not found."""
+    users = _load_users()
+    new_users = [u for u in users if u.get("id") != user_id]
+    if len(new_users) == len(users):
+        return False
+    _save_users(new_users)
+    return True
+
+
+def get_users_by_group(group_id: str) -> list:
+    """Return all users belonging to the given group."""
+    return [u for u in _load_users() if u.get("group_id") == group_id]
