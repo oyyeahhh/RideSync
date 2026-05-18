@@ -1126,6 +1126,14 @@ def dashboard():
 
     group_name = get_group_name(group_id)
 
+    # URL to the cookieless kid-bulletin display (no login required).
+    # Used for "Live location is being shared on the Kids Bulletin" links so
+    # parents/kids on other devices don't get bounced to the login page.
+    try:
+        kid_bulletin_url = url_for("kid_display", token=get_or_create_display_token(group_id))
+    except Exception:
+        kid_bulletin_url = ""
+
     return render_template(
         "dashboard.html",
         group_name=group_name,
@@ -1147,6 +1155,7 @@ def dashboard():
         live_location=get_location(group_id),
         maps_api_key=os.environ.get("GOOGLE_MAPS_API_KEY", ""),
         assignment_mode=get_assignment_mode(group_id),
+        kid_bulletin_url=kid_bulletin_url,
     )
 
 

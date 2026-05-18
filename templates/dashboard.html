@@ -799,7 +799,7 @@
           </button>
         </div>
         <div id="ride-status" style="margin-top:10px;font-size:12px;color:rgba(255,255,255,0.5);display:{% if live_location.active %}block{% else %}none{% endif %};">
-          📍 Live location is being shared on the <a href="/bulletin/{{ group_id }}" target="_blank" style="color:var(--coral);">Kids Bulletin</a>
+          📍 Live location is being shared on the <a href="{{ kid_bulletin_url or ('/bulletin/' + group_id) }}" target="_blank" style="color:var(--coral);">Kids Bulletin</a>
         </div>
       </div>
     </div>
@@ -2064,7 +2064,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
     Rotation
   </a>
-  <a href="/bulletin/{{ group_id }}" target="_blank">
+  <a href="{{ kid_bulletin_url or ('/bulletin/' + group_id) }}" target="_blank">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
     Bulletin
   </a>
