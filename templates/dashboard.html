@@ -1409,15 +1409,15 @@
 
     if (upcoming.length === 0) {
       list.innerHTML = IS_ADMIN
-        ? `<div style="text-align:center;padding:32px 16px">
-            <div style="font-size:40px;margin-bottom:12px">🗓️</div>
-            <div style="font-size:16px;font-weight:600;color:#FAF9F5;margin-bottom:6px">No trips yet</div>
-            <div style="font-size:13px;color:rgba(255,255,255,0.45)">Click any date on the calendar above to add a trip.</div>
+        ? `<div style="text-align:center;padding:24px 16px">
+            <img src="/static/carpool-car.png" alt="" style="width:200px;max-width:80%;height:auto;display:block;margin:0 auto 14px;opacity:0.95">
+            <div style="font-size:17px;font-weight:600;color:#FAF9F5;margin-bottom:6px">Ready to roll?</div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.55)">Click any date on the calendar above to add your first trip.</div>
            </div>`
-        : `<div style="text-align:center;padding:32px 16px">
-            <div style="font-size:40px;margin-bottom:12px">🚗</div>
-            <div style="font-size:16px;font-weight:600;color:#FAF9F5;margin-bottom:6px">Nothing coming up</div>
-            <div style="font-size:13px;color:rgba(255,255,255,0.45)">Your carpool admin hasn't scheduled any trips yet.</div>
+        : `<div style="text-align:center;padding:24px 16px">
+            <img src="/static/carpool-car.png" alt="" style="width:200px;max-width:80%;height:auto;display:block;margin:0 auto 14px;opacity:0.95">
+            <div style="font-size:17px;font-weight:600;color:#FAF9F5;margin-bottom:6px">Nothing coming up</div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.55)">Your carpool admin hasn&rsquo;t scheduled any trips yet.</div>
            </div>`;
       return;
     }

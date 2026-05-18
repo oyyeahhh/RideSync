@@ -36,15 +36,39 @@
 
     /* ── Hero ──────────────────────────────────────────────────────────────── */
     .hero {
-      padding: 64px 24px 56px;
-      text-align: center;
-      max-width: 880px;
+      padding: 56px 24px 48px;
+      max-width: 1120px;
       margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      align-items: center;
     }
+    .hero-text { text-align: left; }
     .hero img.logo {
-      height: 180px;
+      height: 140px;
       width: auto;
-      margin-bottom: 18px;
+      margin-bottom: 14px;
+    }
+    .hero-mascot {
+      width: 100%;
+      max-width: 520px;
+      height: auto;
+      animation: hero-bounce 5s ease-in-out infinite;
+    }
+    @keyframes hero-bounce {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-10px); }
+    }
+    @media (max-width: 820px) {
+      .hero {
+        grid-template-columns: 1fr;
+        text-align: center;
+        padding: 40px 20px 32px;
+      }
+      .hero-text { text-align: center; }
+      .hero img.logo { margin-left: auto; margin-right: auto; }
+      .hero-mascot { max-width: 360px; margin: 0 auto; order: 2; }
     }
     .hero h1 {
       font-family: "Tiempos Text", Georgia, serif;
@@ -290,17 +314,20 @@
 
   <!-- HERO -->
   <header class="hero">
-    <img src="/static/carpoolsynclogo.png" alt="CarpoolSync" class="logo">
-    <h1>The carpool app <em>that actually works</em>.</h1>
-    <p class="subhead">
-      A simple coordinator for parents who are tired of group-chat chaos.
-      Smart driver rotation, WhatsApp invites, optimized pickup routes, and a
-      live status board the whole family can check.
-    </p>
-    <div class="hero-cta">
-      <a href="/create-group" class="btn btn-primary">Start a new carpool</a>
-      <a href="/login" class="btn btn-secondary">Sign in</a>
+    <div class="hero-text">
+      <img src="/static/carpoolsynclogo.png" alt="CarpoolSync" class="logo">
+      <h1>The carpool app <em>that actually works</em>.</h1>
+      <p class="subhead">
+        A simple coordinator for parents who are tired of group-chat chaos.
+        Smart driver rotation, WhatsApp invites, optimized pickup routes, and a
+        live status board the whole family can check.
+      </p>
+      <div class="hero-cta">
+        <a href="/create-group" class="btn btn-primary">Start a new carpool</a>
+        <a href="/login" class="btn btn-secondary">Sign in</a>
+      </div>
     </div>
+    <img src="/static/carpool-car.png" alt="A cheerful carpool full of kids" class="hero-mascot">
   </header>
 
   <!-- HOW IT WORKS -->

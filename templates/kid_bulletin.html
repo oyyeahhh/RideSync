@@ -86,6 +86,26 @@
       margin-bottom: 24px;
       position: relative;
       overflow: hidden;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: center;
+    }
+    .hero-card-content { min-width: 0; }
+    .hero-mascot {
+      width: clamp(180px, 28vw, 320px);
+      height: auto;
+      display: block;
+      flex-shrink: 0;
+      animation: bounce 4s ease-in-out infinite;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-6px); }
+    }
+    @media (max-width: 720px) {
+      .hero-card { grid-template-columns: 1fr; text-align: center; }
+      .hero-mascot { margin: 0 auto; width: 180px; }
     }
     .hero-card::before {
       content: "";
@@ -280,6 +300,13 @@
       padding: 28px 12px;
       font-size: 17px;
     }
+    .empty img.mascot-small {
+      width: 140px;
+      height: auto;
+      display: block;
+      margin: 4px auto 12px;
+      opacity: 0.92;
+    }
 
     footer {
       text-align: center;
@@ -311,19 +338,22 @@
 
     <!-- HERO: today / next trip -->
     <div class="hero-card">
-      <div class="day-label">
-        {% if next_trip.is_today %}Today&rsquo;s carpool{% else %}Next carpool — {{ next_trip.date }}{% endif %}
+      <div class="hero-card-content">
+        <div class="day-label">
+          {% if next_trip.is_today %}Today&rsquo;s carpool{% else %}Next carpool — {{ next_trip.date }}{% endif %}
+        </div>
+        <div class="driver-line">
+          <span class="label">Driving:</span> <span class="name">{{ next_trip.driver }}</span>
+        </div>
+        <div class="meta-row">
+          <span class="pill">🏁 <strong>{{ next_trip.destination }}</strong></span>
+          <span class="pill">🕒 Be ready by <strong>{{ next_trip.arrive_by }}</strong>{% if next_trip.arrive_by_iso %} <span class="countdown-hero" data-target="{{ next_trip.arrive_by_iso }}"></span>{% endif %}</span>
+          {% if next_trip.return_time %}
+          <span class="pill">🏠 Returning <strong>{{ next_trip.return_driver or next_trip.driver }}</strong> at <strong>{{ next_trip.return_time }}</strong></span>
+          {% endif %}
+        </div>
       </div>
-      <div class="driver-line">
-        <span class="label">Driving:</span> <span class="name">{{ next_trip.driver }}</span> 🚗
-      </div>
-      <div class="meta-row">
-        <span class="pill">🏁 <strong>{{ next_trip.destination }}</strong></span>
-        <span class="pill">🕒 Be ready by <strong>{{ next_trip.arrive_by }}</strong>{% if next_trip.arrive_by_iso %} <span class="countdown-hero" data-target="{{ next_trip.arrive_by_iso }}"></span>{% endif %}</span>
-        {% if next_trip.return_time %}
-        <span class="pill">🏠 Returning <strong>{{ next_trip.return_driver or next_trip.driver }}</strong> at <strong>{{ next_trip.return_time }}</strong></span>
-        {% endif %}
-      </div>
+      <img src="/static/carpool-car.png" alt="" class="hero-mascot">
     </div>
 
     <div class="grid">
@@ -348,7 +378,10 @@
           {% endfor %}
         </div>
         {% else %}
-        <div class="empty">No pickups scheduled yet — the route will appear here once the driver hits &ldquo;Send Route.&rdquo;</div>
+        <div class="empty">
+          <img src="/static/carpool-car.png" alt="" class="mascot-small">
+          No pickups scheduled yet — the route will appear here once the driver hits &ldquo;Send Route.&rdquo;
+        </div>
         {% endif %}
       </div>
 
