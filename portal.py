@@ -2525,6 +2525,51 @@ def admin_reset_password(user_id):
     return redirect(url_for("admin_users"))
 
 
+@app.route("/admin/system")
+@login_required
+@admin_required
+def admin_system():
+    """System-wide view of all users + groups + storage, for the admin.
+    Useful for debugging and seeing what's actually in the database."""
+    from auth import _load_users
+    from groups import _load_groups
+    users = _load_users()
+    groups = _load_groups()
+    # Volume / storage info
+    data_dir_env = os.environ.get("DATA_DIR", "NOT SET")
+    is_ephemeral = str(DATA_DIR) == str(CODE_DIR)
+    try:
+        test = DATA_DIR / ".write_test"
+        test.write_text("ok")
+        test.unlink()
+        writable = True
+    except Exception:
+        writable = False
+    # Per-group counts (trips, schedule entries)
+    group_info = []
+    for g in groups:
+        gid_ = g["id"]
+        try:
+            from schedule import load_schedule
+            sched = load_schedule(gid_)
+        except Exception:
+            sched = []
+        group_info.append({
+            **g,
+            "user_count": sum(1 for u in users if u.get("group_id") == gid_),
+            "trip_count": len(sched),
+        })
+    return render_template(
+        "admin_system.html",
+        users=users,
+        groups=group_info,
+        data_dir=str(DATA_DIR),
+        data_dir_env=data_dir_env,
+        is_ephemeral=is_ephemeral,
+        writable=writable,
+    )
+
+
 @app.route("/admin/groups/delete/<group_id>", methods=["POST"])
 @login_required
 @admin_required

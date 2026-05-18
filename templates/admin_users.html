@@ -334,7 +334,12 @@
       <img src="/static/carpoolsynclogo.png" alt="CarpoolSync">
     </div>
 
-    <a href="/" class="back-link">&#8592; Back to Dashboard</a>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+      <a href="/" class="back-link" style="margin-bottom:0;">&#8592; Back to Dashboard</a>
+      <a href="/admin/system" style="font-size:13px;color:var(--mid);text-decoration:none;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--paper);">
+        🔍 System View
+      </a>
+    </div>
 
     <h1>Manage Users</h1>
     <p class="page-subtitle">{{ users | length }} member{{ 's' if users | length != 1 else '' }} in this group</p>

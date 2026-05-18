@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System View — CarpoolSync</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500;600&family=Tiempos+Text:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --cream: #FAF9F5; --paper: #FFFFFF; --ink: #1A1714;
+      --mid: #6E6862; --soft: #8C8680; --border: #EAE8E3;
+      --orange: #D4784A; --red: #B8442A; --red-bg: #FDF0EC;
+      --green: #1A5C30; --green-bg: #F0FAF3; --blue: #1F6FA8; --blue-bg: #EDF5FB;
+    }
+    body {
+      font-family: "Styrene A", ui-sans-serif, system-ui, sans-serif;
+      background: var(--cream); color: var(--ink);
+      padding: 24px 16px 64px;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .back-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 13px; color: var(--mid); text-decoration: none;
+      margin-bottom: 16px;
+    }
+    .back-link:hover { color: var(--orange); }
+    h1 {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: 28px; font-weight: 500; margin-bottom: 4px;
+    }
+    .subtitle { font-size: 14px; color: var(--mid); margin-bottom: 28px; }
+
+    .section { margin-bottom: 28px; }
+    .section h2 {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: 19px; font-weight: 500; margin-bottom: 12px;
+      display: flex; align-items: baseline; gap: 8px;
+    }
+    .section h2 .count {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 14px; color: var(--mid); font-weight: 400;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .stat-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--soft); margin-bottom: 6px;
+    }
+    .stat-value {
+      font-size: 17px; font-weight: 600; color: var(--ink);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      word-break: break-all;
+    }
+    .stat-value.ok { color: var(--green); }
+    .stat-value.warn { color: var(--red); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+    }
+    tr:last-child td { border-bottom: 0; }
+    th {
+      background: #F4F2ED;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--soft);
+    }
+    td.mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      color: var(--mid);
+    }
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 99px;
+      padding: 2px 9px;
+      display: inline-block;
+    }
+    .badge-admin { background: var(--red-bg); color: var(--red); }
+    .badge-parent { background: #F4F2ED; color: var(--mid); }
+
+    .empty {
+      text-align: center;
+      padding: 28px 14px;
+      color: var(--mid);
+      background: var(--paper);
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+    }
+
+    @media (max-width: 720px) {
+      table thead { display: none; }
+      table, tbody, tr, td { display: block; width: 100%; }
+      td { border-bottom: 0; padding: 6px 14px; }
+      tr { border-bottom: 1px solid var(--border); padding: 8px 0; }
+      td::before {
+        content: attr(data-label);
+        display: inline-block;
+        width: 110px;
+        font-weight: 600;
+        font-size: 11px;
+        color: var(--soft);
+        text-transform: uppercase;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a href="/admin/users" class="back-link">&#8592; Back to Manage Users</a>
+    <h1>System View</h1>
+    <p class="subtitle">Everything currently stored in your CarpoolSync database.</p>
+
+    <!-- Storage / volume stats -->
+    <div class="section">
+      <h2>📦 Storage</h2>
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="stat-label">DATA_DIR env var</div>
+          <div class="stat-value">{{ data_dir_env }}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Resolved path</div>
+          <div class="stat-value">{{ data_dir }}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Persistent?</div>
+          <div class="stat-value {{ 'warn' if is_ephemeral else 'ok' }}">
+            {{ '⚠️ EPHEMERAL' if is_ephemeral else '✅ PERSISTENT' }}
+          </div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Writable?</div>
+          <div class="stat-value {{ 'ok' if writable else 'warn' }}">
+            {{ '✅ Yes' if writable else '❌ No' }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Groups -->
+    <div class="section">
+      <h2>👥 Groups <span class="count">({{ groups | length }})</span></h2>
+      {% if not groups %}
+      <div class="empty">No groups exist yet.</div>
+      {% else %}
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>ID</th>
+            <th>Users</th>
+            <th>Trips</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for g in groups %}
+          <tr>
+            <td data-label="Name"><strong>{{ g.name or '(unnamed)' }}</strong></td>
+            <td data-label="ID" class="mono">{{ g.id }}</td>
+            <td data-label="Users">{{ g.user_count }}</td>
+            <td data-label="Trips">{{ g.trip_count }}</td>
+            <td data-label="Created" class="mono">{{ g.created_at[:10] if g.created_at else '—' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+
+    <!-- All users (across all groups) -->
+    <div class="section">
+      <h2>🔑 All users <span class="count">({{ users | length }})</span></h2>
+      {% if not users %}
+      <div class="empty">No users exist yet. Visit <a href="/create-group">/create-group</a> to create the first one.</div>
+      {% else %}
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Role</th>
+            <th>Group</th>
+            <th>User ID</th>
+            <th>Joined</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for u in users %}
+          <tr>
+            <td data-label="Name"><strong>{{ u.name or '(no name)' }}</strong></td>
+            <td data-label="Email">{{ u.email or '—' }}</td>
+            <td data-label="Phone" class="mono">{{ u.phone or '—' }}</td>
+            <td data-label="Role">
+              <span class="badge {{ 'badge-admin' if u.role == 'admin' else 'badge-parent' }}">
+                {{ u.role or 'parent' }}
+              </span>
+            </td>
+            <td data-label="Group" class="mono">{{ u.group_id or '—' }}</td>
+            <td data-label="User ID" class="mono">{{ u.id }}</td>
+            <td data-label="Joined" class="mono">{{ u.joined_at[:10] if u.joined_at else '—' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+
+  </div>
+</body>
+</html>
