@@ -8,30 +8,29 @@ import uuid
 from datetime import datetime, timezone, timedelta
 
 import bcrypt
-from storage import DATA_DIR
+from storage import DATA_DIR, atomic_write_json, read_json
 
 USERS_FILE = DATA_DIR / "users.json"
 INVITES_FILE = DATA_DIR / "invites.json"
 
+# Invite tokens expire after 7 days (matches `generate_invite_token` doc).
+INVITE_TTL_DAYS = 7
+
 
 def _load_users() -> list:
-    if USERS_FILE.exists():
-        return json.loads(USERS_FILE.read_text())
-    return []
+    return read_json(USERS_FILE, default=[])
 
 
 def _save_users(users: list) -> None:
-    USERS_FILE.write_text(json.dumps(users, indent=2))
+    atomic_write_json(USERS_FILE, users)
 
 
 def _load_invites() -> list:
-    if INVITES_FILE.exists():
-        return json.loads(INVITES_FILE.read_text())
-    return []
+    return read_json(INVITES_FILE, default=[])
 
 
 def _save_invites(invites: list) -> None:
-    INVITES_FILE.write_text(json.dumps(invites, indent=2))
+    atomic_write_json(INVITES_FILE, invites)
 
 
 def get_user_by_email(email: str) -> dict | None:
@@ -105,9 +104,18 @@ def generate_invite_token(phone: str, group_id: str,
 
 
 def verify_invite_token(token: str) -> dict | None:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=INVITE_TTL_DAYS)
     for invite in _load_invites():
-        if invite["token"] == token and not invite["used"]:
-            return invite
+        if invite["token"] != token or invite.get("used"):
+            continue
+        # Reject anything older than the TTL.
+        try:
+            created = datetime.fromisoformat(invite["created_at"].replace("Z", "+00:00"))
+        except (KeyError, ValueError):
+            return None
+        if created < cutoff:
+            return None
+        return invite
     return None
 
 
@@ -147,13 +155,11 @@ RESETS_FILE = DATA_DIR / "resets.json"
 
 
 def _load_resets() -> list:
-    if RESETS_FILE.exists():
-        return json.loads(RESETS_FILE.read_text())
-    return []
+    return read_json(RESETS_FILE, default=[])
 
 
 def _save_resets(resets: list) -> None:
-    RESETS_FILE.write_text(json.dumps(resets, indent=2))
+    atomic_write_json(RESETS_FILE, resets)
 
 
 def generate_reset_token(user_id: str) -> str:

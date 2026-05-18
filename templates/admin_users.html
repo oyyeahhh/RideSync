@@ -397,6 +397,7 @@
             onsubmit="return confirm('Delete {{ u.name or u.email }}? This cannot be undone.');"
             style="display:inline;"
           >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-delete">&#128465; Delete</button>
           </form>
           {% endif %}
@@ -406,6 +407,7 @@
       <!-- Inline reset password form -->
       <div class="reset-form-wrap" id="reset-{{ u.id }}">
         <form method="POST" action="/admin/users/reset-password/{{ u.id }}" class="reset-form-inner">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input
             type="password"
             name="new_password"
@@ -444,6 +446,7 @@
           action="/admin/groups/delete/{{ g.id }}"
           onsubmit="return confirm('Permanently delete group {{ g.name or g.id }}? All its data will be removed.');"
         >
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-delete">&#128465; Delete Group</button>
         </form>
       </div>

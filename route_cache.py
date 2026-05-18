@@ -2,10 +2,9 @@
 Per-group route cache.
 """
 
-import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from storage import group_dir
+from storage import group_dir, atomic_write_json, read_json
 
 
 def _file(group_id: str) -> Path:
@@ -37,11 +36,11 @@ def save(result: dict, driver_name: str, dest_name: str, group_id: str) -> None:
         "date": arrival.strftime("%Y-%m-%d"),
         "schedule": schedule,
     }
-    _file(group_id).write_text(json.dumps(cache, indent=2))
+    atomic_write_json(_file(group_id), cache)
 
 
 def load(group_id: str) -> dict | None:
     f = _file(group_id)
     if not f.exists():
         return None
-    return json.loads(f.read_text())
+    return read_json(f, default=None)

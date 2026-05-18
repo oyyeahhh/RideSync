@@ -29,9 +29,9 @@ from config import (
     arrival_time, get_destination_id, load_config, save_config,
     get_group_name, get_assignment_mode, set_assignment_mode,
 )
-from storage import DATA_DIR, CODE_DIR, group_dir, migrate_legacy_data
+from storage import DATA_DIR, CODE_DIR, group_dir, migrate_legacy_data, atomic_write_json, read_json
 from families import get_family, get_destination, get_all_family_ids, add_family
-from rotation import _load as _load_rotation, add_to_rotation, set_driver as _set_driver, record_trip as advance_rotation
+from rotation import _load as _load_rotation, add_to_rotation, set_driver as _set_driver, advance as advance_rotation, set_index as _set_rotation_index
 from trips import get_stats, load_trips, record_trip
 from schedule import load_schedule, save_schedule, add_trip, update_trip, remove_trip, remove_series, add_recurring_trips, claim_trip
 from karma import get_karma, record_swap_request as _record_swap_req, record_swap_cover as _record_swap_cover
@@ -142,10 +142,77 @@ _startup_check()
 
 app = Flask(__name__)
 _secret = os.environ.get("SECRET_KEY", "")
+# Refuse to start in production without a real SECRET_KEY.
+# Treat "Railway-like" (DATA_DIR set + not the code dir) as production.
+_is_prod = bool(os.environ.get("DATA_DIR")) and str(DATA_DIR) != str(CODE_DIR)
 if not _secret:
-    logger.error("SECRET_KEY is not set — using an insecure default. Set SECRET_KEY in your environment.")
+    if _is_prod:
+        raise RuntimeError(
+            "SECRET_KEY is not set. Refusing to start in production. "
+            "Set SECRET_KEY in your Railway environment variables."
+        )
+    logger.warning("SECRET_KEY is not set — using an insecure default (dev only).")
     _secret = "dev-secret-change-me"
 app.secret_key = _secret
+
+# Harden session cookies. SameSite=Lax lets normal links work; Secure means
+# cookies only travel over HTTPS (Railway terminates TLS for us); HttpOnly
+# blocks JS from reading the cookie.
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = _is_prod  # only require HTTPS in prod
+# Limit POST body size (defense against runaway form uploads bloating JSON).
+app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024  # 1 MB
+
+# CSRF protection. Flask-WTF reads tokens from a hidden form field OR an
+# X-CSRFToken header (used by our fetch()-based dashboard endpoints).
+from flask_wtf.csrf import CSRFProtect, generate_csrf
+csrf = CSRFProtect(app)
+
+
+@app.context_processor
+def _inject_csrf_token():
+    """Expose csrf_token() to every template."""
+    return {"csrf_token": generate_csrf}
+
+
+@app.after_request
+def _csrf_cookie(response):
+    """Mirror the CSRF token into a readable cookie so JS can pull it for fetch().
+    HttpOnly is intentionally False here; the token is meant to be readable by
+    same-origin JS, and Lax SameSite blocks cross-site reads."""
+    try:
+        response.set_cookie(
+            "csrf_token", generate_csrf(),
+            secure=_is_prod, samesite="Lax", httponly=False,
+        )
+    except Exception:
+        pass
+    return response
+
+
+@app.errorhandler(404)
+def _not_found(e):
+    """Return JSON for API-ish paths, plain HTML otherwise."""
+    if request.path.startswith(("/admin/", "/api/", "/send-route", "/save-trip", "/schedule/")):
+        return jsonify({"ok": False, "error": "Not found"}), 404
+    return ("<h2>404 — Not found</h2>"
+            "<p><a href='/dashboard'>Back to dashboard</a></p>"), 404
+
+
+@app.errorhandler(500)
+def _server_error(e):
+    logger.exception("Internal server error on %s", request.path)
+    if request.path.startswith(("/admin/", "/api/", "/send-route", "/save-trip", "/schedule/")):
+        return jsonify({"ok": False, "error": "Server error"}), 500
+    return ("<h2>Something went wrong</h2>"
+            "<p>The error has been logged. "
+            "<a href='/dashboard'>Back to dashboard</a></p>"), 500
+
+
+@app.errorhandler(413)
+def _too_large(e):
+    return jsonify({"ok": False, "error": "Request too large (1MB limit)"}), 413
 
 
 @app.template_filter("fmt_time")
@@ -188,6 +255,47 @@ def current_user() -> dict | None:
 def gid() -> str | None:
     """Return the current user's group_id from the session."""
     return session.get("group_id")
+
+
+# ── Rate limiting ─────────────────────────────────────────────────────────────
+# Simple in-memory limiter: enough for the small-scale Railway deployment.
+# Tracks (key, action) → list of timestamps within the window. NOT shared across
+# workers; with the scheduler lock most apps run single-worker anyway. For
+# multi-worker, swap in a redis-backed bucket later.
+import time as _time
+import threading as _threading
+_rate_state: dict = {}
+_rate_lock = _threading.Lock()
+
+
+def _rate_limited(key: str, max_hits: int, window_seconds: int) -> bool:
+    """Returns True if `key` has already hit `max_hits` in `window_seconds`.
+    Otherwise records the hit and returns False."""
+    now = _time.time()
+    cutoff = now - window_seconds
+    with _rate_lock:
+        bucket = _rate_state.get(key, [])
+        bucket = [t for t in bucket if t > cutoff]
+        if len(bucket) >= max_hits:
+            _rate_state[key] = bucket
+            return True
+        bucket.append(now)
+        _rate_state[key] = bucket
+        # Opportunistic cleanup so the dict doesn't grow unbounded.
+        if len(_rate_state) > 5000:
+            for k in list(_rate_state.keys()):
+                _rate_state[k] = [t for t in _rate_state[k] if t > cutoff]
+                if not _rate_state[k]:
+                    del _rate_state[k]
+        return False
+
+
+def _client_ip() -> str:
+    """Best-effort IP behind Railway's proxy."""
+    fwd = request.headers.get("X-Forwarded-For", "")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.remote_addr or "unknown"
 
 
 def login_required(f):
@@ -307,6 +415,14 @@ def login():
         email = request.form.get("email", "").strip()
         password = request.form.get("password", "")
 
+        # Rate limit: 10 attempts per 5 minutes per IP, 8 per email.
+        ip = _client_ip()
+        if _rate_limited(f"login:ip:{ip}", max_hits=10, window_seconds=300) or \
+           _rate_limited(f"login:email:{email.lower()}", max_hits=8, window_seconds=300):
+            error = "Too many login attempts. Please wait a few minutes and try again."
+            logger.warning("Login rate-limited for email=%s ip=%s", email[:3] + "***", ip)
+            return render_template("login.html", error=error, email=email), 429
+
         user = get_user_by_email(email)
         if user and verify_password(password, user["password_hash"]):
             session["user_id"] = user["id"]
@@ -318,6 +434,7 @@ def login():
             return redirect(url_for("dashboard"))
         else:
             error = "Invalid email or password."
+            logger.info("Failed login attempt from %s", ip)
 
     return render_template("login.html", error=error, email=email)
 
@@ -362,6 +479,16 @@ def forgot_password():
     error = None
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
+        ip = _client_ip()
+        # Throttle: 3 reset requests per IP per 10 min, 2 per email per 10 min,
+        # plus a hard daily cap so nobody runs up Twilio cost or spams a victim.
+        if _rate_limited(f"reset:ip:{ip}", max_hits=3, window_seconds=600) or \
+           _rate_limited(f"reset:email:{email}", max_hits=2, window_seconds=600) or \
+           _rate_limited(f"reset:email_day:{email}", max_hits=5, window_seconds=86400):
+            logger.warning("Password reset rate-limited for email=%s ip=%s", email[:3] + "***", ip)
+            # Still show success — we don't want to reveal whether limiting kicked in.
+            return render_template("forgot_password.html", sent=True, error=None)
+
         user = get_user_by_email(email)
         if user and user.get("phone"):
             token = generate_reset_token(user["id"])
@@ -372,7 +499,7 @@ def forgot_password():
                     message=f"Reset your CarpoolSync password:\n{reset_url}\n\nThis link expires in 1 hour.",
                 )
             except Exception as e:
-                logger.error("Password reset SMS failed for %s: %s", email, e)
+                logger.error("Password reset SMS failed: %s", e)
         # Always show "sent" to avoid revealing whether an email exists
         sent = True
     return render_template("forgot_password.html", sent=sent, error=error)
@@ -857,10 +984,57 @@ def save_trip():
 @app.route("/calendar.ics")
 @login_required
 def calendar_feed():
+    """In-browser ICS download (for the logged-in user only)."""
     group_id = gid()
     ics = build_ics(group_id)
     return Response(ics, mimetype="text/calendar", headers={
         "Content-Disposition": "inline; filename=carpool.ics"
+    })
+
+
+def _get_or_create_calendar_token(user: dict) -> str:
+    """Return the user's persistent calendar feed token, creating one if needed.
+    The token is opaque, per-user, and revocable (regenerated by saving a new one)."""
+    import secrets as _secrets
+    from auth import _load_users, _save_users
+    if user.get("calendar_token"):
+        return user["calendar_token"]
+    new_token = _secrets.token_urlsafe(24)
+    users = _load_users()
+    for u in users:
+        if u["id"] == user["id"]:
+            u["calendar_token"] = new_token
+            user["calendar_token"] = new_token
+            break
+    _save_users(users)
+    return new_token
+
+
+@app.route("/calendar/subscribe-url")
+@login_required
+def calendar_subscribe_url():
+    """Return a cookieless URL that Google/Apple Calendar can subscribe to."""
+    user = current_user()
+    token = _get_or_create_calendar_token(user)
+    url = url_for("calendar_feed_public", token=token, _external=True)
+    return jsonify({"url": url})
+
+
+@app.route("/calendar/<token>.ics")
+def calendar_feed_public(token):
+    """Cookieless ICS endpoint for calendar app subscriptions. Identifies the
+    user via an opaque per-user token in the URL — no session required."""
+    from auth import _load_users
+    if not token or len(token) < 16:
+        return "Not found", 404
+    user = next((u for u in _load_users() if u.get("calendar_token") == token), None)
+    if not user or not user.get("group_id"):
+        return "Not found", 404
+    ics = build_ics(user["group_id"])
+    return Response(ics, mimetype="text/calendar", headers={
+        "Content-Disposition": "inline; filename=carpool.ics",
+        # Calendar apps may poll frequently — let them cache for 10 minutes.
+        "Cache-Control": "public, max-age=600",
     })
 
 
@@ -1038,6 +1212,14 @@ def schedule_add_recurring():
             cur += timedelta(days=1)
         trips_list.sort(key=lambda t: t["date"])
         save_schedule(trips_list, group_id)
+        # Persist the rotation cursor forward so the next manual trip continues
+        # from where this recurring series left off (previously the in-memory
+        # rot_idx was thrown away).
+        if rot_sequence and created:
+            try:
+                _set_rotation_index((idx + rot_idx) % rot_n, group_id)
+            except Exception as e:
+                logger.error("Failed to persist rotation index after recurring add: %s", e)
     else:
         created = add_recurring_trips(
             start_date=data["start_date"],
@@ -1143,19 +1325,43 @@ def arrived():
         except Exception as e:
             logger.error("Failed to send arrival SMS to family %s: %s", fid, e)
 
-    # fix #1: advance rotation after trip completes
+    # Advance rotation after trip completes, skipping anyone marked absent.
     try:
+        advance_rotation(group_id, absent_ids=set(absences))
+    except TypeError:
+        # Older callers may not accept the absent_ids kwarg.
         advance_rotation(group_id)
     except Exception as e:
         logger.error("Failed to advance rotation: %s", e)
+
+    # Mark today's trip(s) as rotation_advanced so the nightly cron skips it.
+    if info.get("trip"):
+        try:
+            update_trip(info["trip"]["id"], group_id, rotation_advanced=True)
+        except Exception as e:
+            logger.error("Failed to mark trip rotation_advanced: %s", e)
+
+    # Pull real miles/minutes from the route cache if it covers this trip.
+    miles = 0.0
+    minutes = 0
+    try:
+        rc = load_route_cache(group_id)
+        if rc and rc.get("date") == trip_date:
+            # legs are stored in seconds; total miles can be approximated from
+            # leg distances if present, else leave at 0.
+            minutes = int(round(sum(rc.get("leg_durations_seconds", [])) / 60)) \
+                if rc.get("leg_durations_seconds") else 0
+            miles = float(rc.get("total_miles", 0)) or 0.0
+    except Exception as e:
+        logger.warning("Could not pull miles/minutes from route cache: %s", e)
 
     # Record trip in history
     try:
         record_trip(
             driver_family_id=driver_id or "",
             driver_name=driver_name,
-            miles=0.0,
-            minutes=0,
+            miles=miles,
+            minutes=minutes,
             arrival=datetime.now(),
             pickup_family_ids=pickup_ids,
             group_id=group_id,
@@ -1246,7 +1452,7 @@ def send_route():
         arrival_time=arrival_dt,
         buffer_minutes=cfg.get("buffer_minutes", 15),
     )
-    save_route_cache(result, driver_name=driver.name, dest_name=dest_name)
+    save_route_cache(result, driver_name=driver.name, dest_name=dest_name, group_id=group_id)
 
     # SMS the driver
     driver_phone = driver.guardians[0].phone if driver.guardians else ""
@@ -1316,25 +1522,36 @@ def update_location_route():
 
 
 @app.route("/get-location")
+@login_required
 def get_location_route():
-    group_id = request.args.get("group_id", "")
+    """Return live driver location. Only members of the requested group may view it."""
+    group_id = request.args.get("group_id", "") or gid() or ""
     if not group_id:
         return jsonify({"active": False})
+    # Group-isolation check: the caller must belong to the group they're asking about.
+    if group_id != gid():
+        return jsonify({"active": False}), 403
     return jsonify(get_location(group_id))
 
 
 @app.route("/bulletin")
+@login_required
 def bulletin_legacy():
     """Backward-compat redirect — old bookmarks/links without group_id."""
-    # Use the session group if available, else fall back to grp_main
-    group_id = gid() or "grp_main"
+    group_id = gid()
+    if not group_id:
+        return redirect(url_for("login"))
     return redirect(url_for("bulletin", group_id=group_id))
 
 
 @app.route("/bulletin/<group_id>")
+@login_required
 def bulletin(group_id):
     if not get_group(group_id):
         return "Group not found", 404
+    # Only members of this group can view its bulletin.
+    if group_id != gid():
+        return "Forbidden", 403
 
     cfg = load_config(group_id)
     trip_time = arrival_time(group_id)
@@ -1391,18 +1608,16 @@ def _swap_file(group_id: str):
 
 
 def _load_confirmations(group_id: str) -> dict:
-    f = _confirmations_file(group_id)
-    return json.loads(f.read_text()) if f.exists() else {}
+    return read_json(_confirmations_file(group_id), default={})
 
 def _save_confirmations(data: dict, group_id: str) -> None:
-    _confirmations_file(group_id).write_text(json.dumps(data, indent=2))
+    atomic_write_json(_confirmations_file(group_id), data)
 
 def _load_swap(group_id: str) -> dict:
-    f = _swap_file(group_id)
-    return json.loads(f.read_text()) if f.exists() else {}
+    return read_json(_swap_file(group_id), default={})
 
 def _save_swap(data: dict, group_id: str) -> None:
-    _swap_file(group_id).write_text(json.dumps(data, indent=2))
+    atomic_write_json(_swap_file(group_id), data)
 
 
 def _phone_to_family_and_group(phone: str):
@@ -1482,13 +1697,21 @@ def _handle_yes_for_swap(from_phone: str) -> str | None:
     return None
 
 
+@csrf.exempt
 @app.route("/sms", methods=["POST"])
 def sms_webhook():
     # Verify the request genuinely came from Twilio.
     # Railway sits behind a TLS-terminating proxy, so request.url may arrive
     # as http:// — we reconstruct the https:// URL that Twilio signed.
     auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
-    if auth_token:
+    if not auth_token:
+        if _is_prod:
+            # In production we require signature verification — otherwise anyone
+            # on the internet can POST fake SMS bodies and trigger sends/state changes.
+            logger.error("TWILIO_AUTH_TOKEN not set in production; rejecting webhook.")
+            return Response("Webhook misconfigured", status=503)
+        logger.warning("TWILIO_AUTH_TOKEN not set (dev mode) — skipping signature check.")
+    else:
         validator = RequestValidator(auth_token)
         url = request.url.replace("http://", "https://", 1)
         signature = request.headers.get("X-Twilio-Signature", "")
@@ -1499,7 +1722,11 @@ def sms_webhook():
     from_number = request.form.get("From", "")
     raw_body = request.form.get("Body", "").strip()
     upper = raw_body.upper()
-    logger.info("SMS received from %s: %r", from_number, raw_body)
+    # Don't log full phone numbers or message bodies at INFO — they're PII.
+    # Mask the phone to last 4 digits and trim body to a length only.
+    _masked = (from_number[-4:] if len(from_number) >= 4 else "????")
+    logger.info("SMS received (from ...%s, %d chars)", _masked, len(raw_body))
+    logger.debug("SMS body: %r", raw_body)
 
     reply = None
     if upper == "YES":
@@ -1516,12 +1743,22 @@ def sms_webhook():
         reason = raw_body[4:].strip() or "no reason given"
         reply = _handle_swap(from_number, reason)
     else:
-        _, group_id = _phone_to_family_and_group(from_number)
-        if group_id:
-            confs = _load_confirmations(group_id)
-            confs[from_number] = raw_body
-            _save_confirmations(confs, group_id)
-        reply = f"Got it! We'll pick you up at: {raw_body}"
+        # Only treat free-text replies as pickup-address confirmations if they
+        # actually look like an address (number + street word, or contains a comma).
+        # Otherwise "Thanks!" or "ok" would silently overwrite their address.
+        _looks_like_address = bool(re.search(r"\d+\s+\w", raw_body)) or ("," in raw_body)
+        if _looks_like_address:
+            _, group_id = _phone_to_family_and_group(from_number)
+            if group_id:
+                confs = _load_confirmations(group_id)
+                confs[from_number] = raw_body
+                _save_confirmations(confs, group_id)
+            reply = f"Got it! We'll pick you up at: {raw_body}"
+        else:
+            reply = (
+                "Sorry, I didn't recognize that. Reply YES to confirm pickup, "
+                "SWAP <reason> to request a swap, or send your pickup address."
+            )
 
     if reply:
         try:
@@ -1605,10 +1842,18 @@ def _auto_send_route_for_group(group_id: str) -> None:
                 arrival_time=trip_dt,
                 buffer_minutes=cfg.get("buffer_minutes", 15),
             )
-            save_route_cache(result, driver_name=driver.name, dest_name=dest_name)
+            save_route_cache(result, driver_name=driver.name, dest_name=dest_name, group_id=group_id)
 
             driver_phone = driver.guardians[0].phone if driver.guardians else ""
-            if driver_phone:
+            if not driver_phone:
+                logger.warning("Auto-route: driver %s has no phone", driver.name)
+                continue
+
+            # Mark as sent BEFORE the SMS to prevent retry storms if SMS fails or is slow.
+            # An occasional missed SMS is better than 8 duplicate SMSes per trip.
+            update_trip(trip["id"], group_id, route_sent=True)
+
+            try:
                 maps_url = build_maps_url(result)
                 send_route_sms(
                     to_phone=driver_phone,
@@ -1618,12 +1863,8 @@ def _auto_send_route_for_group(group_id: str) -> None:
                     maps_url=maps_url,
                 )
                 logger.info("Auto-route sent to %s for trip %s", driver.name, trip["id"])
-            else:
-                logger.warning("Auto-route: driver %s has no phone", driver.name)
-                continue
-
-            # Mark as sent so it doesn't fire again
-            update_trip(trip["id"], group_id, route_sent=True)
+            except Exception as e:
+                logger.error("Auto-route SMS failed for trip %s: %s", trip["id"], e)
 
     except Exception as e:
         logger.error("Auto-route error for group %s: %s", group_id, e)
@@ -1635,8 +1876,59 @@ def _auto_send_routes_all_groups() -> None:
         _auto_send_route_for_group(g["id"])
 
 
+def _nightly_advance_rotations() -> None:
+    """Daily 11pm job: if today had a scheduled trip and the rotation pointer
+    wasn't advanced (driver never tapped 'Arrived'), roll it forward — skipping
+    any drivers marked absent for that date. Without this the rotation freezes
+    on whoever was assigned last."""
+    from groups import list_groups
+    from rotation import _load as _load_rot, advance as _advance_rot
+    today_iso = date.today().isoformat()
+    for g in list_groups():
+        gid_ = g["id"]
+        try:
+            schedule = load_schedule(gid_)
+            todays_trips = [t for t in schedule if t.get("date") == today_iso]
+            if not todays_trips:
+                continue
+            # If any of today's trips are already marked rotation_advanced, skip.
+            if any(t.get("rotation_advanced") for t in todays_trips):
+                continue
+            absent = set(get_absences(today_iso, gid_))
+            rot = _load_rot(gid_)
+            if not rot.get("order"):
+                continue
+            _advance_rot(gid_, absent_ids=absent)
+            # Mark today's trips so we don't re-advance on the next run.
+            for t in todays_trips:
+                update_trip(t["id"], gid_, rotation_advanced=True)
+            logger.info("Nightly rotation advance for group %s", gid_)
+        except Exception as e:
+            logger.error("Nightly rotation advance failed for %s: %s", gid_, e)
+
+
 def _start_scheduler() -> None:
+    """Start the background job runner. We guard against duplicate scheduling
+    in multi-worker gunicorn setups by using a filesystem lock — only the
+    worker that acquires it starts the scheduler. Other workers no-op."""
+    import fcntl as _fcntl
     from apscheduler.schedulers.background import BackgroundScheduler
+
+    lock_path = DATA_DIR / ".scheduler.lock"
+    try:
+        # Hold this file lock for the lifetime of the process. If another
+        # worker already has it, this raises and we silently return.
+        lock_fh = open(lock_path, "w")
+        _fcntl.flock(lock_fh.fileno(), _fcntl.LOCK_EX | _fcntl.LOCK_NB)
+    except (BlockingIOError, OSError):
+        logger.info("Scheduler lock held by another worker — skipping start.")
+        return
+
+    # Keep a module-global reference so the file handle (and thus the lock)
+    # outlives this function.
+    global _scheduler_lock_fh
+    _scheduler_lock_fh = lock_fh  # noqa: F841
+
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         _auto_send_routes_all_groups,
@@ -1645,9 +1937,18 @@ def _start_scheduler() -> None:
         id="auto_route",
         replace_existing=True,
     )
+    scheduler.add_job(
+        _nightly_advance_rotations,
+        trigger="cron",
+        hour=23, minute=0,
+        id="nightly_rotation",
+        replace_existing=True,
+    )
     scheduler.start()
-    logger.info("Route scheduler started — checking every 15 minutes.")
+    logger.info("Background scheduler started (this worker is the leader).")
 
+
+_scheduler_lock_fh = None  # holds the worker-leader lock if we won it
 
 # Start scheduler (skip during pytest / flask test runs)
 import sys as _sys
@@ -1709,11 +2010,52 @@ def admin_delete_user(user_id):
     if target.get("group_id") != gid():
         session["admin_flash_error"] = "You can only manage users in your own group."
         return redirect(url_for("admin_users"))
+
+    # Cascade: if this user is the last one in their family, scrub the family
+    # from rotation and clear them out of future scheduled trips so we don't
+    # leave a phantom driver who can't log in.
+    family_id = target.get("family_id", "")
+    group_id_ = target.get("group_id", "")
     deleted = delete_user(user_id)
-    if deleted:
-        session["admin_flash"] = "User deleted successfully."
-    else:
+    if not deleted:
         session["admin_flash_error"] = "User not found."
+        return redirect(url_for("admin_users"))
+
+    try:
+        from auth import _load_users
+        other_users = [u for u in _load_users()
+                       if u.get("family_id") == family_id and u.get("group_id") == group_id_]
+        if family_id and not other_users:
+            # No remaining users for this family in this group — clean up.
+            try:
+                from rotation import remove_from_rotation
+                remove_from_rotation(family_id, group_id_)
+            except Exception as e:
+                logger.error("Cascade: remove_from_rotation failed: %s", e)
+            try:
+                # Clear future scheduled trips that pointed at this family.
+                today_iso = date.today().isoformat()
+                sched = load_schedule(group_id_)
+                changed = False
+                for t in sched:
+                    if t.get("date", "") < today_iso:
+                        continue
+                    if t.get("driver_family_id") == family_id:
+                        t["driver_family_id"] = ""
+                        t["driver_name"] = ""
+                        changed = True
+                    if t.get("return_driver_family_id") == family_id:
+                        t["return_driver_family_id"] = ""
+                        t["return_driver_name"] = ""
+                        changed = True
+                if changed:
+                    save_schedule(sched, group_id_)
+            except Exception as e:
+                logger.error("Cascade: schedule cleanup failed: %s", e)
+    except Exception as e:
+        logger.error("Cascade cleanup error: %s", e)
+
+    session["admin_flash"] = "User deleted (and family scrubbed from rotation if applicable)."
     return redirect(url_for("admin_users"))
 
 

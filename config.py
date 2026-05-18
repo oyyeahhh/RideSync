@@ -3,12 +3,11 @@ Per-group trip configuration stored in trip_config.json inside each group's dire
 All public functions take group_id as their first parameter.
 """
 
-import json
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from storage import group_dir
+from storage import group_dir, atomic_write_json, read_json
 
 # Keep ADMIN_PHONE for backwards compat with SMS webhook
 ADMIN_PHONE = ""
@@ -39,11 +38,11 @@ def load_config(group_id: str) -> dict:
     f = _file(group_id)
     if not f.exists():
         return _default()
-    return json.loads(f.read_text())
+    return read_json(f, default=_default())
 
 
 def save_config(data: dict, group_id: str) -> None:
-    _file(group_id).write_text(json.dumps(data, indent=2))
+    atomic_write_json(_file(group_id), data)
 
 
 def arrival_time(group_id: str) -> datetime:

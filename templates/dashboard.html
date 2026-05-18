@@ -904,6 +904,7 @@
     </div>
     {% else %}
     <form method="POST" action="/invite" id="inviteForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="phone" id="invitePhoneHidden">
       <div class="invite-row">
         <div class="form-field">
@@ -933,6 +934,7 @@
   <div class="card">
     <div class="card-label">Trip Settings</div>
     <form method="POST" action="/save-trip" class="trip-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-grid">
         <div class="form-field">
           <label>Date</label>
@@ -1168,6 +1170,30 @@
 
 </main>
 
+<script>
+  // Auto-attach CSRF token to all state-changing fetch() requests.
+  (function() {
+    function getCookie(name) {
+      const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+      return m ? decodeURIComponent(m[1]) : '';
+    }
+    const _origFetch = window.fetch;
+    window.fetch = function(input, init) {
+      init = init || {};
+      const method = (init.method || (typeof input === 'string' ? 'GET' : (input.method || 'GET'))).toUpperCase();
+      if (['POST','PUT','PATCH','DELETE'].includes(method)) {
+        const token = getCookie('csrf_token');
+        if (token) {
+          init.headers = new Headers(init.headers || {});
+          if (!init.headers.has('X-CSRFToken')) {
+            init.headers.set('X-CSRFToken', token);
+          }
+        }
+      }
+      return _origFetch(input, init);
+    };
+  })();
+</script>
 <script>
   const IS_ADMIN = {{ 'true' if current_user.role == 'admin' else 'false' }};
   const MY_FAMILY_ID = "{{ current_user.family_id or '' }}";

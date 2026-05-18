@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from storage import DATA_DIR, group_dir
+from storage import DATA_DIR, group_dir, atomic_write_json, read_json
 
 GROUPS_FILE = DATA_DIR / "groups.json"
 
@@ -30,13 +30,11 @@ _DEFAULT_CONFIG = {
 
 
 def _load_groups() -> list:
-    if GROUPS_FILE.exists():
-        return json.loads(GROUPS_FILE.read_text())
-    return []
+    return read_json(GROUPS_FILE, default=[])
 
 
 def _save_groups(groups: list) -> None:
-    GROUPS_FILE.write_text(json.dumps(groups, indent=2))
+    atomic_write_json(GROUPS_FILE, groups)
 
 
 def create_group(name: str) -> dict:
@@ -55,7 +53,7 @@ def create_group(name: str) -> dict:
     cfg = dict(_DEFAULT_CONFIG)
     cfg["group_name"] = name
     gdir = group_dir(group_id)
-    (gdir / "trip_config.json").write_text(json.dumps(cfg, indent=2))
+    atomic_write_json(gdir / "trip_config.json", cfg)
 
     return group
 

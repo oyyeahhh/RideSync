@@ -18,20 +18,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY")
-from storage import DATA_DIR
+from storage import DATA_DIR, atomic_write_json, read_json
 CACHE_FILE = DATA_DIR / "geocode_cache.json"
 
 
 def _load_cache() -> dict:
-    if CACHE_FILE.exists():
-        with open(CACHE_FILE) as f:
-            return json.load(f)
-    return {}
+    return read_json(CACHE_FILE, default={})
 
 
 def _save_cache(cache: dict) -> None:
-    with open(CACHE_FILE, "w") as f:
-        json.dump(cache, f, indent=2)
+    atomic_write_json(CACHE_FILE, cache)
 
 
 def geocode(address: str) -> tuple[float, float]:

@@ -5,7 +5,7 @@ Per-group trip history log.
 import json
 from datetime import datetime
 from pathlib import Path
-from storage import group_dir
+from storage import group_dir, atomic_write_json, read_json
 
 
 def _file(group_id: str) -> Path:
@@ -13,10 +13,7 @@ def _file(group_id: str) -> Path:
 
 
 def load_trips(group_id: str) -> list:
-    f = _file(group_id)
-    if f.exists():
-        return json.loads(f.read_text())
-    return []
+    return read_json(_file(group_id), default=[])
 
 
 def record_trip(driver_family_id: str, driver_name: str, miles: float,
@@ -31,7 +28,7 @@ def record_trip(driver_family_id: str, driver_name: str, miles: float,
         "minutes": minutes,
         "pickups": pickup_family_ids,
     })
-    _file(group_id).write_text(json.dumps(trips, indent=2))
+    atomic_write_json(_file(group_id), trips)
 
 
 def get_stats(group_id: str) -> dict:

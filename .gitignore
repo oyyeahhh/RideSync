@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 .flask_sessions/
+.locks/
+*.lock
 .DS_Store
 individual_ics/
 .claude/

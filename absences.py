@@ -1,6 +1,5 @@
-import json
 from pathlib import Path
-from storage import group_dir
+from storage import group_dir, atomic_write_json, read_json
 
 
 def _file(group_id: str) -> Path:
@@ -8,14 +7,11 @@ def _file(group_id: str) -> Path:
 
 
 def _load(group_id: str) -> dict:
-    f = _file(group_id)
-    if not f.exists():
-        return {}
-    return json.loads(f.read_text())
+    return read_json(_file(group_id), default={})
 
 
 def _save(data: dict, group_id: str) -> None:
-    _file(group_id).write_text(json.dumps(data, indent=2))
+    atomic_write_json(_file(group_id), data)
 
 
 def toggle_absent(date: str, family_id: str, group_id: str) -> bool:

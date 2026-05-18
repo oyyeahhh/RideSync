@@ -173,6 +173,7 @@
     {% endif %}
 
     <form method="POST" action="/create-group">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="section-label">Your Group</div>
       <div class="form-field">
         <label>Group Name</label>

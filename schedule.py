@@ -6,7 +6,7 @@ import json
 import uuid
 from datetime import date, timedelta
 from pathlib import Path
-from storage import group_dir
+from storage import group_dir, atomic_write_json, read_json
 
 WEEKDAY_NAMES = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
 
@@ -16,14 +16,11 @@ def _file(group_id: str) -> Path:
 
 
 def load_schedule(group_id: str) -> list:
-    f = _file(group_id)
-    if f.exists():
-        return json.loads(f.read_text())
-    return []
+    return read_json(_file(group_id), default=[])
 
 
 def save_schedule(trips: list, group_id: str) -> None:
-    _file(group_id).write_text(json.dumps(trips, indent=2))
+    atomic_write_json(_file(group_id), trips)
 
 
 def add_trip(date: str, arrival_time: str, destination_name: str,

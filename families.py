@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 
 from models import Group, Family, Guardian, Kid, Address, Destination
-from storage import DATA_DIR, CODE_DIR, group_dir
+from storage import DATA_DIR, CODE_DIR, group_dir, atomic_write_json, read_json
 
 _SEED_FAMILIES_FILE = CODE_DIR / "families.json"
 
@@ -27,12 +27,12 @@ def _seed_data(group_id: str) -> list[dict]:
 def _load_families_json(group_id: str) -> list[dict]:
     f = _families_file(group_id)
     if f.exists():
-        return json.loads(f.read_text())
+        return read_json(f, default=[])
     return _seed_data(group_id)
 
 
 def _save_families_json(data: list[dict], group_id: str) -> None:
-    _families_file(group_id).write_text(json.dumps(data, indent=2))
+    atomic_write_json(_families_file(group_id), data)
 
 
 def _dict_to_family(d: dict, group_id: str) -> Family:
