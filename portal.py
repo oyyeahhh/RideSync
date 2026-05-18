@@ -407,6 +407,8 @@ def signup():
             error = "Password must be at least 8 characters."
         elif get_user_by_email(form["email"]):
             error = "An account with that email already exists."
+        elif not form["address"]:
+            error = "Please enter your home address — it's needed for route planning."
         else:
             existing_family_id = invite.get("family_id", "")
             if existing_family_id:
@@ -687,6 +689,9 @@ def save_trip():
     destination_address = request.form.get("destination_address", "").strip()
     buffer_minutes      = int(request.form.get("buffer_minutes", 5))
     group_name          = request.form.get("group_name", "").strip()
+
+    if not destination_address:
+        return redirect(url_for("dashboard", settings_error="Destination address is required."))
 
     # Persist defaults to config
     cfg.update({

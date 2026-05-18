@@ -959,7 +959,7 @@
         </div>
         <div class="form-field">
           <label>Destination Address</label>
-          <input type="text" name="destination_address" value="{{ cfg.destination_address or '' }}" placeholder="123 Main St, City, NJ">
+          <input type="text" name="destination_address" value="{{ cfg.destination_address or '' }}" placeholder="123 Main St, City, NJ" required>
         </div>
         <div class="form-field">
           <label>Buffer (minutes)</label>
@@ -994,11 +994,11 @@
       <div style="display:flex;gap:10px;margin-bottom:16px">
         <div style="flex:1">
           <label style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.45);display:block;margin-bottom:4px">Destination</label>
-          <input type="text" id="m-dest-name" placeholder="e.g. Camp Ramah" style="width:100%;box-sizing:border-box">
+          <input type="text" id="m-dest-name" placeholder="e.g. Camp Ramah" style="width:100%;box-sizing:border-box" required>
         </div>
         <div style="flex:1">
-          <label style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.45);display:block;margin-bottom:4px">Address</label>
-          <input type="text" id="m-dest-addr" placeholder="123 Main St, Paramus, NJ" style="width:100%;box-sizing:border-box">
+          <label style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.45);display:block;margin-bottom:4px">Address <span style="color:var(--coral)">*</span></label>
+          <input type="text" id="m-dest-addr" placeholder="123 Main St, Paramus, NJ" style="width:100%;box-sizing:border-box" required>
         </div>
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
@@ -1453,6 +1453,20 @@
     const driverEl = document.getElementById("m-driver");
     const rdEl = document.getElementById("m-return-driver");
     const isRepeat = document.getElementById("m-repeat").checked;
+
+    // Validate required fields
+    const destAddr = document.getElementById("m-dest-addr").value.trim();
+    const destName = document.getElementById("m-dest-name").value.trim();
+    if (!destAddr) {
+      document.getElementById("m-dest-addr").focus();
+      alert("Please enter a destination address — it's required for route planning.");
+      return;
+    }
+    if (!destName) {
+      document.getElementById("m-dest-name").focus();
+      alert("Please enter a destination name.");
+      return;
+    }
 
     const base = {
       arrival_time: document.getElementById("m-time").value,
