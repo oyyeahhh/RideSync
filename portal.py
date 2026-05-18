@@ -248,6 +248,28 @@ def _too_large(e):
     return jsonify({"ok": False, "error": "Request too large (1MB limit)"}), 413
 
 
+# Handle stale-CSRF gracefully: rather than the default ugly "Bad Request"
+# from Flask-WTF, redirect users back to the page they came from so their
+# browser picks up a fresh token. Without this, anyone with a cached old
+# form is hard-stuck.
+try:
+    from flask_wtf.csrf import CSRFError as _CSRFError
+except Exception:
+    _CSRFError = None
+
+if _CSRFError is not None:
+    @app.errorhandler(_CSRFError)
+    def _csrf_error(e):
+        # JSON for API/admin routes, HTML redirect for normal forms.
+        if request.path.startswith(("/admin/", "/api/")) or \
+           request.headers.get("Accept", "").startswith("application/json") or \
+           request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "error": "Session expired — please refresh and try again."}), 400
+        # For login/signup/etc, send them back to the same page with a fresh token.
+        target = request.referrer or request.path
+        return redirect(target)
+
+
 @app.template_filter("fmt_time")
 def fmt_time(t: str) -> str:
     """Convert '17:00' → '5:00 PM'."""
