@@ -53,19 +53,30 @@ from location import start_ride, stop_ride, update_location, get_location
 
 load_dotenv()
 
-# Run legacy data migration on startup so existing single-group data is accessible
-migrate_legacy_data("grp_main")
+# Run legacy data migration on startup so existing single-group data is accessible.
+# Only seeds grp_main if there is legacy flat data in DATA_DIR — fresh deploys skip this.
+_legacy_data_present = any((DATA_DIR / fname).exists() for fname in [
+    "families.json", "rotation.json", "schedule.json", "trip_config.json",
+])
+if _legacy_data_present:
+    migrate_legacy_data("grp_main")
 
 
 def _bootstrap_legacy_group() -> None:
     """
     One-time bootstrap for deployments upgrading from single-group to multi-group.
-    Ensures grp_main exists in groups.json and all users without group_id are
-    assigned to grp_main so existing accounts keep working after the upgrade.
+    Only runs if there are legacy users without a group_id, OR if legacy flat data
+    files exist. Fresh deploys skip this entirely so they don't get a stale grp_main.
     """
     from groups import _load_groups, _save_groups
     from auth import _load_users, _save_users
     from config import load_config
+
+    users = _load_users()
+    needs_user_backfill = any(u.get("group_id") in (None, "") for u in users)
+
+    if not needs_user_backfill and not _legacy_data_present:
+        return  # Fresh deploy with no legacy state — don't create grp_main.
 
     # 1. Ensure grp_main is registered in groups.json
     groups = _load_groups()
@@ -83,7 +94,6 @@ def _bootstrap_legacy_group() -> None:
         _save_groups(groups)
 
     # 2. Backfill group_id on all legacy users that don't have one
-    users = _load_users()
     patched = False
     for u in users:
         if not u.get("group_id"):
@@ -1647,6 +1657,22 @@ if "pytest" not in _sys.modules and os.environ.get("FLASK_TESTING") != "1":
 
 # ── Admin: User Management ────────────────────────────────────────────────────
 
+def _stale_groups(current_group_id: str) -> list:
+    """Return groups that have no users assigned and aren't the admin's own group.
+    These are safe candidates for deletion (typically leftover seed groups)."""
+    from auth import _load_users
+    users = _load_users()
+    groups_with_users = {u.get("group_id") for u in users if u.get("group_id")}
+    stale = []
+    for g in list_groups():
+        if g["id"] == current_group_id:
+            continue
+        if g["id"] in groups_with_users:
+            continue
+        stale.append(g)
+    return stale
+
+
 @app.route("/admin/users")
 @login_required
 @admin_required
@@ -1656,12 +1682,14 @@ def admin_users():
     user = current_user()
     flash_msg = session.pop("admin_flash", None)
     flash_error = session.pop("admin_flash_error", None)
+    stale_groups = _stale_groups(group_id)
     return render_template(
         "admin_users.html",
         users=users,
         current_user=user,
         flash_msg=flash_msg,
         flash_error=flash_error,
+        stale_groups=stale_groups,
     )
 
 
@@ -1672,6 +1700,14 @@ def admin_delete_user(user_id):
     user = current_user()
     if user and user.get("id") == user_id:
         session["admin_flash_error"] = "You cannot delete your own account."
+        return redirect(url_for("admin_users"))
+    # Security: only allow deleting users that belong to the admin's own group.
+    target = get_user_by_id(user_id)
+    if not target:
+        session["admin_flash_error"] = "User not found."
+        return redirect(url_for("admin_users"))
+    if target.get("group_id") != gid():
+        session["admin_flash_error"] = "You can only manage users in your own group."
         return redirect(url_for("admin_users"))
     deleted = delete_user(user_id)
     if deleted:
@@ -1689,8 +1725,62 @@ def admin_reset_password(user_id):
     if len(new_password) < 8:
         session["admin_flash_error"] = "Password must be at least 8 characters."
         return redirect(url_for("admin_users"))
+    # Security: only allow resetting passwords of users in the admin's own group.
+    target = get_user_by_id(user_id)
+    if not target:
+        session["admin_flash_error"] = "User not found."
+        return redirect(url_for("admin_users"))
+    if target.get("group_id") != gid():
+        session["admin_flash_error"] = "You can only manage users in your own group."
+        return redirect(url_for("admin_users"))
     update_password(user_id, new_password)
     session["admin_flash"] = "Password updated successfully."
+    return redirect(url_for("admin_users"))
+
+
+@app.route("/admin/groups/delete/<group_id>", methods=["POST"])
+@login_required
+@admin_required
+def admin_delete_group(group_id):
+    """Delete a stale group (one with no users). Refuses to delete the admin's
+    own group or any group that still has users assigned."""
+    import shutil
+    from groups import _load_groups, _save_groups
+    from auth import _load_users
+
+    # Never delete your own group from here.
+    if group_id == gid():
+        session["admin_flash_error"] = "You can't delete your own group."
+        return redirect(url_for("admin_users"))
+
+    # Validate id shape (defense-in-depth against path traversal).
+    if not re.fullmatch(r"grp_[a-zA-Z0-9_]+", group_id):
+        session["admin_flash_error"] = "Invalid group id."
+        return redirect(url_for("admin_users"))
+
+    # Refuse if the group still has users.
+    users = _load_users()
+    if any(u.get("group_id") == group_id for u in users):
+        session["admin_flash_error"] = "That group still has users assigned. Delete them first."
+        return redirect(url_for("admin_users"))
+
+    # Remove from groups.json
+    groups = _load_groups()
+    new_groups = [g for g in groups if g["id"] != group_id]
+    if len(new_groups) == len(groups):
+        session["admin_flash_error"] = "Group not found."
+        return redirect(url_for("admin_users"))
+    _save_groups(new_groups)
+
+    # Remove the group's data directory
+    try:
+        gdir = DATA_DIR / "groups" / group_id
+        if gdir.exists():
+            shutil.rmtree(gdir)
+    except Exception as e:
+        logger.error("Failed to remove group dir %s: %s", group_id, e)
+
+    session["admin_flash"] = f"Group {group_id} deleted."
     return redirect(url_for("admin_users"))
 
 

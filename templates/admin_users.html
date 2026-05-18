@@ -8,27 +8,30 @@
   <link href="https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500;600&family=Tiempos+Text:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
   <style>
     :root {
-      --cyan: #3EC9E8;
-      --coral: #FF6B8A;
-      --dark: #1A1714;
-      --cream: #FAF9F5;
-      --mid: #8C8680;
-      --border: #E8E5DF;
+      --cream:  #FAF9F5;
+      --paper:  #FFFFFF;
+      --ink:    #1A1714;
+      --mid:    #8C8680;
+      --muted:  #B0ABA5;
+      --border: #EAE8E3;
       --orange: #D4784A;
+      --orange-dark: #C4633A;
+      --red:    #B8442A;
+      --red-bg: #FDF0EC;
+      --green:  #1A5C30;
+      --green-bg: #F0FAF3;
+      --blue:   #1F6FA8;
+      --blue-bg: #EDF5FB;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: "Styrene A", ui-sans-serif, system-ui, sans-serif;
-      background-color: #1A1714;
-      background-image: url('/static/background.png');
-      background-size: cover;
-      background-position: center top;
-      background-attachment: fixed;
-      color: var(--cream);
+      background: var(--cream);
+      color: var(--ink);
       min-height: 100vh;
-      padding: 32px 16px 64px;
+      padding: 24px 16px 64px;
     }
 
     .page-wrap {
@@ -38,33 +41,34 @@
 
     .logo-wrap {
       text-align: center;
-      margin-bottom: 24px;
+      margin-bottom: 16px;
     }
+    .logo-wrap img { height: 84px; width: auto; }
 
     .back-link {
       display: inline-flex;
       align-items: center;
       gap: 6px;
       font-size: 13px;
-      color: rgba(255,255,255,0.5);
+      color: var(--mid);
       text-decoration: none;
       margin-bottom: 20px;
       transition: color 0.15s;
     }
-    .back-link:hover { color: var(--cream); }
+    .back-link:hover { color: var(--orange); }
 
     h1 {
       font-family: "Tiempos Text", Georgia, serif;
-      font-size: 26px;
+      font-size: 28px;
       font-weight: 500;
-      color: var(--cream);
-      margin-bottom: 6px;
+      color: var(--ink);
+      margin-bottom: 4px;
     }
 
     .page-subtitle {
-      font-size: 13px;
-      color: rgba(255,255,255,0.45);
-      margin-bottom: 28px;
+      font-size: 14px;
+      color: var(--mid);
+      margin-bottom: 24px;
     }
 
     /* Flash messages */
@@ -76,43 +80,45 @@
       font-weight: 500;
     }
     .flash-success {
-      background: rgba(62, 201, 232, 0.15);
-      border: 1px solid rgba(62, 201, 232, 0.35);
-      color: var(--cyan);
+      background: var(--green-bg);
+      border: 1px solid #B7DFC4;
+      color: var(--green);
     }
     .flash-error {
-      background: rgba(255, 107, 138, 0.15);
-      border: 1px solid rgba(255, 107, 138, 0.35);
-      color: var(--coral);
+      background: var(--red-bg);
+      border: 1px solid #E8B8A4;
+      color: var(--red);
     }
 
-    /* User cards */
+    /* User card */
     .user-card {
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 14px;
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 12px;
       padding: 18px 20px;
       margin-bottom: 12px;
-      transition: border-color 0.15s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
     .user-card:hover {
-      border-color: rgba(255,255,255,0.18);
+      border-color: #DCD8D1;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
 
     .user-main {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: 12px;
+      gap: 16px;
       flex-wrap: wrap;
     }
 
-    .user-info { flex: 1; min-width: 0; }
+    .user-info { flex: 1; min-width: 220px; }
 
     .user-name {
       font-size: 16px;
       font-weight: 600;
-      color: var(--cream);
+      color: var(--ink);
       display: flex;
       align-items: center;
       gap: 8px;
@@ -121,29 +127,30 @@
 
     .you-badge {
       font-size: 11px;
-      font-weight: 500;
-      background: rgba(62, 201, 232, 0.18);
-      color: var(--cyan);
-      border: 1px solid rgba(62, 201, 232, 0.3);
+      font-weight: 600;
+      background: var(--blue-bg);
+      color: var(--blue);
+      border: 1px solid #B9D8EC;
       border-radius: 99px;
-      padding: 2px 8px;
+      padding: 2px 9px;
     }
 
     .role-badge {
       font-size: 11px;
-      font-weight: 500;
+      font-weight: 600;
       border-radius: 99px;
-      padding: 2px 8px;
+      padding: 2px 9px;
+      text-transform: capitalize;
     }
     .role-admin {
-      background: rgba(255, 107, 138, 0.15);
-      color: var(--coral);
-      border: 1px solid rgba(255, 107, 138, 0.25);
+      background: #FDF0EC;
+      color: var(--red);
+      border: 1px solid #E8B8A4;
     }
     .role-parent {
-      background: rgba(255,255,255,0.08);
-      color: rgba(255,255,255,0.55);
-      border: 1px solid rgba(255,255,255,0.1);
+      background: #F4F2ED;
+      color: var(--mid);
+      border: 1px solid var(--border);
     }
 
     .user-meta {
@@ -152,9 +159,8 @@
       gap: 6px 18px;
       margin-top: 8px;
       font-size: 13px;
-      color: rgba(255,255,255,0.5);
+      color: var(--mid);
     }
-
     .user-meta span { display: flex; align-items: center; gap: 5px; }
 
     .user-actions {
@@ -170,39 +176,46 @@
     .btn {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
       font-family: inherit;
       font-size: 13px;
       font-weight: 500;
-      border: none;
+      border: 1px solid var(--border);
+      background: var(--paper);
+      color: var(--ink);
       border-radius: 8px;
-      padding: 7px 14px;
+      padding: 8px 14px;
       cursor: pointer;
-      transition: opacity 0.15s, filter 0.15s;
+      transition: background 0.15s, border-color 0.15s, opacity 0.15s;
       text-decoration: none;
     }
-    .btn:hover:not(:disabled) { opacity: 0.82; }
+    .btn:hover:not(:disabled) {
+      border-color: #D4CFC7;
+      background: #FDFCFA;
+    }
     .btn:disabled {
-      opacity: 0.35;
+      opacity: 0.45;
       cursor: not-allowed;
     }
 
     .btn-reset {
-      background: rgba(62, 201, 232, 0.15);
-      border: 1px solid rgba(62, 201, 232, 0.3);
-      color: var(--cyan);
+      background: var(--blue-bg);
+      border-color: #B9D8EC;
+      color: var(--blue);
     }
     .btn-reset:hover:not(:disabled) {
-      background: rgba(62, 201, 232, 0.25);
+      background: #E0EDF7;
+      border-color: #9CC4E2;
     }
 
     .btn-delete {
-      background: rgba(255, 107, 138, 0.12);
-      border: 1px solid rgba(255, 107, 138, 0.25);
-      color: var(--coral);
+      background: var(--red-bg);
+      border-color: #E8B8A4;
+      color: var(--red);
     }
     .btn-delete:hover:not(:disabled) {
-      background: rgba(255, 107, 138, 0.22);
+      background: #FAE3D9;
+      border-color: #D89C82;
     }
 
     /* Reset password inline form */
@@ -210,7 +223,7 @@
       display: none;
       margin-top: 14px;
       padding-top: 14px;
-      border-top: 1px solid rgba(255,255,255,0.08);
+      border-top: 1px solid var(--border);
     }
     .reset-form-wrap.open { display: block; }
 
@@ -224,42 +237,88 @@
     .reset-form-inner input[type="password"] {
       flex: 1;
       min-width: 180px;
-      padding: 8px 12px;
+      padding: 9px 12px;
       font-size: 14px;
       font-family: inherit;
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.15);
+      background: #FDFCFA;
+      border: 1px solid var(--border);
       border-radius: 8px;
-      color: var(--cream);
+      color: var(--ink);
       outline: none;
       transition: border-color 0.15s;
     }
     .reset-form-inner input[type="password"]:focus {
-      border-color: var(--cyan);
+      border-color: var(--orange);
     }
     .reset-form-inner input[type="password"]::placeholder {
-      color: rgba(255,255,255,0.3);
+      color: var(--muted);
     }
 
     .btn-submit-reset {
-      background: var(--cyan);
-      color: #1A1714;
-      font-weight: 600;
-      border: none;
+      background: var(--ink);
+      color: var(--cream);
+      font-weight: 500;
+      border: 1px solid var(--ink);
     }
-    .btn-submit-reset:hover { opacity: 0.85; }
+    .btn-submit-reset:hover { background: var(--orange); border-color: var(--orange); }
 
     .btn-cancel {
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.1);
-      color: rgba(255,255,255,0.55);
+      background: var(--paper);
+      border: 1px solid var(--border);
+      color: var(--mid);
     }
 
     .empty-state {
       text-align: center;
       padding: 40px 20px;
-      color: rgba(255,255,255,0.4);
+      color: var(--mid);
       font-size: 14px;
+      background: var(--paper);
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+    }
+
+    /* Cleanup section */
+    .cleanup-section {
+      margin-top: 36px;
+      padding: 20px 22px;
+      background: #FFF8F2;
+      border: 1px solid #F0D9C2;
+      border-radius: 12px;
+    }
+    .cleanup-section h2 {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: 17px;
+      font-weight: 500;
+      color: var(--ink);
+      margin-bottom: 6px;
+    }
+    .cleanup-section p {
+      font-size: 13px;
+      color: var(--mid);
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+    .cleanup-group-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    .cleanup-group-info {
+      font-size: 13px;
+      color: var(--ink);
+    }
+    .cleanup-group-info .gid {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      color: var(--mid);
     }
 
     @media (max-width: 540px) {
@@ -272,12 +331,10 @@
   <div class="page-wrap">
 
     <div class="logo-wrap">
-      <img src="/static/carpoolsynclogo.png" style="height:100px" alt="CarpoolSync">
+      <img src="/static/carpoolsynclogo.png" alt="CarpoolSync">
     </div>
 
-    <a href="/dashboard" class="back-link">
-      &#8592; Back to Dashboard
-    </a>
+    <a href="/dashboard" class="back-link">&#8592; Back to Dashboard</a>
 
     <h1>Manage Users</h1>
     <p class="page-subtitle">{{ users | length }} member{{ 's' if users | length != 1 else '' }} in this group</p>
@@ -366,6 +423,32 @@
       </div>
     </div>
     {% endfor %}
+    {% endif %}
+
+    {% if stale_groups %}
+    <div class="cleanup-section">
+      <h2>Leftover groups</h2>
+      <p>
+        These groups exist on the server but have no users assigned to them.
+        They&rsquo;re usually left over from earlier deployments or initial setup.
+        Deleting them is safe and permanently removes their data files.
+      </p>
+      {% for g in stale_groups %}
+      <div class="cleanup-group-row">
+        <div class="cleanup-group-info">
+          <div><strong>{{ g.name or '(unnamed group)' }}</strong></div>
+          <div class="gid">{{ g.id }}</div>
+        </div>
+        <form
+          method="POST"
+          action="/admin/groups/delete/{{ g.id }}"
+          onsubmit="return confirm('Permanently delete group {{ g.name or g.id }}? All its data will be removed.');"
+        >
+          <button type="submit" class="btn btn-delete">&#128465; Delete Group</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
     {% endif %}
 
   </div>
