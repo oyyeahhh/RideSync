@@ -1076,9 +1076,16 @@
         </div>
         <p id="m-repeat-preview" style="font-size:13px;color:rgba(255,255,255,0.5);margin:0 0 10px"></p>
       </div>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary" id="m-save-btn" onclick="saveTrip()">Add Trip</button>
+      <div class="modal-actions" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <!-- Delete only visible when editing an existing trip -->
+        <button class="btn" id="m-delete-btn" onclick="deleteTripFromModal()"
+          style="display:none;background:rgba(255,107,138,0.12);color:#FF6B8A;border:1px solid rgba(255,107,138,0.3);margin-right:auto;">
+          🗑 Delete Trip
+        </button>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" id="m-save-btn" onclick="saveTrip()">Add Trip</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1498,13 +1505,20 @@
       driverSel.value = "";
     }
     document.getElementById("m-return-driver").value = "";
+    // Hide delete button on the "Add Trip" path
+    const delBtn = document.getElementById("m-delete-btn");
+    if (delBtn) delBtn.style.display = "none";
     document.getElementById("modal").classList.add("open");
     updateRepeatPreview();
   }
 
+  // Tracks the currently-edited trip for the modal's delete button.
+  let _editingTripForDelete = null;
+
   function openEditModal(trip) {
     if (!IS_ADMIN) return;
     editingTripId = trip.id;
+    _editingTripForDelete = trip;
     selectedDate = trip.date;
     const [y, m, d] = trip.date.split("-");
     document.getElementById("modal-title").textContent = `Edit Trip — ${MONTHS[parseInt(m)-1]} ${parseInt(d)}, ${y}`;
@@ -1519,6 +1533,12 @@
     document.getElementById("m-return-time").value = trip.return_time || "";
     document.getElementById("m-driver").value = trip.driver_family_id || "";
     document.getElementById("m-return-driver").value = trip.return_driver_family_id || "";
+    // Show the Delete button (label depends on whether this is part of a series)
+    const delBtn = document.getElementById("m-delete-btn");
+    if (delBtn) {
+      delBtn.style.display = "inline-flex";
+      delBtn.textContent = trip.series_id ? "🗑 Delete Trip…" : "🗑 Delete Trip";
+    }
     document.getElementById("modal").classList.add("open");
   }
 
@@ -1526,6 +1546,19 @@
     document.getElementById("modal").classList.remove("open");
     selectedDate = null;
     editingTripId = null;
+    _editingTripForDelete = null;
+    const delBtn = document.getElementById("m-delete-btn");
+    if (delBtn) delBtn.style.display = "none";
+  }
+
+  // Triggered by the Delete Trip button inside the Edit Trip modal.
+  async function deleteTripFromModal() {
+    if (!_editingTripForDelete) return;
+    const trip = _editingTripForDelete;
+    closeModal();
+    // Reuse the existing removeTrip flow which already handles the
+    // "this trip is part of a recurring series — delete one or all?" prompt.
+    await removeTrip(trip.id, trip.series_id || "");
   }
 
   function toggleRepeat(on) {
