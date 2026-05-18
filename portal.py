@@ -111,28 +111,59 @@ def _emergency_password_reset() -> None:
     Emergency recovery path: if both EMERGENCY_RESET_EMAIL and
     EMERGENCY_RESET_PASSWORD are set as Railway env vars, reset that user's
     password on app startup and log the action. Then DELETE the env vars and
-    redeploy. Safe because only someone with Railway dashboard access can set
-    env vars in the first place.
+    redeploy.
+
+    Now also lists ALL users in the system (with masked emails) so we can
+    see exactly what's stored — useful when "I can't log in" turns out to
+    be an email typo / wrong account.
     """
     target_email = os.environ.get("EMERGENCY_RESET_EMAIL", "").strip().lower()
     new_password = os.environ.get("EMERGENCY_RESET_PASSWORD", "")
-    if not target_email or not new_password:
-        return
-    if len(new_password) < 8:
-        print("[EMERGENCY RESET] Password too short (need 8+ chars). Skipping.")
-        return
+    if not target_email and not new_password:
+        return  # no env vars set → silent skip
+
     try:
-        from auth import get_user_by_email, update_password
+        from auth import _load_users, get_user_by_email, update_password, verify_password
+        all_users = _load_users()
+
+        # Always log a redacted summary of what's in the user file.
+        print(f"[EMERGENCY RESET] {len(all_users)} user(s) in users.json:")
+        for u in all_users:
+            em = u.get("email", "")
+            masked = (em[:3] + "***" + em[em.find("@"):]) if "@" in em else em
+            print(f"   - id={u.get('id', '?')} email={masked} "
+                  f"name={u.get('name', '')!r} group={u.get('group_id', '')}")
+
+        if not target_email or not new_password:
+            print("[EMERGENCY RESET] Missing email or password env var. Skipping reset.")
+            return
+        if len(new_password) < 8:
+            print("[EMERGENCY RESET] Password too short (need 8+ chars). Skipping.")
+            return
+
         user = get_user_by_email(target_email)
         if not user:
-            print(f"[EMERGENCY RESET] No user with email {target_email!r} — nothing to do.")
+            print(f"[EMERGENCY RESET] ❌ No user with email {target_email!r}.")
+            print(f"[EMERGENCY RESET]    Compare to the list above — possibly a typo or wrong case.")
             return
+
         update_password(user["id"], new_password)
-        print(f"[EMERGENCY RESET] ✅ Password reset for {target_email} (user_id={user['id']}).")
+
+        # Verify the new password actually works (catches save-vs-read inconsistencies).
+        reloaded = get_user_by_email(target_email)
+        ok = reloaded and verify_password(new_password, reloaded.get("password_hash", ""))
+        if ok:
+            print(f"[EMERGENCY RESET] ✅ Password reset and verified for {target_email}.")
+            print(f"[EMERGENCY RESET]    user_id={user['id']}  group_id={user.get('group_id', '')}")
+        else:
+            print(f"[EMERGENCY RESET] ⚠️  Password reset but VERIFICATION FAILED. Possible disk/save issue.")
+
         print("[EMERGENCY RESET] IMPORTANT: remove EMERGENCY_RESET_EMAIL and "
               "EMERGENCY_RESET_PASSWORD from Railway env vars and redeploy.")
     except Exception as e:
+        import traceback
         print(f"[EMERGENCY RESET] Failed: {e}")
+        traceback.print_exc()
 
 
 _emergency_password_reset()
@@ -493,7 +524,15 @@ def login():
             return redirect(url_for("dashboard"))
         else:
             error = "Invalid email or password."
-            logger.info("Failed login attempt from %s", ip)
+            # Detailed (but redacted) diagnostic so we can tell email-not-found
+            # from password-mismatch in the logs without leaking secrets.
+            email_masked = (email[:3] + "***") if email else "(empty)"
+            if not user:
+                logger.warning("Login fail: NO USER for email=%s ip=%s", email_masked, ip)
+            else:
+                hash_len = len(user.get("password_hash", "") or "")
+                logger.warning("Login fail: BAD PW for email=%s ip=%s (user_id=%s, hash_len=%d, pw_len=%d)",
+                               email_masked, ip, user.get("id", "?"), hash_len, len(password))
 
     return render_template("login.html", error=error, email=email)
 
