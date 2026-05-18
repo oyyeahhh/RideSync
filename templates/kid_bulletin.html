@@ -196,6 +196,40 @@
     .pickup-row.absent { opacity: 0.5; }
     .pickup-row.absent .who { text-decoration: line-through; }
 
+    /* Countdown badges */
+    .countdown {
+      display: inline-block;
+      margin-left: 8px;
+      padding: 3px 10px;
+      border-radius: 99px;
+      background: var(--teal);
+      color: #FFFFFF;
+      font-size: 14px;
+      font-weight: 600;
+      vertical-align: middle;
+    }
+    .countdown.soon  { background: var(--orange); }
+    .countdown.now   { background: var(--coral); animation: pulse-bg 1.2s infinite; }
+    .countdown.past  { background: #B0ABA5; }
+    .countdown-hero {
+      display: inline-block;
+      margin-left: 10px;
+      padding: 3px 12px;
+      border-radius: 99px;
+      background: var(--teal);
+      color: #FFFFFF;
+      font-size: 16px;
+      font-weight: 600;
+      vertical-align: middle;
+    }
+    .countdown-hero.soon { background: var(--orange); }
+    .countdown-hero.now  { background: var(--coral); animation: pulse-bg 1.2s infinite; }
+    .countdown-hero.past { background: #B0ABA5; }
+    @keyframes pulse-bg {
+      0%, 100% { transform: scale(1); }
+      50%      { transform: scale(1.07); }
+    }
+
     /* Upcoming */
     .upcoming-row {
       display: flex;
@@ -285,7 +319,7 @@
       </div>
       <div class="meta-row">
         <span class="pill">🏁 <strong>{{ next_trip.destination }}</strong></span>
-        <span class="pill">🕒 Be ready by <strong>{{ next_trip.arrive_by }}</strong></span>
+        <span class="pill">🕒 Be ready by <strong>{{ next_trip.arrive_by }}</strong>{% if next_trip.arrive_by_iso %} <span class="countdown-hero" data-target="{{ next_trip.arrive_by_iso }}"></span>{% endif %}</span>
         {% if next_trip.return_time %}
         <span class="pill">🏠 Returning <strong>{{ next_trip.return_driver or next_trip.driver }}</strong> at <strong>{{ next_trip.return_time }}</strong></span>
         {% endif %}
@@ -302,7 +336,14 @@
           {% for p in pickups %}
           <div class="pickup-row {% if p.absent %}absent{% endif %}">
             <span class="who">{% if p.absent %}🙅{% else %}🧒{% endif %} {{ p.name }}</span>
-            <span class="when">{% if p.absent %}away today{% else %}{{ p.pickup_time or '—' }}{% endif %}</span>
+            <span class="when">
+              {% if p.absent %}
+                away today
+              {% else %}
+                {{ p.pickup_time or '—' }}
+                {% if p.pickup_iso %}<span class="countdown" data-target="{{ p.pickup_iso }}"></span>{% endif %}
+              {% endif %}
+            </span>
           </div>
           {% endfor %}
         </div>
@@ -341,9 +382,40 @@
       const date = now.toLocaleDateString(undefined, opts);
       const time = now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
       document.getElementById('clock').textContent = date + '  ·  ' + time;
+
+      // Live countdowns for each pickup + hero arrive-by.
+      document.querySelectorAll('.countdown, .countdown-hero').forEach(el => {
+        const target = new Date(el.dataset.target);
+        if (isNaN(target)) { el.textContent = ''; return; }
+        const diffMin = Math.round((target - now) / 60000);
+        // Reset state classes
+        el.classList.remove('soon', 'now', 'past');
+        if (diffMin > 60) {
+          const h = Math.floor(diffMin / 60);
+          const m = diffMin % 60;
+          el.textContent = m ? `in ${h}h ${m}m` : `in ${h}h`;
+        } else if (diffMin > 15) {
+          el.textContent = `in ${diffMin} min`;
+        } else if (diffMin > 1) {
+          el.textContent = `in ${diffMin} min`;
+          el.classList.add('soon');
+        } else if (diffMin === 1) {
+          el.textContent = `in 1 min`;
+          el.classList.add('now');
+        } else if (diffMin === 0) {
+          el.textContent = `now!`;
+          el.classList.add('now');
+        } else if (diffMin > -10) {
+          el.textContent = `just now`;
+          el.classList.add('past');
+        } else {
+          el.textContent = `${Math.abs(diffMin)} min ago`;
+          el.classList.add('past');
+        }
+      });
     }
     tick();
-    setInterval(tick, 30000);
+    setInterval(tick, 10000);  // update every 10s for smooth countdowns
   </script>
 </body>
 </html>

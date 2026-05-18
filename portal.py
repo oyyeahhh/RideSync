@@ -554,12 +554,14 @@ def kid_display(token):
 
     dest_name = (trip.get("destination_name") if trip else "") or cfg.get("destination_name", "the destination")
     arrive_by_str = ""
+    arrive_by_iso = ""
     if trip:
         try:
             arrive_dt = datetime.strptime(
                 f"{trip['date']} {trip['arrival_time']}", "%Y-%m-%d %H:%M"
             ).replace(tzinfo=tz)
             arrive_by_str = arrive_dt.strftime("%-I:%M %p")
+            arrive_by_iso = arrive_dt.isoformat()
         except Exception:
             arrive_by_str = trip.get("arrival_time", "")
 
@@ -590,9 +592,20 @@ def kid_display(token):
         for entry in cache.get("schedule", []):
             fid = entry.get("family_id", "")
             is_absent = fid in absent_set
+            # Convert pickup_time ("4:42 PM") + trip date into an ISO timestamp
+            # the page's JS can use for a live countdown.
+            iso = ""
+            pt = entry.get("pickup_time", "")
+            if pt:
+                try:
+                    dt = datetime.strptime(f"{trip['date']} {pt}", "%Y-%m-%d %I:%M %p").replace(tzinfo=tz)
+                    iso = dt.isoformat()
+                except Exception:
+                    iso = ""
             pickups.append({
                 "name": entry.get("label") or "Family",
-                "pickup_time": entry.get("pickup_time", ""),
+                "pickup_time": pt,
+                "pickup_iso": iso,
                 "absent": is_absent,
             })
     elif trip:
@@ -604,6 +617,7 @@ def kid_display(token):
                 pickups.append({
                     "name": fam.name,
                     "pickup_time": "",
+                    "pickup_iso": "",
                     "absent": fid in absent_set,
                 })
             except Exception:
@@ -646,6 +660,7 @@ def kid_display(token):
             "driver": driver_name,
             "destination": dest_name,
             "arrive_by": arrive_by_str or "soon",
+            "arrive_by_iso": arrive_by_iso,
             "return_time": return_time_str,
             "return_driver": return_driver_name,
         },
