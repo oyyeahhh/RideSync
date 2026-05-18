@@ -1405,6 +1405,128 @@ def sms_webhook():
     return Response(twiml, mimetype="text/xml")
 
 
+# ── Auto route sender ─────────────────────────────────────────────────────────
+
+def _auto_send_route_for_group(group_id: str) -> None:
+    """Send route to driver if a trip starts within the next 2 hours and hasn't been sent yet."""
+    try:
+        cfg = load_config(group_id)
+        tz = ZoneInfo(cfg.get("timezone", "America/New_York"))
+        now = datetime.now(tz)
+        window_start = now
+        window_end   = now + timedelta(hours=2)
+
+        schedule = load_schedule(group_id)
+        for trip in schedule:
+            if trip.get("route_sent"):
+                continue
+            try:
+                trip_dt = datetime.strptime(
+                    f"{trip['date']} {trip['arrival_time']}", "%Y-%m-%d %H:%M"
+                ).replace(tzinfo=tz)
+            except (ValueError, KeyError):
+                continue
+
+            if not (window_start <= trip_dt <= window_end):
+                continue
+
+            # Determine driver
+            driver_family_id = trip.get("driver_family_id") or ""
+            if not driver_family_id:
+                rotation_data = _load_rotation(group_id)
+                order = rotation_data.get("order", [])
+                idx   = rotation_data.get("current_index", 0)
+                driver_family_id = order[idx] if order else ""
+            if not driver_family_id:
+                logger.warning("Auto-route: no driver for trip %s in group %s", trip["id"], group_id)
+                continue
+
+            driver = get_family(driver_family_id, group_id)
+            geocode_address(driver.primary_address)
+
+            absences = get_absences(trip["date"], group_id)
+            pickups  = []
+            for fid in get_all_family_ids(group_id):
+                if fid == driver_family_id or fid in absences:
+                    continue
+                try:
+                    f = get_family(fid, group_id)
+                    geocode_address(f.primary_address)
+                    addr = f.primary_address
+                    pickups.append({"id": fid, "lat": addr.latitude, "lng": addr.longitude, "label": f.name})
+                except Exception as e:
+                    logger.warning("Auto-route: skipping family %s: %s", fid, e)
+
+            dest_name    = trip.get("destination_name") or cfg.get("destination_name", "destination")
+            dest_address = trip.get("destination_address") or cfg.get("destination_address", "")
+            if not dest_address:
+                logger.warning("Auto-route: no destination address for trip %s", trip["id"])
+                continue
+
+            from models import Destination as _Dest
+            dest = _Dest(id="custom", group_id=group_id, name=dest_name, street=dest_address)
+            geocode_address(dest)
+
+            driver_addr = driver.primary_address
+            result = compute_optimal_route(
+                driver_lat=driver_addr.latitude,
+                driver_lng=driver_addr.longitude,
+                pickups=pickups,
+                dest_lat=dest.latitude,
+                dest_lng=dest.longitude,
+                arrival_time=trip_dt,
+                buffer_minutes=cfg.get("buffer_minutes", 15),
+            )
+            save_route_cache(result, driver_name=driver.name, dest_name=dest_name)
+
+            driver_phone = driver.guardians[0].phone if driver.guardians else ""
+            if driver_phone:
+                maps_url = build_maps_url(result)
+                send_route_sms(
+                    to_phone=driver_phone,
+                    result=result,
+                    driver_name=driver.name,
+                    dest_name=dest_name,
+                    maps_url=maps_url,
+                )
+                logger.info("Auto-route sent to %s for trip %s", driver.name, trip["id"])
+            else:
+                logger.warning("Auto-route: driver %s has no phone", driver.name)
+                continue
+
+            # Mark as sent so it doesn't fire again
+            update_trip(trip["id"], group_id, route_sent=True)
+
+    except Exception as e:
+        logger.error("Auto-route error for group %s: %s", group_id, e)
+
+
+def _auto_send_routes_all_groups() -> None:
+    from groups import list_groups
+    for g in list_groups():
+        _auto_send_route_for_group(g["id"])
+
+
+def _start_scheduler() -> None:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        _auto_send_routes_all_groups,
+        trigger="interval",
+        minutes=15,
+        id="auto_route",
+        replace_existing=True,
+    )
+    scheduler.start()
+    logger.info("Route scheduler started — checking every 15 minutes.")
+
+
+# Start scheduler (skip during pytest / flask test runs)
+import sys as _sys
+if "pytest" not in _sys.modules and os.environ.get("FLASK_TESTING") != "1":
+    _start_scheduler()
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 3000))
     app.run(host="0.0.0.0", port=port, debug=False)
