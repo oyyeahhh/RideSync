@@ -101,6 +101,35 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ── Startup diagnostics ───────────────────────────────────────────────────────
+def _startup_check() -> None:
+    import stat
+    data_dir_env = os.environ.get("DATA_DIR", "NOT SET")
+    logger.info("=" * 60)
+    logger.info("DATA_DIR env var : %s", data_dir_env)
+    logger.info("DATA_DIR resolved: %s", str(DATA_DIR))
+    logger.info("DATA_DIR exists  : %s", DATA_DIR.exists())
+
+    # Check if it's writable
+    try:
+        test_file = DATA_DIR / ".write_test"
+        test_file.write_text("ok")
+        test_file.unlink()
+        logger.info("DATA_DIR writable: YES")
+    except Exception as e:
+        logger.error("DATA_DIR writable: NO — %s", e)
+
+    # Warn if falling back to code directory (ephemeral on Railway)
+    if str(DATA_DIR) == str(CODE_DIR):
+        logger.warning("⚠️  DATA_DIR is the CODE directory — data will be lost on redeploy!")
+        logger.warning("⚠️  Set DATA_DIR=/data and mount a Railway volume at /data.")
+    else:
+        logger.info("✅ DATA_DIR is separate from code dir — data should persist.")
+
+    logger.info("=" * 60)
+
+_startup_check()
+
 app = Flask(__name__)
 _secret = os.environ.get("SECRET_KEY", "")
 if not _secret:
@@ -287,6 +316,34 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.route("/health")
+def health():
+    data_dir_env = os.environ.get("DATA_DIR", "NOT SET")
+    is_ephemeral = str(DATA_DIR) == str(CODE_DIR)
+    try:
+        test = DATA_DIR / ".write_test"
+        test.write_text("ok")
+        test.unlink()
+        writable = True
+    except Exception:
+        writable = False
+    from groups import list_groups
+    groups = list_groups()
+    status = "⚠️ EPHEMERAL" if is_ephemeral else "✅ PERSISTENT"
+    return f"""<pre>
+CarpoolSync Health Check
+========================
+DATA_DIR env : {data_dir_env}
+DATA_DIR path: {DATA_DIR}
+Writable     : {writable}
+Storage      : {status}
+Groups       : {len(groups)} ({', '.join(g['id'] for g in groups) or 'none'})
+
+{"⚠️  WARNING: DATA_DIR is the code directory." if is_ephemeral else "✅  Data will survive redeploys."}
+{"Set DATA_DIR=/data and mount a Railway volume at /data." if is_ephemeral else ""}
+</pre>"""
 
 
 @app.route("/forgot-password", methods=["GET", "POST"])
