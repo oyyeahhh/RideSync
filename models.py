@@ -82,11 +82,16 @@ class Family:
     addresses: list[Address] = field(default_factory=list)
 
     @property
+    def has_address(self) -> bool:
+        return bool(self.addresses)
+
+    @property
     def primary_address(self) -> Address:
         """For v0, just use the first address. Once we have nightly
         confirmations, the actual address used per trip comes from there."""
         if not self.addresses:
-            raise ValueError(f"Family {self.name} has no addresses")
+            raise ValueError(f"Family {self.name!r} has no address on file. "
+                             "Ask them to update their profile.")
         return self.addresses[0]
 
 

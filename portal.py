@@ -31,7 +31,7 @@ from config import (
 )
 from storage import DATA_DIR, CODE_DIR, group_dir, migrate_legacy_data
 from families import get_family, get_destination, get_all_family_ids, add_family
-from rotation import _load as _load_rotation, add_to_rotation, set_driver as _set_driver
+from rotation import _load as _load_rotation, add_to_rotation, set_driver as _set_driver, record_trip as advance_rotation
 from trips import get_stats, load_trips, record_trip
 from schedule import load_schedule, save_schedule, add_trip, update_trip, remove_trip, remove_series, add_recurring_trips, claim_trip
 from karma import get_karma, record_swap_request as _record_swap_req, record_swap_cover as _record_swap_cover
@@ -168,6 +168,34 @@ def admin_required(f):
             return redirect(url_for("dashboard"))
         return f(*args, **kwargs)
     return decorated
+
+
+def _next_trip_info(group_id: str) -> dict:
+    """Return date, driver_id and driver_name for the next upcoming scheduled trip.
+    Falls back to config/rotation if no schedule entries exist."""
+    today_str = date.today().isoformat()
+    schedule = load_schedule(group_id)
+    upcoming = sorted(
+        [t for t in schedule if t.get("date", "") >= today_str],
+        key=lambda t: (t["date"], t.get("arrival_time", "")),
+    )
+    if upcoming:
+        t = upcoming[0]
+        driver_id   = t.get("driver_family_id") or ""
+        driver_name = t.get("driver_name") or ""
+        return {"date": t["date"], "driver_id": driver_id, "driver_name": driver_name, "trip": t}
+
+    # Fallback: rotation + config date
+    rotation_data = _load_rotation(group_id)
+    order = rotation_data.get("order", [])
+    idx   = rotation_data.get("current_index", 0)
+    driver_id = order[idx] if order else ""
+    try:
+        driver_name = get_family(driver_id, group_id).name if driver_id else ""
+    except Exception:
+        driver_name = ""
+    trip_date = arrival_time(group_id).strftime("%Y-%m-%d")
+    return {"date": trip_date, "driver_id": driver_id, "driver_name": driver_name, "trip": None}
 
 
 # ── Utility ───────────────────────────────────────────────────────────────────
@@ -726,6 +754,18 @@ def save_trip():
     )
     linked_id = cfg.get("linked_trip_id", "")
     updated = update_trip(linked_id, group_id, **trip_fields) if linked_id else None
+
+    # fix #4: if linked trip was deleted, look for an existing trip on the same date
+    # before creating a brand-new one (prevents duplicates on every save)
+    if not updated:
+        existing = next(
+            (t for t in load_schedule(group_id) if t["date"] == arrival_date),
+            None
+        )
+        if existing:
+            updated = update_trip(existing["id"], group_id, **trip_fields)
+            cfg["linked_trip_id"] = existing["id"]
+
     if not updated:
         new_trip = add_trip(
             date=arrival_date,
@@ -962,7 +1002,7 @@ def toggle_absent_route():
     user = current_user()
     if user.get("role") != "admin" and user.get("family_id") != family_id:
         return jsonify({"error": "forbidden"}), 403
-    trip_date = arrival_time(group_id).strftime("%Y-%m-%d")
+    trip_date = _next_trip_info(group_id)["date"]   # fix #2
     now_absent = toggle_absent(trip_date, family_id, group_id)
     return jsonify({"absent": now_absent})
 
@@ -971,16 +1011,18 @@ def toggle_absent_route():
 @login_required
 def running_late():
     group_id = gid()
+    user = current_user()
+    info = _next_trip_info(group_id)
+    # fix #3: only admin or the active driver can send this
+    if user.get("role") != "admin" and user.get("family_id") != info["driver_id"]:
+        return jsonify({"error": "Only the driver or an admin can send this."}), 403
+
     data = request.json or {}
-    minutes = data.get("minutes", "")
-    cfg = load_config(group_id)
-    trip_date = arrival_time(group_id).strftime("%Y-%m-%d")
+    minutes  = data.get("minutes", "")
+    trip_date   = info["date"]                          # fix #2
+    driver_id   = info["driver_id"]
+    driver_name = info["driver_name"] or "The driver"
     absences = get_absences(trip_date, group_id)
-    rotation_data = _load_rotation(group_id)
-    order = rotation_data.get("order", get_all_family_ids(group_id))
-    current_index = rotation_data.get("current_index", 0)
-    driver_id = order[current_index] if order else None
-    driver_name = get_family(driver_id, group_id).name if driver_id else "The driver"
 
     msg = f"⏰ {driver_name} is running late"
     if minutes:
@@ -990,8 +1032,10 @@ def running_late():
     for fid in get_all_family_ids(group_id):
         if fid == driver_id or fid in absences:
             continue
-        family = get_family(fid, group_id)
         try:
+            family = get_family(fid, group_id)
+            if not family.guardians:
+                continue
             send_sms(to_phone=family.guardians[0].phone, message=msg)
         except Exception as e:
             logger.error("Failed to send running-late SMS to family %s: %s", fid, e)
@@ -1003,15 +1047,19 @@ def running_late():
 @login_required
 def arrived():
     group_id = gid()
+    user = current_user()
+    info = _next_trip_info(group_id)
+    # fix #3: only admin or the active driver can send this
+    if user.get("role") != "admin" and user.get("family_id") != info["driver_id"]:
+        return jsonify({"error": "Only the driver or an admin can send this."}), 403
+
     cfg = load_config(group_id)
-    dest_name = cfg.get("destination_name", "the destination")
-    trip_date = arrival_time(group_id).strftime("%Y-%m-%d")
-    absences = get_absences(trip_date, group_id)
-    rotation_data = _load_rotation(group_id)
-    order = rotation_data.get("order", get_all_family_ids(group_id))
-    current_index = rotation_data.get("current_index", 0)
-    driver_id = order[current_index] if order else None
-    driver_name = get_family(driver_id, group_id).name if driver_id else "The driver"
+    dest_name   = info["trip"].get("destination_name") if info["trip"] else None
+    dest_name   = dest_name or cfg.get("destination_name", "the destination")
+    trip_date   = info["date"]                          # fix #2
+    driver_id   = info["driver_id"]
+    driver_name = info["driver_name"] or "The driver"
+    absences    = get_absences(trip_date, group_id)
 
     msg = f"✅ Kids have arrived safely at {dest_name}! Thanks {driver_name}!"
 
@@ -1019,12 +1067,20 @@ def arrived():
     for fid in get_all_family_ids(group_id):
         if fid == driver_id or fid in absences:
             continue
-        family = get_family(fid, group_id)
-        pickup_ids.append(fid)
         try:
+            family = get_family(fid, group_id)
+            if not family.guardians:          # fix #5
+                continue
+            pickup_ids.append(fid)
             send_sms(to_phone=family.guardians[0].phone, message=msg)
         except Exception as e:
             logger.error("Failed to send arrival SMS to family %s: %s", fid, e)
+
+    # fix #1: advance rotation after trip completes
+    try:
+        advance_rotation(group_id)
+    except Exception as e:
+        logger.error("Failed to advance rotation: %s", e)
 
     # Record trip in history
     try:
