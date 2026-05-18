@@ -43,7 +43,7 @@ from auth import (
     generate_reset_token, verify_reset_token, mark_reset_used, update_password,
     purge_old_tokens, delete_user, get_users_by_group,
 )
-from groups import create_group as _create_group, get_group, list_groups
+from groups import create_group as _create_group, get_group, list_groups, get_or_create_display_token, regenerate_display_token, find_group_by_display_token
 from sms import send_sms, send_route_sms, SANDBOX_NUMBER, SANDBOX_KEYWORD
 from absences import toggle_absent, get_absences
 from route_cache import load as load_route_cache, save as save_route_cache
@@ -509,6 +509,174 @@ def logout():
 def about():
     """Public landing/marketing page. No login required."""
     return render_template("about.html")
+
+
+# ── Kid bulletin (public, token-based) ────────────────────────────────────────
+
+@app.route("/display/<token>")
+def kid_display(token):
+    """Public read-only bulletin for the kitchen iPad. Identified by an
+    opaque per-group token in the URL — no login, no cookies needed.
+    Anyone with the URL can view; the admin can rotate the token to revoke."""
+    group = find_group_by_display_token(token)
+    if not group:
+        return "Display URL not recognized. Ask your carpool admin for a current link.", 404
+    group_id = group["id"]
+
+    cfg = load_config(group_id)
+    tz_name = cfg.get("timezone", "America/New_York")
+    tz = ZoneInfo(tz_name)
+
+    # Determine the next upcoming trip (today preferred).
+    today_iso = date.today().isoformat()
+    schedule_data = load_schedule(group_id)
+    upcoming_all = sorted(
+        [t for t in schedule_data if t.get("date", "") >= today_iso],
+        key=lambda t: (t["date"], t.get("arrival_time", "")),
+    )
+    trip = upcoming_all[0] if upcoming_all else None
+    is_today = bool(trip and trip["date"] == today_iso)
+
+    # Resolve driver/destination from trip + config + rotation fallback.
+    rotation_data = _load_rotation(group_id)
+    order = rotation_data.get("order", [])
+    cur_idx = rotation_data.get("current_index", 0)
+    rot_driver_id = order[cur_idx] if order else None
+
+    driver_id = (trip.get("driver_family_id") if trip else "") or rot_driver_id
+    driver_name = ""
+    if driver_id:
+        try:
+            driver_name = get_family(driver_id, group_id).name
+        except Exception:
+            driver_name = trip.get("driver_name", "") if trip else ""
+    driver_name = driver_name or (trip.get("driver_name") if trip else "TBD") or "TBD"
+
+    dest_name = (trip.get("destination_name") if trip else "") or cfg.get("destination_name", "the destination")
+    arrive_by_str = ""
+    if trip:
+        try:
+            arrive_dt = datetime.strptime(
+                f"{trip['date']} {trip['arrival_time']}", "%Y-%m-%d %H:%M"
+            ).replace(tzinfo=tz)
+            arrive_by_str = arrive_dt.strftime("%-I:%M %p")
+        except Exception:
+            arrive_by_str = trip.get("arrival_time", "")
+
+    return_time_str = ""
+    if trip and trip.get("return_time"):
+        try:
+            rt = datetime.strptime(trip["return_time"], "%H:%M").strftime("%-I:%M %p")
+            return_time_str = rt
+        except Exception:
+            return_time_str = trip["return_time"]
+    return_driver_name = ""
+    if trip:
+        rdid = trip.get("return_driver_family_id")
+        if rdid:
+            try:
+                return_driver_name = get_family(rdid, group_id).name
+            except Exception:
+                return_driver_name = trip.get("return_driver_name", "")
+        else:
+            return_driver_name = trip.get("return_driver_name", "")
+
+    # Today's pickup list — prefer the route cache (real pickup times),
+    # otherwise fall back to "everyone except driver/absent".
+    cache = load_route_cache(group_id) if trip else None
+    absent_set = set(get_absences(trip["date"], group_id)) if trip else set()
+    pickups = []
+    if cache and trip and cache.get("date") == trip["date"]:
+        for entry in cache.get("schedule", []):
+            fid = entry.get("family_id", "")
+            is_absent = fid in absent_set
+            pickups.append({
+                "name": entry.get("label") or "Family",
+                "pickup_time": entry.get("pickup_time", ""),
+                "absent": is_absent,
+            })
+    elif trip:
+        for fid in get_all_family_ids(group_id):
+            if fid == driver_id:
+                continue
+            try:
+                fam = get_family(fid, group_id)
+                pickups.append({
+                    "name": fam.name,
+                    "pickup_time": "",
+                    "absent": fid in absent_set,
+                })
+            except Exception:
+                continue
+
+    # Coming-up list (next 5 trips after the current one).
+    upcoming_view = []
+    for t in upcoming_all[1:6]:
+        try:
+            ddate = datetime.strptime(t["date"], "%Y-%m-%d")
+            d_friendly = ddate.strftime("%a, %b %-d")
+        except Exception:
+            d_friendly = t["date"]
+        d_name = t.get("driver_name", "")
+        if not d_name and t.get("driver_family_id"):
+            try:
+                d_name = get_family(t["driver_family_id"], group_id).name
+            except Exception:
+                pass
+        upcoming_view.append({
+            "date_friendly": d_friendly,
+            "driver": d_name or "TBD",
+        })
+
+    live_location = get_location(group_id)
+
+    next_trip_date_friendly = ""
+    if trip:
+        try:
+            next_trip_date_friendly = datetime.strptime(trip["date"], "%Y-%m-%d").strftime("%A, %b %-d")
+        except Exception:
+            next_trip_date_friendly = trip["date"]
+
+    return render_template(
+        "kid_bulletin.html",
+        group_name=get_group_name(group_id) or "Carpool",
+        next_trip={
+            "is_today": is_today,
+            "date": next_trip_date_friendly,
+            "driver": driver_name,
+            "destination": dest_name,
+            "arrive_by": arrive_by_str or "soon",
+            "return_time": return_time_str,
+            "return_driver": return_driver_name,
+        },
+        pickups=pickups,
+        upcoming=upcoming_view,
+        live_location=live_location,
+    )
+
+
+@app.route("/admin/display-url")
+@login_required
+@admin_required
+def admin_display_url():
+    """Return the kid-bulletin URL for the admin's group (generating a token
+    on first call). The URL is shareable to any iPad/screen without login."""
+    group_id = gid()
+    token = get_or_create_display_token(group_id)
+    url = url_for("kid_display", token=token, _external=True)
+    return jsonify({"url": url})
+
+
+@app.route("/admin/display-url/regenerate", methods=["POST"])
+@login_required
+@admin_required
+def admin_display_url_regenerate():
+    """Rotate the display token — any tablets using the old URL will need
+    to be re-pointed at the new one."""
+    group_id = gid()
+    token = regenerate_display_token(group_id)
+    url = url_for("kid_display", token=token, _external=True)
+    return jsonify({"url": url})
 
 
 @app.route("/health")

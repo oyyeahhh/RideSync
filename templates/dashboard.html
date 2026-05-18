@@ -810,6 +810,11 @@
     <div class="cal-header">
       <div class="card-label" style="margin-bottom:0">Schedule</div>
       <div style="display:flex;align-items:center;gap:12px">
+        {% if IS_ADMIN %}
+        <button type="button" onclick="showDisplayUrl()" style="font-size:12px;padding:6px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.7);cursor:pointer;font-family:inherit;" title="Get the kid-bulletin URL for the kitchen iPad (no login required)">
+          📺 Kid Bulletin
+        </button>
+        {% endif %}
         <button type="button" onclick="showCalendarSubscribe()" class="btn-gcal" style="font-size:12px;padding:6px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.7);cursor:pointer;font-family:inherit;" title="Get a subscribable calendar URL">
           📅 Subscribe to Calendar
         </button>
@@ -1149,6 +1154,40 @@
     {% else %}
     <p class="empty">No trips recorded yet.</p>
     {% endif %}
+  </div>
+
+  <!-- Kid Bulletin Display URL Modal -->
+  <div id="display-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#2A2723;border-radius:16px;padding:28px;width:560px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+      <div style="font-family:'Tiempos Text',Georgia,serif;font-size:20px;font-weight:500;margin-bottom:6px;color:#FAF9F5;">📺 Kid Bulletin Display</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.55);margin-bottom:18px;line-height:1.5;">
+        A read-only, kid-friendly view of today&rsquo;s carpool. Open this URL on an
+        iPad or kitchen tablet — <strong>no login required</strong>. It auto-refreshes every minute.
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <input id="display-url" type="text" readonly value="Loading…"
+          style="flex:1;padding:10px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:8px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(255,255,255,0.06);color:#FAF9F5;outline:none;">
+        <button onclick="copyDisplayUrl()" id="display-copy-btn"
+          style="padding:10px 16px;background:#FAF9F5;color:#1A1714;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">
+          Copy
+        </button>
+      </div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:18px;line-height:1.55;">
+        <strong style="color:rgba(255,255,255,0.7);">Tip:</strong> open the URL in the iPad's browser, then add it to the home screen so it launches full-screen.
+        Anyone with the link can view the bulletin — keep it within the family.
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <button onclick="regenerateDisplayUrl()"
+          style="padding:9px 14px;background:rgba(255,107,138,0.12);border:1px solid rgba(255,107,138,0.3);color:#FF6B8A;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;"
+          title="Rotate the token — old iPads will need to be re-pointed at the new URL.">
+          🔄 Regenerate URL
+        </button>
+        <button onclick="closeDisplayModal()"
+          style="padding:10px 18px;border:1px solid rgba(255,255,255,0.12);border-radius:8px;font-size:13px;font-weight:500;background:rgba(255,255,255,0.08);color:#FAF9F5;cursor:pointer;">
+          Done
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Calendar Subscribe Modal -->
@@ -1801,6 +1840,50 @@
       btn.textContent = "Coming ✓";
       btn.style.cssText = btn.style.cssText.replace(/background:[^;]+;color:[^;]+;border-color:[^;]+/, "background:rgba(62,201,232,0.12);color:#3EC9E8;border-color:rgba(62,201,232,0.35)");
       row.style.background = "rgba(255,255,255,0.06)";
+    }
+  }
+
+  // ── Kid Bulletin display URL modal (admin only) ────────────────────────────
+  let _displayUrlCache = null;
+  async function showDisplayUrl() {
+    const modal = document.getElementById("display-modal");
+    const input = document.getElementById("display-url");
+    modal.style.display = "flex";
+    if (!_displayUrlCache) {
+      try {
+        const res = await fetch("/admin/display-url");
+        const data = await res.json();
+        _displayUrlCache = data.url || "";
+      } catch (e) { _displayUrlCache = ""; }
+    }
+    input.value = _displayUrlCache || "Could not generate URL.";
+    if (_displayUrlCache) input.select();
+  }
+  function closeDisplayModal() {
+    document.getElementById("display-modal").style.display = "none";
+  }
+  async function copyDisplayUrl() {
+    const input = document.getElementById("display-url");
+    const btn = document.getElementById("display-copy-btn");
+    try {
+      await navigator.clipboard.writeText(input.value);
+      const orig = btn.textContent;
+      btn.textContent = "✓ Copied";
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    } catch (e) {
+      input.select();
+      document.execCommand("copy");
+    }
+  }
+  async function regenerateDisplayUrl() {
+    if (!confirm("Generate a new URL? The current one will stop working.")) return;
+    try {
+      const res = await fetch("/admin/display-url/regenerate", { method: "POST" });
+      const data = await res.json();
+      _displayUrlCache = data.url || "";
+      document.getElementById("display-url").value = _displayUrlCache;
+    } catch (e) {
+      alert("Could not regenerate URL.");
     }
   }
 

@@ -67,3 +67,39 @@ def get_group(group_id: str) -> dict | None:
 
 def list_groups() -> list:
     return _load_groups()
+
+
+def get_or_create_display_token(group_id: str) -> str:
+    """Per-group opaque token for the kid-bulletin display URL. Lazily created
+    so existing groups don't need a migration. Anyone with the URL can view
+    the bulletin (read-only); regenerate to revoke."""
+    import secrets
+    groups = _load_groups()
+    for g in groups:
+        if g["id"] == group_id:
+            if not g.get("display_token"):
+                g["display_token"] = secrets.token_urlsafe(20)
+                _save_groups(groups)
+            return g["display_token"]
+    raise ValueError(f"group {group_id!r} not found")
+
+
+def regenerate_display_token(group_id: str) -> str:
+    """Rotate the display token — old kid-bulletin URLs stop working."""
+    import secrets
+    groups = _load_groups()
+    for g in groups:
+        if g["id"] == group_id:
+            g["display_token"] = secrets.token_urlsafe(20)
+            _save_groups(groups)
+            return g["display_token"]
+    raise ValueError(f"group {group_id!r} not found")
+
+
+def find_group_by_display_token(token: str) -> dict | None:
+    if not token or len(token) < 12:
+        return None
+    for g in _load_groups():
+        if g.get("display_token") == token:
+            return g
+    return None

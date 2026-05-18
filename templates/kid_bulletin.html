@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🚗 Carpool Today — {{ group_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Tiempos+Text:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
+  <!-- Auto-refresh every 60s so kids see live updates without tapping -->
+  <meta http-equiv="refresh" content="60">
+  <style>
+    :root {
+      --bg-1: #FFF7EE;
+      --bg-2: #FFE8D5;
+      --ink: #1A1714;
+      --soft: #5A524A;
+      --orange: #FF8C42;
+      --coral: #FF6B8A;
+      --teal: #3EC9E8;
+      --sun: #FFC857;
+      --green: #6FCF7E;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Fredoka", ui-sans-serif, system-ui, sans-serif;
+      background: linear-gradient(160deg, var(--bg-1) 0%, var(--bg-2) 100%);
+      color: var(--ink);
+      min-height: 100vh;
+      padding: 24px;
+      overflow-x: hidden;
+    }
+
+    /* Decorative floating shapes */
+    .blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(30px);
+      opacity: 0.35;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .blob.b1 { width: 360px; height: 360px; background: var(--coral); top: -80px; left: -80px; }
+    .blob.b2 { width: 420px; height: 420px; background: var(--teal); bottom: -120px; right: -100px; }
+    .blob.b3 { width: 280px; height: 280px; background: var(--sun); top: 40%; right: 8%; opacity: 0.25; }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+      margin-bottom: 28px;
+      padding: 8px 0;
+    }
+    header h1 {
+      font-family: "Fredoka", sans-serif;
+      font-size: 34px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+    header .group-name {
+      color: var(--orange);
+    }
+    .clock {
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--soft);
+    }
+
+    /* Today's driver card — the hero */
+    .hero-card {
+      background: #FFFFFF;
+      border-radius: 28px;
+      padding: 36px 40px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.06);
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-card::before {
+      content: "";
+      position: absolute;
+      top: -60px; right: -60px;
+      width: 200px; height: 200px;
+      background: var(--sun);
+      border-radius: 50%;
+      opacity: 0.18;
+    }
+    .hero-card .day-label {
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--orange);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+    .hero-card .driver-line {
+      font-size: clamp(36px, 6vw, 60px);
+      font-weight: 700;
+      line-height: 1.1;
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+    .hero-card .driver-line .label {
+      color: var(--soft);
+      font-weight: 500;
+    }
+    .hero-card .driver-line .name {
+      color: var(--ink);
+    }
+    .hero-card .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 22px;
+      align-items: center;
+      font-size: 22px;
+      color: var(--soft);
+      font-weight: 500;
+    }
+    .hero-card .meta-row .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-1);
+      padding: 8px 18px;
+      border-radius: 99px;
+      font-size: 19px;
+    }
+    .hero-card .meta-row .pill strong { color: var(--ink); font-weight: 600; }
+
+    /* Two-column area */
+    .grid {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 22px;
+    }
+    @media (max-width: 880px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: #FFFFFF;
+      border-radius: 24px;
+      padding: 26px 28px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.05);
+    }
+    .card h2 {
+      font-family: "Fredoka", sans-serif;
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ink);
+    }
+
+    /* Pickup schedule list */
+    .pickup-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .pickup-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 14px 18px;
+      background: var(--bg-1);
+      border-radius: 14px;
+      font-size: 19px;
+    }
+    .pickup-row .who {
+      font-weight: 600;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .pickup-row .when {
+      font-weight: 600;
+      color: var(--orange);
+      font-size: 20px;
+    }
+    .pickup-row.absent { opacity: 0.5; }
+    .pickup-row.absent .who { text-decoration: line-through; }
+
+    /* Upcoming */
+    .upcoming-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--bg-1);
+      border-radius: 12px;
+      margin-bottom: 8px;
+      font-size: 17px;
+    }
+    .upcoming-row .date { font-weight: 600; color: var(--ink); }
+    .upcoming-row .driver { color: var(--soft); }
+
+    /* Live banner */
+    .live-banner {
+      background: linear-gradient(135deg, var(--green), #4FB95F);
+      color: #FFFFFF;
+      border-radius: 18px;
+      padding: 18px 22px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 8px 24px rgba(111,207,126,0.3);
+    }
+    .live-banner .pulse {
+      width: 12px; height: 12px;
+      background: #FFF;
+      border-radius: 50%;
+      box-shadow: 0 0 0 0 rgba(255,255,255,0.7);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(255,255,255,0.7); }
+      70%  { box-shadow: 0 0 0 14px rgba(255,255,255,0); }
+      100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+    }
+    .live-banner .text {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .empty {
+      text-align: center;
+      color: var(--soft);
+      font-style: italic;
+      padding: 28px 12px;
+      font-size: 17px;
+    }
+
+    footer {
+      text-align: center;
+      color: var(--soft);
+      font-size: 13px;
+      margin-top: 32px;
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="blob b3"></div>
+
+  <div class="wrap">
+
+    <header>
+      <h1>🚗 <span class="group-name">{{ group_name }}</span></h1>
+      <div class="clock" id="clock">—</div>
+    </header>
+
+    {% if live_location and live_location.active %}
+    <div class="live-banner">
+      <div class="pulse"></div>
+      <div class="text">📍 {{ live_location.driver_name or 'Driver' }} is on the way! Live tracking active.</div>
+    </div>
+    {% endif %}
+
+    <!-- HERO: today / next trip -->
+    <div class="hero-card">
+      <div class="day-label">
+        {% if next_trip.is_today %}Today&rsquo;s carpool{% else %}Next carpool — {{ next_trip.date }}{% endif %}
+      </div>
+      <div class="driver-line">
+        <span class="label">Driving:</span> <span class="name">{{ next_trip.driver }}</span> 🚗
+      </div>
+      <div class="meta-row">
+        <span class="pill">🏁 <strong>{{ next_trip.destination }}</strong></span>
+        <span class="pill">🕒 Be ready by <strong>{{ next_trip.arrive_by }}</strong></span>
+        {% if next_trip.return_time %}
+        <span class="pill">🏠 Returning <strong>{{ next_trip.return_driver or next_trip.driver }}</strong> at <strong>{{ next_trip.return_time }}</strong></span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="grid">
+
+      <!-- Today's pickup order -->
+      <div class="card">
+        <h2>🎒 Today&rsquo;s pickups</h2>
+        {% if pickups %}
+        <div class="pickup-list">
+          {% for p in pickups %}
+          <div class="pickup-row {% if p.absent %}absent{% endif %}">
+            <span class="who">{% if p.absent %}🙅{% else %}🧒{% endif %} {{ p.name }}</span>
+            <span class="when">{% if p.absent %}away today{% else %}{{ p.pickup_time or '—' }}{% endif %}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty">No pickups scheduled yet — the route will appear here once the driver hits &ldquo;Send Route.&rdquo;</div>
+        {% endif %}
+      </div>
+
+      <!-- Upcoming -->
+      <div class="card">
+        <h2>📅 Coming up</h2>
+        {% if upcoming %}
+        {% for trip in upcoming %}
+        <div class="upcoming-row">
+          <span class="date">{{ trip.date_friendly }}</span>
+          <span class="driver">{{ trip.driver or '—' }}</span>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty">No upcoming trips yet.</div>
+        {% endif %}
+      </div>
+
+    </div>
+
+    <footer>
+      Auto-refreshes every minute &middot; CarpoolSync
+    </footer>
+
+  </div>
+
+  <script>
+    function tick() {
+      const now = new Date();
+      const opts = { weekday: 'long', month: 'short', day: 'numeric' };
+      const date = now.toLocaleDateString(undefined, opts);
+      const time = now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+      document.getElementById('clock').textContent = date + '  ·  ' + time;
+    }
+    tick();
+    setInterval(tick, 30000);
+  </script>
+</body>
+</html>
