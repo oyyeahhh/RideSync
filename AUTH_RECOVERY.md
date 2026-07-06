@@ -103,7 +103,7 @@ The bandaids above exist because we're using filesystem sessions + bcrypt + JSON
 
 ### When you're ready
 
-1. **In Supabase Dashboard → SQL Editor**, run the SQL from [`supabase/schema.sql`](supabase/schema.sql) (creates all 17 tables).
+1. **In Supabase Dashboard → SQL Editor**, run the SQL from [`supabase/schema.sql`](supabase/schema.sql) (creates all 18 tables).
 
 2. **In Supabase Dashboard → Authentication → Providers → Email**, turn **"Confirm email" OFF**. This lets users sign up and log in without an email round-trip. (Confirmation emails hit the free tier's 4/hour rate limit.)
 

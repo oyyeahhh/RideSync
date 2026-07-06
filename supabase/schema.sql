@@ -15,6 +15,11 @@ create table if not exists public.groups (
 );
 
 -- ─── users (app accounts; may link to auth.users via supabase_uid) ────────────
+-- A user is a PERSON, not a seat in one carpool. Group-scoped fields
+-- (role, family_id, group_id) live in `memberships` below so one account
+-- can belong to several carpools with a different role/family in each.
+-- Migration note (Phase 2b): each legacy users.json record maps to one
+-- `users` row plus one `memberships` row carrying its group_id/family_id/role.
 create table if not exists public.users (
   id              text primary key,            -- "user_xxxxxxxx"
   supabase_uid    uuid references auth.users(id) on delete set null,
@@ -22,16 +27,12 @@ create table if not exists public.users (
   password_hash   text,                        -- bcrypt; nullable if magic-link only
   name            text not null default '',
   phone           text,
-  role            text not null default 'parent',  -- 'admin' | 'parent'
-  family_id       text,
-  group_id        text references public.groups(id) on delete cascade,
-  child_name      text,
-  address         text,
+  child_name      text,                        -- signup echo; canonical copy in kids
+  address         text,                        -- signup echo; canonical copy in families
   joined_at       timestamptz not null default now(),
   calendar_token  text unique                  -- for cookieless /calendar/<token>.ics
 );
 create unique index if not exists users_email_lower_idx on public.users (lower(email));
-create index if not exists users_group_idx on public.users (group_id);
 
 -- ─── families (units within a group) ──────────────────────────────────────────
 create table if not exists public.families (
@@ -44,6 +45,21 @@ create table if not exists public.families (
   created_at            timestamptz not null default now()
 );
 create index if not exists families_group_idx on public.families (group_id);
+
+-- ─── memberships (user ↔ group join; the multi-carpool seam) ──────────────────
+-- One row per (user, group). Role and family are PER GROUP: the same person
+-- can be admin of the soccer carpool and a plain parent in the school one.
+-- The app's "active group" is a session concept, not a data concept.
+create table if not exists public.memberships (
+  user_id     text not null references public.users(id) on delete cascade,
+  group_id    text not null references public.groups(id) on delete cascade,
+  family_id   text references public.families(id) on delete set null,
+  role        text not null default 'parent',  -- 'admin' | 'parent', scoped to this group
+  joined_at   timestamptz not null default now(),
+  primary key (user_id, group_id)
+);
+create index if not exists memberships_group_idx on public.memberships (group_id);
+create index if not exists memberships_family_idx on public.memberships (family_id);
 
 -- ─── guardians (parents within a family) ──────────────────────────────────────
 create table if not exists public.guardians (
@@ -192,6 +208,7 @@ create table if not exists public.swap_state (
 -- we'll enable RLS and add per-group policies.
 alter table public.groups          disable row level security;
 alter table public.users           disable row level security;
+alter table public.memberships     disable row level security;
 alter table public.families        disable row level security;
 alter table public.guardians       disable row level security;
 alter table public.kids            disable row level security;

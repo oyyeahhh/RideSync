@@ -28,7 +28,7 @@ If you're a new contributor (or a fresh Claude session) picking this up, read th
 - `portal.py` — Flask app, all routes (~1900 LOC, single file)
 - `auth.py`, `auth_supabase.py` — legacy bcrypt auth + new Supabase Auth (behind feature flag)
 - `supabase_client.py` — Supabase SDK singletons
-- `supabase/schema.sql` — canonical Postgres schema (17 tables, ready to apply)
+- `supabase/schema.sql` — canonical Postgres schema (18 tables incl. memberships, ready to apply)
 - `templates/` — Jinja2: `dashboard.html`, `kid_bulletin.html`, `about.html`, etc.
 - `static/` — logo, mascot (Tesla full of kids), background
 

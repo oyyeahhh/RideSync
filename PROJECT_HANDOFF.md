@@ -70,7 +70,7 @@ Carpool/
 ├── startup.py                # Seed copy from CODE_DIR → DATA_DIR (legacy)
 ├── models.py                 # Dataclasses for Family/Guardian/Kid/Address/Destination
 ├── supabase/
-│   └── schema.sql            # CANONICAL Postgres schema (17 tables, idempotent)
+│   └── schema.sql            # CANONICAL Postgres schema (18 tables, idempotent)
 ├── templates/                # Jinja2 — see below
 ├── static/
 │   ├── carpoolsynclogo.png   # Smiling-road logo
@@ -132,7 +132,7 @@ We're partway through migrating to Supabase. Status as of handoff:
 | 1a — Install SDK, `/health` connection check | ✅ Shipped | `supabase_client.py` + health endpoint reports connection state |
 | 1b — Magic-link login alongside password | ✅ Shipped but unused | Magic link works but hits free-tier email rate limit (4/hr). Custom SMTP needed. |
 | 1c — Email+password via Supabase Auth (behind flag) | ✅ Shipped, dormant | Set `USE_SUPABASE_AUTH=1` to enable |
-| 1d — Schema for full data migration | ✅ Defined, not applied | `supabase/schema.sql` — 17 tables, idempotent, RLS off (we use service role) |
+| 1d — Schema for full data migration | ✅ Defined, not applied | `supabase/schema.sql` — 18 tables (incl. memberships join table for multi-carpool users), idempotent, RLS off (we use service role) |
 | 2a — User to run schema in Supabase | ⏸ Waiting on user | One-time paste-and-run in SQL Editor |
 | 2b — Replace JSON modules with Supabase queries | ⏸ Not started | Module-by-module: users → groups → families → schedule → trips → … |
 | 2c — Enable RLS + switch to anon client | 🔮 Future | Once auth is stable, lock down per-group reads/writes |
