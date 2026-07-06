@@ -74,7 +74,9 @@ def compute_optimal_route(
         ],
         "travelMode": "DRIVE",
         "routingPreference": "TRAFFIC_AWARE",
-        "optimizeWaypointOrder": True,
+        # Only meaningful (and only accepted by the API) with 2+ intermediates.
+        # 0 pickups happens legitimately: single-family group or everyone absent.
+        "optimizeWaypointOrder": len(pickups) >= 2,
         "arrivalTime": arrival_time.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 

@@ -98,16 +98,26 @@ def atomic_write_json(path: Path, data) -> None:
 
 
 def read_json(path: Path, default=None):
-    """Read JSON under the same lock. Returns `default` (or []) if the file
-    doesn't exist or is mid-write/corrupt."""
+    """Read JSON under the same lock. Returns `default` (or []) only if the
+    file doesn't exist.
+
+    An existing-but-unreadable file RAISES instead of returning the default.
+    Every store in the app does read → modify → write; if a transient read
+    failure silently returned [], the next save would persist that empty list
+    and wipe the store (the likely cause of the historical users.json wipe).
+    Atomic writes mean a corrupt file should never occur — if it does, loud
+    failure is the safe behavior."""
     path = Path(path)
     if not path.exists():
         return [] if default is None else default
     with _FileLock(path):
         try:
             return json.loads(path.read_text())
-        except (json.JSONDecodeError, OSError):
-            return [] if default is None else default
+        except (json.JSONDecodeError, OSError) as e:
+            raise RuntimeError(
+                f"Refusing to read {path.name}: file exists but is unreadable "
+                f"({e}). Not returning a default to avoid a wipe on next save."
+            ) from e
 
 
 def update_json(path: Path, mutate_fn, default=None):
@@ -120,8 +130,13 @@ def update_json(path: Path, mutate_fn, default=None):
         if path.exists():
             try:
                 data = json.loads(path.read_text())
-            except (json.JSONDecodeError, OSError):
-                data = [] if default is None else default
+            except (json.JSONDecodeError, OSError) as e:
+                # Same rationale as read_json: never treat an unreadable
+                # existing file as empty, or this write would wipe it.
+                raise RuntimeError(
+                    f"Refusing to update {path.name}: file exists but is "
+                    f"unreadable ({e})."
+                ) from e
         else:
             data = [] if default is None else default
         result = mutate_fn(data)

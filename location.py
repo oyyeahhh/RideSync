@@ -1,6 +1,12 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from storage import group_dir, atomic_write_json, read_json
+
+# A ride with no position update for this long is considered over. Drivers
+# post every ~15s while active; without a TTL, forgetting to tap "End" (or a
+# dead phone browser) leaves "Driver is on the way!" on the kid bulletin
+# forever.
+STALE_AFTER = timedelta(minutes=30)
 
 
 def _file(group_id: str) -> Path:
@@ -37,4 +43,14 @@ def update_location(lat: float, lng: float, group_id: str) -> None:
 
 
 def get_location(group_id: str) -> dict:
-    return _load(group_id)
+    data = _load(group_id)
+    if data.get("active"):
+        last_str = data.get("updated_at") or data.get("started_at") or ""
+        try:
+            last = datetime.fromisoformat(last_str)
+        except ValueError:
+            last = None
+        if last is None or datetime.now() - last > STALE_AFTER:
+            stop_ride(group_id)
+            return {"active": False}
+    return data

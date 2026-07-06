@@ -56,7 +56,12 @@ def get_user_by_id(user_id: str) -> dict | None:
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return bcrypt.checkpw(plain.encode(), hashed.encode())
+    # bcrypt raises ValueError on an empty/garbage hash (e.g. a partially
+    # wiped user record) — that must read as "wrong password", not a 500.
+    try:
+        return bcrypt.checkpw(plain.encode(), hashed.encode())
+    except (ValueError, TypeError, AttributeError):
+        return False
 
 
 def _hash_password(plain: str) -> str:

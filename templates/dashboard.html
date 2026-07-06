@@ -726,6 +726,10 @@
   <div class="status-banner">{{ invite_status }}</div>
   {% endif %}
 
+  {% if settings_error %}
+  <div style="background:rgba(255,107,138,0.12);border:1px solid rgba(255,107,138,0.4);color:#FF6B8A;border-radius:10px;padding:12px 16px;font-size:14px;margin-bottom:16px;">⚠️ {{ settings_error }}</div>
+  {% endif %}
+
   <!-- 1. NEXT TRIP HERO -->
   <div class="card" style="background: linear-gradient(135deg, #1A1714 0%, #2d2a26 100%); color: #FAF9F5; border-radius: 28px; padding: 28px; border: none;">
     <div style="display:inline-block;font-size:11px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;background:linear-gradient(135deg,var(--coral),#ff9a5c);color:#fff;border-radius:99px;padding:4px 14px;margin-bottom:18px;">Next trip</div>
@@ -772,9 +776,9 @@
       <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
           <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);letter-spacing:0.04em;">DRIVER ACTIONS</div>
-          {% if IS_ADMIN or (current_user.family_id and current_user.family_id == next_driver_id) %}
+          {% if current_user.role == 'admin' or (current_user.family_id and current_user.family_id == next_driver_id) %}
           <button onclick="sendRoute()" id="send-route-btn" style="padding:6px 14px;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.15);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
-            {% if IS_ADMIN %}🗺 Send Route to Driver{% else %}🗺 Send My Route{% endif %}
+            {% if current_user.role == 'admin' %}🗺 Send Route to Driver{% else %}🗺 Send My Route{% endif %}
           </button>
           {% endif %}
         </div>
@@ -810,7 +814,7 @@
     <div class="cal-header">
       <div class="card-label" style="margin-bottom:0">Schedule</div>
       <div style="display:flex;align-items:center;gap:12px">
-        {% if IS_ADMIN %}
+        {% if current_user.role == 'admin' %}
         <button type="button" onclick="showDisplayUrl()" style="font-size:12px;padding:6px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.7);cursor:pointer;font-family:inherit;" title="Get the kid-bulletin URL for the kitchen iPad (no login required)">
           📺 Kid Bulletin
         </button>
@@ -1280,7 +1284,12 @@
   const MY_FAMILY_ID = "{{ current_user.family_id or '' }}";
   const NEXT_DRIVER_ID = "{{ next_driver_id or '' }}";
   let ASSIGNMENT_MODE = "{{ assignment_mode }}";
-  const SCHEDULE = {{ schedule_json | safe }};
+  // tojson escapes <, >, & — |safe with a raw json.dumps let a family or
+  // destination name containing </script> break out of this script tag.
+  const SCHEDULE = {{ schedule | tojson }};
+  // Escape user-supplied strings before interpolating into innerHTML.
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let trips = [...SCHEDULE];
   let currentDate = new Date();
   let selectedDate = null;
@@ -1343,7 +1352,7 @@
         // Outbound dot — click opens edit modal for this trip
         const dot = document.createElement("div");
         dot.className = "cal-trip-dot" + (t.series_id ? " series-dot" : "");
-        dot.innerHTML = `<span>📤</span><span style="overflow:hidden;text-overflow:ellipsis">${t.destination_name}${t.series_id ? " 🔁" : ""}</span>`;
+        dot.innerHTML = `<span>📤</span><span style="overflow:hidden;text-overflow:ellipsis">${esc(t.destination_name)}${t.series_id ? " 🔁" : ""}</span>`;
         dot.title = t.driver_name ? `Edit trip · Driver: ${t.driver_name}` : "Edit trip (unassigned)";
         if (IS_ADMIN) {
           dot.style.cursor = "pointer";
@@ -1354,7 +1363,7 @@
         if (t.return_time) {
           const rdot = document.createElement("div");
           rdot.className = "cal-trip-dot return-dot";
-          rdot.innerHTML = `<span>🏠</span><span style="overflow:hidden;text-overflow:ellipsis">${t.return_driver_name || t.driver_name || "Unassigned"}</span>`;
+          rdot.innerHTML = `<span>🏠</span><span style="overflow:hidden;text-overflow:ellipsis">${esc(t.return_driver_name || t.driver_name || "Unassigned")}</span>`;
           rdot.title = `Edit return · ${t.return_time}`;
           if (IS_ADMIN) {
             rdot.style.cursor = "pointer";
@@ -1396,7 +1405,7 @@
       driverHtml = `<span style="color:#ef4444;font-weight:500">Unassigned</span> ${claimBtn}`;
     } else {
       const youBadge = isMyFamily ? `<span style="font-size:10px;background:#d1fae5;color:#065f46;border-radius:8px;padding:1px 6px;margin-left:4px">you</span>` : "";
-      driverHtml = `<span>${driverName || "—"}${youBadge}</span>`;
+      driverHtml = `<span>${esc(driverName) || "—"}${youBadge}</span>`;
     }
 
     return `
@@ -1449,7 +1458,7 @@
                 <div class="day">${parseInt(day)}</div>
                 <div class="month">${monthName}</div>
               </div>
-              <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.9)">${t.destination_name || ""}${seriesBadge}</div>
+              <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.9)">${esc(t.destination_name || "")}${seriesBadge}</div>
             </div>
             ${removeBtn}
           </div>
@@ -1631,7 +1640,11 @@
         method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify(base),
       });
-      const updated = await res.json();
+      const updated = await res.json().catch(() => null);
+      if (!res.ok || !updated || !updated.id) {
+        alert((updated && updated.error) || "Could not save the trip.");
+        return;
+      }
       const idx = trips.findIndex(t => t.id === editingTripId);
       if (idx !== -1) trips[idx] = updated;
       closeModal();
@@ -1645,7 +1658,11 @@
         method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify({...base, date: selectedDate}),
       });
-      const trip = await res.json();
+      const trip = await res.json().catch(() => null);
+      if (!res.ok || !trip || !trip.id) {
+        alert((trip && trip.error) || "Could not add the trip.");
+        return;
+      }
       trips.push(trip);
     } else {
       const weekdays = [...document.querySelectorAll("#m-weekdays input:checked")].map(c => parseInt(c.value));
@@ -1673,15 +1690,22 @@
     if (seriesId) {
       const seriesTrips = trips.filter(t => t.series_id === seriesId);
       if (seriesTrips.length > 1) {
-        const choice = confirm(`This trip is part of a series of ${seriesTrips.length}.\n\nOK → Delete entire series\nCancel → Delete just this one`);
-        if (choice) {
+        const wholeSeries = confirm(`This trip is part of a series of ${seriesTrips.length}.\n\nOK → Delete the ENTIRE series\nCancel → keep the series (you'll be asked about just this trip)`);
+        if (wholeSeries) {
           await fetch(`/schedule/remove-series/${seriesId}`, { method: "POST" });
           trips = trips.filter(t => t.series_id !== seriesId);
           renderCalendar();
           return;
         }
+        // Cancel must NOT silently delete the single trip — confirm separately.
+        if (!confirm("Delete just this one trip?")) return;
+        await fetch(`/schedule/remove/${id}`, { method: "POST" });
+        trips = trips.filter(t => t.id !== id);
+        renderCalendar();
+        return;
       }
     }
+    if (!confirm("Delete this trip?")) return;
     await fetch(`/schedule/remove/${id}`, { method: "POST" });
     trips = trips.filter(t => t.id !== id);
     renderCalendar();
@@ -1863,7 +1887,11 @@
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({family_id: familyId}),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || typeof data.absent !== "boolean") {
+      alert(data.error || "Could not update attendance.");
+      return;
+    }
     const btn = document.getElementById(`absent-btn-${familyId}`);
     const row = document.getElementById(`fam-row-${familyId}`);
     if (data.absent) {
@@ -1970,13 +1998,18 @@
 
   async function sendRunningLate() {
     const minutes = document.getElementById("late-minutes").value;
-    await fetch("/running-late", {
+    const res = await fetch("/running-late", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({minutes}),
     });
     closeLateModal();
-    alert("Running late alert sent to all pickup families!");
+    if (res.ok) {
+      alert("Running late alert sent to all pickup families!");
+    } else {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || "Could not send the alert.");
+    }
   }
 
   async function sendRoute() {
@@ -2000,12 +2033,19 @@
 
   async function confirmArrived() {
     if (!confirm("Send arrival confirmation to all families?")) return;
-    await fetch("/arrived", {
+    const res = await fetch("/arrived", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({}),
     });
-    alert("Arrival confirmation sent!");
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error || "Could not send the arrival confirmation.");
+    } else if (data.already) {
+      alert("Today's arrival was already recorded — no duplicate messages sent.");
+    } else {
+      alert("Arrival confirmation sent!");
+    }
   }
 
   // ── Dashboard live map ────────────────────────────────────────────────────

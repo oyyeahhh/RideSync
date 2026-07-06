@@ -116,6 +116,29 @@ def signup_with_password(email: str, password: str) -> dict:
         return {"ok": False, "supabase_uid": None, "error": f"Signup failed: {msg}"}
 
 
+def admin_set_password(supabase_uid: str, password: str) -> dict:
+    """Set a password on an EXISTING Supabase Auth user (service-role admin
+    API). Used when a first-time magic-link signer completes signup at
+    /create-group — their Supabase user already exists, so creating a new one
+    would fail with 'already exists' and dead-end the flow.
+
+    Returns {ok: bool, error: str | None}."""
+    if not supabase_uid:
+        return {"ok": False, "error": "Missing Supabase user id."}
+    if not password or len(password) < 8:
+        return {"ok": False, "error": "Password must be at least 8 characters."}
+    if not is_configured():
+        return {"ok": False, "error": "Supabase is not configured."}
+    try:
+        client = get_service_client()
+        client.auth.admin.update_user_by_id(supabase_uid, {"password": password})
+        logger.info("Set password for existing Supabase uid=%s", supabase_uid)
+        return {"ok": True, "error": None}
+    except Exception as e:
+        logger.error("admin_set_password failed for uid=%s: %s", supabase_uid, e)
+        return {"ok": False, "error": "Could not attach a password to your account. Please try again."}
+
+
 def signin_with_password(email: str, password: str) -> dict:
     """Verify email+password against Supabase Auth. Returns
     {ok: bool, supabase_uid: str | None, error: str | None}.

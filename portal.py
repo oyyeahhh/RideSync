@@ -245,6 +245,11 @@ def _csrf_cookie(response):
     """Mirror the CSRF token into a readable cookie so JS can pull it for fetch().
     HttpOnly is intentionally False here; the token is meant to be readable by
     same-origin JS, and Lax SameSite blocks cross-site reads."""
+    # Skip cookieless/public endpoints — /calendar/<token>.ics is served with
+    # Cache-Control: public, and a Set-Cookie header must not end up in shared
+    # caches (nor does a calendar app or kitchen iPad need a CSRF token).
+    if request.path.startswith(("/calendar/", "/display/", "/static/", "/health")):
+        return response
     try:
         response.set_cookie(
             "csrf_token", generate_csrf(),
@@ -295,8 +300,15 @@ if _CSRFError is not None:
            request.headers.get("Accept", "").startswith("application/json") or \
            request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return jsonify({"ok": False, "error": "Session expired — please refresh and try again."}), 400
-        # For login/signup/etc, send them back to the same page with a fresh token.
-        target = request.referrer or request.path
+        # For login/signup/etc, send them back to the same page with a fresh
+        # token. Only trust a same-host referrer — anything else could bounce
+        # the user to an attacker-chosen site.
+        from urllib.parse import urlparse
+        target = request.path
+        if request.referrer:
+            ref = urlparse(request.referrer)
+            if ref.netloc == request.host:
+                target = request.referrer
         return redirect(target)
 
 
@@ -325,6 +337,10 @@ def fmt_date(d: str) -> str:
 app.config["SESSION_TYPE"] = "filesystem"
 app.config["SESSION_FILE_DIR"] = str(DATA_DIR / ".flask_sessions")
 app.config["SESSION_PERMANENT"] = False
+# Lifetime for sessions that opt in via session.permanent = True ("Keep me
+# signed in"). Set once here — mutating it per-request applied one user's
+# choice to every session app-wide.
+app.permanent_session_lifetime = timedelta(days=30)
 Session(app)
 
 
@@ -340,6 +356,17 @@ def current_user() -> dict | None:
 def gid() -> str | None:
     """Return the current user's group_id from the session."""
     return session.get("group_id")
+
+
+def _group_tz(group_id: str) -> ZoneInfo:
+    return ZoneInfo(load_config(group_id).get("timezone", "America/New_York"))
+
+
+def _today_iso(group_id: str) -> str:
+    """Today's date in the group's timezone. The server clock is UTC, so a
+    bare date.today() drifts one day ahead of US timezones every evening —
+    making today's trip vanish from the dashboard/bulletin after ~7-8pm."""
+    return datetime.now(_group_tz(group_id)).strftime("%Y-%m-%d")
 
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
@@ -405,7 +432,7 @@ def admin_required(f):
 def _next_trip_info(group_id: str) -> dict:
     """Return date, driver_id and driver_name for the next upcoming scheduled trip.
     Falls back to config/rotation if no schedule entries exist."""
-    today_str = date.today().isoformat()
+    today_str = _today_iso(group_id)
     schedule = load_schedule(group_id)
     upcoming = sorted(
         [t for t in schedule if t.get("date", "") >= today_str],
@@ -531,16 +558,17 @@ def login():
 
         if not use_supabase:
             user = get_user_by_email(email)
-            login_ok = bool(user and verify_password(password, user["password_hash"]))
+            login_ok = bool(user and verify_password(password, user.get("password_hash", "")))
 
         if login_ok and user:
             remember = request.form.get("remember") == "on"
+            # Rotate the session on privilege change (anti-fixation).
+            session.clear()
             session["user_id"] = user["id"]
             session["group_id"] = user.get("group_id", "")
             if remember:
-                # "Remember me" → 30-day rolling session.
+                # "Remember me" → 30-day session (lifetime set at startup).
                 session.permanent = True
-                app.permanent_session_lifetime = timedelta(days=30)
             try:
                 purge_old_tokens()
             except Exception as e:
@@ -618,10 +646,10 @@ def auth_callback():
         return redirect(url_for("create_group_route"))
 
     # Existing user → set the session and we're in.
+    session.clear()
     session["user_id"] = internal["id"]
     session["group_id"] = internal.get("group_id", "")
     session.permanent = True
-    app.permanent_session_lifetime = timedelta(days=30)
     logger.info("Magic-link login OK for user_id=%s", internal["id"])
     return redirect(url_for("dashboard"))
 
@@ -636,10 +664,11 @@ def emergency_login():
 
     Use ONLY when normal login is broken. Delete the env var right after.
     """
+    import hmac as _hmac
     expected = os.environ.get("EMERGENCY_LOGIN_TOKEN", "")
     if not expected:
         return "Emergency login is disabled. Set EMERGENCY_LOGIN_TOKEN in Railway.", 403
-    if request.args.get("token", "") != expected:
+    if not _hmac.compare_digest(request.args.get("token", ""), expected):
         logger.warning("Emergency login: bad token from %s", _client_ip())
         return "Bad token.", 403
 
@@ -657,7 +686,6 @@ def emergency_login():
     session["user_id"] = user["id"]
     session["group_id"] = user.get("group_id", "")
     session.permanent = True
-    app.permanent_session_lifetime = timedelta(days=30)
     logger.warning("EMERGENCY LOGIN granted: user_id=%s email=%s",
                    user["id"], user.get("email", "")[:3] + "***")
     return redirect(url_for("dashboard"))
@@ -692,7 +720,7 @@ def kid_display(token):
     tz = ZoneInfo(tz_name)
 
     # Determine the next upcoming trip (today preferred).
-    today_iso = date.today().isoformat()
+    today_iso = _today_iso(group_id)
     schedule_data = load_schedule(group_id)
     upcoming_all = sorted(
         [t for t in schedule_data if t.get("date", "") >= today_iso],
@@ -966,6 +994,10 @@ def create_group_route():
 
     error = None
     form = {}
+    # A first-time magic-link signer lands here with a verified email stashed
+    # in the session (see auth_callback) — pre-fill it so they don't retype.
+    if request.method == "GET" and session.get("pending_email"):
+        form = {"email": session["pending_email"]}
 
     if request.method == "POST":
         form = {
@@ -992,6 +1024,8 @@ def create_group_route():
             error = "Please enter your family name."
         elif not form["email"]:
             error = "Please enter your email."
+        elif not form["address"]:
+            error = "Please enter your home address — it's needed for route planning."
         elif len(password) < 8:
             error = "Password must be at least 8 characters."
         elif get_user_by_email(form["email"]):
@@ -1002,38 +1036,71 @@ def create_group_route():
             # bail out before creating any local records.
             supabase_uid = None
             if os.environ.get("USE_SUPABASE_AUTH", "").strip() == "1":
-                from auth_supabase import signup_with_password
-                s = signup_with_password(form["email"], password)
-                if not s["ok"]:
-                    error = s["error"] or "Could not create your account. Please try again."
+                pending_uid = session.get("pending_supabase_uid")
+                pending_email = (session.get("pending_email") or "").strip().lower()
+                if pending_uid and pending_email == form["email"].strip().lower():
+                    # Magic-link signer: their Supabase user already exists —
+                    # attach the chosen password instead of creating a
+                    # duplicate (which would fail with 'already exists').
+                    from auth_supabase import admin_set_password
+                    s = admin_set_password(pending_uid, password)
+                    if not s["ok"]:
+                        error = s["error"] or "Could not create your account. Please try again."
+                    else:
+                        supabase_uid = pending_uid
                 else:
-                    supabase_uid = s["supabase_uid"]
+                    from auth_supabase import signup_with_password
+                    s = signup_with_password(form["email"], password)
+                    if not s["ok"]:
+                        error = s["error"] or "Could not create your account. Please try again."
+                    else:
+                        supabase_uid = s["supabase_uid"]
 
             if error:
                 # Re-render the form with the error and the prior input.
                 return render_template("create_group.html", error=error, form=form)
 
-            group = _create_group(form["group_name"])
-            # Create the admin's family and add to rotation
-            family = add_family(
-                name=form["family_name"],
-                address=form["address"],
-                phone=form["phone"],
-                children=[form["child_name"]] if form["child_name"] else [],
-                group_id=group["id"],
-            )
-            add_to_rotation(family["id"], group["id"])
-            user = create_user(
-                phone=form["phone"],
-                name=form["name"],
-                email=form["email"],
-                password=password,
-                role="admin",
-                family_id=family["id"],
-                child_name=form["child_name"],
-                address=form["address"],
-                group_id=group["id"],
-            )
+            group = None
+            try:
+                group = _create_group(form["group_name"])
+                # Create the admin's family and add to rotation
+                family = add_family(
+                    name=form["family_name"],
+                    address=form["address"],
+                    phone=form["phone"],
+                    children=[form["child_name"]] if form["child_name"] else [],
+                    group_id=group["id"],
+                )
+                add_to_rotation(family["id"], group["id"])
+                user = create_user(
+                    phone=form["phone"],
+                    name=form["name"],
+                    email=form["email"],
+                    password=password,
+                    role="admin",
+                    family_id=family["id"],
+                    child_name=form["child_name"],
+                    address=form["address"],
+                    group_id=group["id"],
+                )
+            except Exception:
+                # Roll back the half-created group so a mid-flow failure
+                # doesn't leave an orphan group with no users.
+                logger.exception("Create-group failed mid-flow; rolling back")
+                if group:
+                    try:
+                        import shutil as _shutil
+                        from groups import _load_groups, _save_groups
+                        _save_groups([g for g in _load_groups() if g["id"] != group["id"]])
+                        gdir = DATA_DIR / "groups" / group["id"]
+                        if gdir.exists():
+                            _shutil.rmtree(gdir)
+                    except Exception as e:
+                        logger.error("Create-group rollback failed: %s", e)
+                return render_template(
+                    "create_group.html", form=form,
+                    error="Something went wrong creating your group. Nothing was saved — please try again.",
+                )
 
             # If we created a Supabase Auth user above, link its UID into the
             # local user record so the next login can find this user even if
@@ -1065,6 +1132,8 @@ def create_group_route():
                 logger.info("Signup OK + verified for %s (user_id=%s)",
                             form["email"][:3] + "***", user.get("id"))
 
+            session.pop("pending_supabase_uid", None)
+            session.pop("pending_email", None)
             session["user_id"] = user["id"]
             session["group_id"] = group["id"]
             session["just_created_group"] = group["name"]
@@ -1188,6 +1257,7 @@ def invite():
 
     phone = request.form.get("phone", "").strip()
     if not phone:
+        session["invite_status"] = "Please enter a phone number to invite."
         return redirect(url_for("dashboard"))
 
     # Normalize to E.164 format
@@ -1197,7 +1267,11 @@ def invite():
     elif len(digits) == 11 and digits.startswith('1'):
         phone = f"+{digits}"
     else:
-        phone = f"+{digits}"
+        session["invite_status"] = (
+            f"“{phone}” doesn't look like a valid US phone number — "
+            "no invite was sent. Enter a 10-digit number."
+        )
+        return redirect(url_for("dashboard"))
 
     family_id = request.form.get("family_id", "").strip()
     family_name = ""
@@ -1255,10 +1329,18 @@ def dashboard():
 
     rotation = []
     for fid in order:
-        family = get_family(fid, group_id)
+        try:
+            family = get_family(fid, group_id)
+        except ValueError:
+            # Stale rotation entry (family record deleted) — skip rather than
+            # taking down the whole dashboard.
+            continue
         rotation.append({"name": family.name, "id": fid, "is_next": fid == next_driver_id})
 
-    next_driver_name = get_family(next_driver_id, group_id).name if next_driver_id else "—"
+    try:
+        next_driver_name = get_family(next_driver_id, group_id).name if next_driver_id else "—"
+    except ValueError:
+        next_driver_name = "—"
     default_dest = get_destination(get_destination_id(group_id))
     dest_name = cfg.get("destination_name") or default_dest.name
     if not cfg.get("destination_name"):
@@ -1305,7 +1387,7 @@ def dashboard():
             })
 
     # ── Next trip: prefer the schedule over rotation/config ───────────────────
-    today_str = date.today().isoformat()
+    today_str = _today_iso(group_id)
     upcoming = sorted(
         [t for t in schedule if t["date"] >= today_str],
         key=lambda t: (t["date"], t.get("arrival_time", "")),
@@ -1357,6 +1439,7 @@ def dashboard():
 
     invite_status = session.pop("invite_status", None)
     invite_link = session.pop("invite_link", None)
+    settings_error = session.pop("settings_error", None)
 
     group_name = get_group_name(group_id)
 
@@ -1379,10 +1462,10 @@ def dashboard():
         history=history,
         cfg=cfg,
         schedule=schedule,
-        schedule_json=json.dumps(schedule),
         families=families,
         karma=karma,
         invite_status=invite_status,
+        settings_error=settings_error,
         pickup_families=pickup_families,
         next_driver_id=next_driver_id,
         trip_date=trip_date,
@@ -1402,8 +1485,8 @@ def save_trip():
     group_id = gid()
     cfg = load_config(group_id)
 
-    arrival_date        = request.form["arrival_date"]
-    arrival_time        = request.form["arrival_time"]
+    arrival_date        = request.form.get("arrival_date", "").strip()
+    arrival_time        = request.form.get("arrival_time", "").strip()
     return_time         = request.form.get("return_time", "").strip()
     driver_family_id    = request.form.get("driver_family_id", "").strip()
     driver_name         = request.form.get("driver_name", "").strip()
@@ -1411,11 +1494,18 @@ def save_trip():
     return_driver_name  = request.form.get("return_driver_name", "").strip()
     destination_name    = request.form.get("destination_name", "").strip()
     destination_address = request.form.get("destination_address", "").strip()
-    buffer_minutes      = int(request.form.get("buffer_minutes", 5))
     group_name          = request.form.get("group_name", "").strip()
+    try:
+        buffer_minutes = int(request.form.get("buffer_minutes") or cfg.get("buffer_minutes", 10))
+    except (TypeError, ValueError):
+        buffer_minutes = cfg.get("buffer_minutes", 10)
 
+    if not arrival_date or not arrival_time:
+        session["settings_error"] = "Date and arrival time are required — settings were not saved."
+        return redirect(url_for("dashboard"))
     if not destination_address:
-        return redirect(url_for("dashboard", settings_error="Destination address is required."))
+        session["settings_error"] = "Destination address is required — settings were not saved."
+        return redirect(url_for("dashboard"))
 
     # Persist defaults to config
     cfg.update({
@@ -1548,7 +1638,12 @@ def _rotation_pairs_from(start_index: int, group_id: str) -> list[tuple[str, str
     order = rot.get("order", [])
     if not order:
         return []
-    pairs = [(fid, get_family(fid, group_id).name) for fid in order]
+    pairs = []
+    for fid in order:
+        try:
+            pairs.append((fid, get_family(fid, group_id).name))
+        except ValueError:
+            continue  # stale rotation entry
     return pairs[start_index:] + pairs[:start_index]
 
 
@@ -1653,7 +1748,10 @@ def schedule_claim(trip_id, leg):
     family_id = user.get("family_id")
     if not family_id:
         return jsonify({"error": "no family linked to your account"}), 400
-    family = get_family(family_id, group_id)
+    try:
+        family = get_family(family_id, group_id)
+    except ValueError:
+        return jsonify({"error": "your family record no longer exists — ask your admin"}), 400
     trip = claim_trip(trip_id, leg, family_id, family.name, group_id)
     if not trip:
         return jsonify({"error": "trip not found"}), 404
@@ -1812,6 +1910,17 @@ def arrived():
     driver_name = info["driver_name"] or "The driver"
     absences    = get_absences(trip_date, group_id)
 
+    # Idempotence: a double tap (or two parents tapping) must not re-SMS every
+    # family and advance the rotation a second time.
+    if info.get("trip") and info["trip"].get("rotation_advanced"):
+        return jsonify({"ok": True, "already": True})
+    if not info.get("trip"):
+        # No scheduled trip (rotation/config fallback) — treat an existing
+        # history entry for this date + driver as "already recorded".
+        if any(t.get("date") == trip_date and t.get("driver_family_id") == (driver_id or "")
+               for t in load_trips(group_id)):
+            return jsonify({"ok": True, "already": True})
+
     msg = f"✅ Kids have arrived safely at {dest_name}! Thanks {driver_name}!"
 
     pickup_ids = []
@@ -1864,7 +1973,9 @@ def arrived():
             driver_name=driver_name,
             miles=miles,
             minutes=minutes,
-            arrival=datetime.now(),
+            # Group-local time — a bare now() is UTC on Railway and would
+            # date evening trips on the following day.
+            arrival=datetime.now(_group_tz(group_id)),
             pickup_family_ids=pickup_ids,
             group_id=group_id,
         )
@@ -1886,16 +1997,32 @@ def send_route():
     tz = ZoneInfo(cfg.get("timezone", "America/New_York"))
 
     # Get next scheduled trip
-    today_str = date.today().isoformat()
+    today_str = _today_iso(group_id)
     schedule = load_schedule(group_id)
-    upcoming = sorted([t for t in schedule if t["date"] >= today_str], key=lambda t: t["date"])
+    upcoming = sorted(
+        [t for t in schedule if t["date"] >= today_str],
+        key=lambda t: (t["date"], t.get("arrival_time", "")),
+    )
     if not upcoming:
         return jsonify({"ok": False, "error": "No upcoming trips scheduled."})
 
-    trip = upcoming[0]
-    arrival_dt = datetime.strptime(
-        f"{trip['date']} {trip['arrival_time']}", "%Y-%m-%d %H:%M"
-    ).replace(tzinfo=tz)
+    # Pick the first trip whose arrival hasn't already passed — routing to a
+    # past arrival time makes the Routes API reject the request.
+    now = datetime.now(tz)
+    trip = None
+    arrival_dt = None
+    for t in upcoming:
+        try:
+            dt = datetime.strptime(
+                f"{t['date']} {t['arrival_time']}", "%Y-%m-%d %H:%M"
+            ).replace(tzinfo=tz)
+        except (KeyError, ValueError):
+            continue
+        if dt >= now:
+            trip, arrival_dt = t, dt
+            break
+    if not trip:
+        return jsonify({"ok": False, "error": "Today's trip has already passed and no future trips are scheduled."})
 
     # Determine driver
     driver_family_id = trip.get("driver_family_id") or ""
@@ -1987,11 +2114,29 @@ def send_route():
     return jsonify({"ok": True, "driver": driver.name, "pickups": len(pickups)})
 
 
+def _can_share_location(user: dict, group_id: str) -> bool:
+    """Only admins and the next trip's drivers (outbound or return) may start
+    rides / publish live location — otherwise any member could overwrite the
+    position kids are watching on the bulletin."""
+    if user.get("role") == "admin":
+        return True
+    fam = user.get("family_id") or ""
+    if not fam:
+        return False
+    info = _next_trip_info(group_id)
+    allowed = {info.get("driver_id") or ""}
+    if info.get("trip"):
+        allowed.add(info["trip"].get("return_driver_family_id") or "")
+    return fam in allowed
+
+
 @app.route("/start-ride", methods=["POST"])
 @login_required
 def start_ride_route():
     group_id = gid()
     user = current_user()
+    if not _can_share_location(user, group_id):
+        return jsonify({"ok": False, "error": "Only the driver or an admin can start a ride."}), 403
     start_ride(driver_name=user.get("name", "Driver"), group_id=group_id)
     return jsonify({"ok": True})
 
@@ -2001,6 +2146,8 @@ def start_ride_route():
 def start_return_route():
     group_id = gid()
     user = current_user()
+    if not _can_share_location(user, group_id):
+        return jsonify({"ok": False, "error": "Only the driver or an admin can start a ride."}), 403
     start_ride(driver_name=user.get("name", "Driver"), group_id=group_id, trip_leg="return")
     return jsonify({"ok": True})
 
@@ -2019,11 +2166,18 @@ def update_location_route():
     from eta import compute_etas
     group_id = gid()
     data = request.json or {}
-    lat, lng = data["lat"], data["lng"]
-    update_location(lat=lat, lng=lng, group_id=group_id)
-    trip_date = arrival_time(group_id).strftime("%Y-%m-%d")
     try:
-        etas = compute_etas(lat, lng, trip_date, group_id)
+        lat, lng = float(data["lat"]), float(data["lng"])
+    except (KeyError, TypeError, ValueError):
+        return jsonify({"ok": False, "error": "lat/lng required"}), 400
+    if not _can_share_location(current_user(), group_id):
+        return jsonify({"ok": False, "error": "Only the driver or an admin can share location."}), 403
+    update_location(lat=lat, lng=lng, group_id=group_id)
+    # ETAs are for the next actual trip (schedule-aware), not the config date.
+    info = _next_trip_info(group_id)
+    try:
+        etas = compute_etas(lat, lng, info["date"], group_id,
+                            driver_family_id=info.get("driver_id") or "")
     except Exception:
         etas = []
     loc = get_location(group_id)
@@ -2071,14 +2225,20 @@ def bulletin(group_id):
     order = rotation_data.get("order", get_all_family_ids(group_id))
     current_index = rotation_data.get("current_index", 0)
     next_driver_id = order[current_index] if order else None
-    next_driver_name = get_family(next_driver_id, group_id).name if next_driver_id else "—"
+    try:
+        next_driver_name = get_family(next_driver_id, group_id).name if next_driver_id else "—"
+    except ValueError:
+        next_driver_name = "—"
     default_dest = get_destination(get_destination_id(group_id))
     dest_name = cfg.get("destination_name") or default_dest.name
 
     schedule = load_schedule(group_id)
     rotation = []
     for i, fid in enumerate(order):
-        family = get_family(fid, group_id)
+        try:
+            family = get_family(fid, group_id)
+        except ValueError:
+            continue
         rotation.append({
             "name": family.name,
             "is_next": fid == next_driver_id,
@@ -2132,14 +2292,21 @@ def _save_swap(data: dict, group_id: str) -> None:
     atomic_write_json(_swap_file(group_id), data)
 
 
+def _norm_phone(phone: str) -> str:
+    """Twilio WhatsApp webhooks send numbers as 'whatsapp:+1201...' while we
+    store bare E.164 ('+1201...'). Normalize before comparing."""
+    return (phone or "").removeprefix("whatsapp:").strip()
+
+
 def _phone_to_family_and_group(phone: str):
     """Find a family across all groups by phone number."""
+    phone = _norm_phone(phone)
     for group in list_groups():
         gid_val = group["id"]
         for fid in get_all_family_ids(gid_val):
             try:
                 fam = get_family(fid, gid_val)
-                if fam.guardians and fam.guardians[0].phone == phone:
+                if fam.guardians and _norm_phone(fam.guardians[0].phone) == phone:
                     return fam, gid_val
             except Exception:
                 continue
@@ -2148,16 +2315,30 @@ def _phone_to_family_and_group(phone: str):
 
 def _handle_swap(from_phone: str, reason: str) -> str:
     from datetime import timezone, timedelta
-    from rotation import next_driver as _next_driver
     family, group_id = _phone_to_family_and_group(from_phone)
     if not family:
         return "Sorry, your number isn't registered in this carpool."
-    if family.id != _next_driver(group_id):
+    # Check against the next trip's actual driver (schedule first, rotation
+    # fallback) — the rotation pointer alone misses schedule-assigned drivers.
+    info = _next_trip_info(group_id)
+    if family.id != info["driver_id"]:
         return "You're not the driver for the next trip, so no swap needed."
+    trip = info.get("trip")
+    tz = ZoneInfo(load_config(group_id).get("timezone", "America/New_York"))
+    trip_time = None
+    if trip:
+        try:
+            trip_time = datetime.strptime(
+                f"{trip['date']} {trip['arrival_time']}", "%Y-%m-%d %H:%M"
+            ).replace(tzinfo=tz)
+        except (KeyError, ValueError):
+            trip_time = None
+    if trip_time is None:
+        trip_time = arrival_time(group_id)
     now = datetime.now(timezone.utc)
-    trip_time = arrival_time(group_id)
     if now >= trip_time - timedelta(days=1):
         return "It's less than 1 day before the trip — too late to swap automatically. Please contact the admin directly."
+    date_label = trip_time.strftime("%a %b %d")
     others = [get_family(fid, group_id) for fid in get_all_family_ids(group_id) if fid != family.id]
     asked = []
     for other in others:
@@ -2165,7 +2346,7 @@ def _handle_swap(from_phone: str, reason: str) -> str:
         if phone:
             try:
                 send_sms(to_phone=phone, message=(
-                    f"{family.name} can't drive on {trip_time.strftime('%a %b %d')} ({reason}). "
+                    f"{family.name} can't drive on {date_label} ({reason}). "
                     f"Can you take over? Reply YES to volunteer."
                 ))
                 asked.append(phone)
@@ -2173,39 +2354,53 @@ def _handle_swap(from_phone: str, reason: str) -> str:
                 logger.error("Failed to send swap request SMS to %s: %s", phone, e)
     _record_swap_req(family.id, family.name, group_id)
     _save_swap({"pending": True, "original_driver_id": family.id,
-                "original_driver_phone": from_phone, "reason": reason,
+                "original_driver_phone": _norm_phone(from_phone), "reason": reason,
                 "asked_phones": asked, "confirmed_driver_id": None,
+                "trip_id": trip["id"] if trip else "",
+                "trip_date_label": date_label,
                 "group_id": group_id}, group_id)
     return f"Got it! Asked {len(asked)} other drivers. We'll let you know who takes over."
 
 
 def _handle_yes_for_swap(from_phone: str) -> str | None:
     # Check across all groups for a pending swap that asked this phone
+    from_norm = _norm_phone(from_phone)
     for group in list_groups():
         gid_val = group["id"]
         swap = _load_swap(gid_val)
         if not swap.get("pending"):
             continue
-        if from_phone not in swap.get("asked_phones", []):
+        if from_norm not in [_norm_phone(p) for p in swap.get("asked_phones", [])]:
             continue
         if swap.get("confirmed_driver_id"):
             return "Thanks, but someone already volunteered to drive!"
         family, _ = _phone_to_family_and_group(from_phone)
         if not family:
             return None
-        _set_driver(family.id, gid_val)
+        try:
+            _set_driver(family.id, gid_val)
+        except ValueError:
+            logger.warning("Swap volunteer %s not in rotation for group %s", family.id, gid_val)
+        # Reassign the scheduled trip itself — the auto-route sender and the
+        # dashboards read the trip's driver, not the rotation pointer.
+        if swap.get("trip_id"):
+            try:
+                update_trip(swap["trip_id"], gid_val,
+                            driver_family_id=family.id, driver_name=family.name)
+            except Exception as e:
+                logger.error("Swap: failed to reassign trip %s: %s", swap["trip_id"], e)
         swap["pending"] = False
         swap["confirmed_driver_id"] = family.id
         _save_swap(swap, gid_val)
         _record_swap_cover(family.id, family.name, gid_val)
-        trip_time = arrival_time(gid_val)
+        date_label = swap.get("trip_date_label") or arrival_time(gid_val).strftime("%a %b %d")
         send_sms(to_phone=swap["original_driver_phone"],
-                 message=f"Great news! {family.name} will drive on {trip_time.strftime('%a %b %d')}. You're off the hook!")
+                 message=f"Great news! {family.name} will drive on {date_label}. You're off the hook!")
         for phone in swap["asked_phones"]:
-            if phone != from_phone:
+            if _norm_phone(phone) != from_norm:
                 send_sms(to_phone=phone,
-                         message=f"{family.name} has volunteered to drive on {trip_time.strftime('%a %b %d')}. No need to respond.")
-        return f"You're confirmed as driver on {trip_time.strftime('%a %b %d')}! You'll get route details closer to the trip."
+                         message=f"{family.name} has volunteered to drive on {date_label}. No need to respond.")
+        return f"You're confirmed as driver on {date_label}! You'll get route details closer to the trip."
     return None
 
 
@@ -2248,7 +2443,7 @@ def sms_webhook():
             _, group_id = _phone_to_family_and_group(from_number)
             if group_id:
                 confs = _load_confirmations(group_id)
-                confs[from_number] = raw_body
+                confs[_norm_phone(from_number)] = raw_body
                 _save_confirmations(confs, group_id)
             reply = "Got it, confirmed!"
     elif upper.startswith("SWAP"):
@@ -2263,7 +2458,7 @@ def sms_webhook():
             _, group_id = _phone_to_family_and_group(from_number)
             if group_id:
                 confs = _load_confirmations(group_id)
-                confs[from_number] = raw_body
+                confs[_norm_phone(from_number)] = raw_body
                 _save_confirmations(confs, group_id)
             reply = f"Got it! We'll pick you up at: {raw_body}"
         else:
@@ -2307,79 +2502,92 @@ def _auto_send_route_for_group(group_id: str) -> None:
             if not (window_start <= trip_dt <= window_end):
                 continue
 
-            # Determine driver
-            driver_family_id = trip.get("driver_family_id") or ""
-            if not driver_family_id:
-                rotation_data = _load_rotation(group_id)
-                order = rotation_data.get("order", [])
-                idx   = rotation_data.get("current_index", 0)
-                driver_family_id = order[idx] if order else ""
-            if not driver_family_id:
-                logger.warning("Auto-route: no driver for trip %s in group %s", trip["id"], group_id)
-                continue
-
-            driver = get_family(driver_family_id, group_id)
-            geocode_address(driver.primary_address)
-
-            absences = get_absences(trip["date"], group_id)
-            pickups  = []
-            for fid in get_all_family_ids(group_id):
-                if fid == driver_family_id or fid in absences:
-                    continue
-                try:
-                    f = get_family(fid, group_id)
-                    geocode_address(f.primary_address)
-                    addr = f.primary_address
-                    pickups.append({"id": fid, "lat": addr.latitude, "lng": addr.longitude, "label": f.name})
-                except Exception as e:
-                    logger.warning("Auto-route: skipping family %s: %s", fid, e)
-
-            dest_name    = trip.get("destination_name") or cfg.get("destination_name", "destination")
-            dest_address = trip.get("destination_address") or cfg.get("destination_address", "")
-            if not dest_address:
-                logger.warning("Auto-route: no destination address for trip %s", trip["id"])
-                continue
-
-            from models import Destination as _Dest
-            dest = _Dest(id="custom", group_id=group_id, name=dest_name, street=dest_address)
-            geocode_address(dest)
-
-            driver_addr = driver.primary_address
-            result = compute_optimal_route(
-                driver_lat=driver_addr.latitude,
-                driver_lng=driver_addr.longitude,
-                pickups=pickups,
-                dest_lat=dest.latitude,
-                dest_lng=dest.longitude,
-                arrival_time=trip_dt,
-                buffer_minutes=cfg.get("buffer_minutes", 15),
-            )
-            save_route_cache(result, driver_name=driver.name, dest_name=dest_name, group_id=group_id)
-
-            driver_phone = driver.guardians[0].phone if driver.guardians else ""
-            if not driver_phone:
-                logger.warning("Auto-route: driver %s has no phone", driver.name)
-                continue
-
-            # Mark as sent BEFORE the SMS to prevent retry storms if SMS fails or is slow.
-            # An occasional missed SMS is better than 8 duplicate SMSes per trip.
-            update_trip(trip["id"], group_id, route_sent=True)
-
+            # Isolate per-trip failures (e.g. one driver's un-geocodable
+            # address) so they don't abort routing for the group's remaining
+            # trips in this window.
             try:
-                maps_url = build_maps_url(result)
-                send_route_sms(
-                    to_phone=driver_phone,
-                    result=result,
-                    driver_name=driver.name,
-                    dest_name=dest_name,
-                    maps_url=maps_url,
-                )
-                logger.info("Auto-route sent to %s for trip %s", driver.name, trip["id"])
+                _auto_send_route_for_trip(trip, trip_dt, cfg, group_id)
             except Exception as e:
-                logger.error("Auto-route SMS failed for trip %s: %s", trip["id"], e)
+                logger.error("Auto-route failed for trip %s in group %s: %s",
+                             trip.get("id"), group_id, e)
 
     except Exception as e:
         logger.error("Auto-route error for group %s: %s", group_id, e)
+
+
+def _auto_send_route_for_trip(trip: dict, trip_dt: datetime, cfg: dict, group_id: str) -> None:
+    """Compute and SMS the route for a single trip. Raises on failure; the
+    caller logs and moves on to the group's next trip."""
+    # Determine driver
+    driver_family_id = trip.get("driver_family_id") or ""
+    if not driver_family_id:
+        rotation_data = _load_rotation(group_id)
+        order = rotation_data.get("order", [])
+        idx   = rotation_data.get("current_index", 0)
+        driver_family_id = order[idx] if order else ""
+    if not driver_family_id:
+        logger.warning("Auto-route: no driver for trip %s in group %s", trip["id"], group_id)
+        return
+
+    driver = get_family(driver_family_id, group_id)
+    geocode_address(driver.primary_address)
+
+    absences = get_absences(trip["date"], group_id)
+    pickups  = []
+    for fid in get_all_family_ids(group_id):
+        if fid == driver_family_id or fid in absences:
+            continue
+        try:
+            f = get_family(fid, group_id)
+            geocode_address(f.primary_address)
+            addr = f.primary_address
+            pickups.append({"id": fid, "lat": addr.latitude, "lng": addr.longitude, "label": f.name})
+        except Exception as e:
+            logger.warning("Auto-route: skipping family %s: %s", fid, e)
+
+    dest_name    = trip.get("destination_name") or cfg.get("destination_name", "destination")
+    dest_address = trip.get("destination_address") or cfg.get("destination_address", "")
+    if not dest_address:
+        logger.warning("Auto-route: no destination address for trip %s", trip["id"])
+        return
+
+    from models import Destination as _Dest
+    dest = _Dest(id="custom", group_id=group_id, name=dest_name, street=dest_address)
+    geocode_address(dest)
+
+    driver_addr = driver.primary_address
+    result = compute_optimal_route(
+        driver_lat=driver_addr.latitude,
+        driver_lng=driver_addr.longitude,
+        pickups=pickups,
+        dest_lat=dest.latitude,
+        dest_lng=dest.longitude,
+        arrival_time=trip_dt,
+        buffer_minutes=cfg.get("buffer_minutes", 15),
+    )
+    save_route_cache(result, driver_name=driver.name, dest_name=dest_name, group_id=group_id)
+
+    driver_phone = driver.guardians[0].phone if driver.guardians else ""
+    if not driver_phone:
+        logger.warning("Auto-route: driver %s has no phone", driver.name)
+        return
+
+    # Mark as sent BEFORE the SMS to prevent retry storms if SMS fails or is slow.
+    # An occasional missed SMS is better than 8 duplicate SMSes per trip.
+    update_trip(trip["id"], group_id, route_sent=True)
+
+    try:
+        maps_url = build_maps_url(result)
+        send_route_sms(
+            to_phone=driver_phone,
+            result=result,
+            driver_name=driver.name,
+            dest_name=dest_name,
+            maps_url=maps_url,
+        )
+        logger.info("Auto-route sent to %s for trip %s", driver.name, trip["id"])
+    except Exception as e:
+        logger.error("Auto-route SMS failed for trip %s: %s", trip["id"], e)
 
 
 def _auto_send_routes_all_groups() -> None:
@@ -2389,16 +2597,22 @@ def _auto_send_routes_all_groups() -> None:
 
 
 def _nightly_advance_rotations() -> None:
-    """Daily 11pm job: if today had a scheduled trip and the rotation pointer
-    wasn't advanced (driver never tapped 'Arrived'), roll it forward — skipping
-    any drivers marked absent for that date. Without this the rotation freezes
-    on whoever was assigned last."""
+    """Hourly job: for each group where it's currently 11pm LOCAL time, if
+    today had a scheduled trip and the rotation pointer wasn't advanced
+    (driver never tapped 'Arrived'), roll it forward — skipping any drivers
+    marked absent for that date. Runs hourly (not at a fixed server hour)
+    because the server clock is UTC and groups carry their own timezone —
+    a fixed 23:00 server cron would fire at 6-7pm Eastern, advancing the
+    rotation before evening trips even happen."""
     from groups import list_groups
     from rotation import _load as _load_rot, advance as _advance_rot
-    today_iso = date.today().isoformat()
     for g in list_groups():
         gid_ = g["id"]
         try:
+            now_local = datetime.now(_group_tz(gid_))
+            if now_local.hour != 23:
+                continue
+            today_iso = now_local.strftime("%Y-%m-%d")
             schedule = load_schedule(gid_)
             todays_trips = [t for t in schedule if t.get("date") == today_iso]
             if not todays_trips:
@@ -2451,8 +2665,10 @@ def _start_scheduler() -> None:
     )
     scheduler.add_job(
         _nightly_advance_rotations,
+        # Hourly on the hour; the job itself only acts on groups where the
+        # local time is 11pm (see _nightly_advance_rotations docstring).
         trigger="cron",
-        hour=23, minute=0,
+        minute=0,
         id="nightly_rotation",
         replace_existing=True,
     )
@@ -2469,6 +2685,43 @@ if "pytest" not in _sys.modules and os.environ.get("FLASK_TESTING") != "1":
 
 
 # ── Admin: User Management ────────────────────────────────────────────────────
+
+def _cleanup_family_if_orphaned(family_id: str, group_id_: str) -> None:
+    """If no users remain for this family in this group, scrub it from the
+    rotation and clear it off future scheduled trips — otherwise deletes
+    leave a phantom driver who can't log in."""
+    if not family_id or not group_id_:
+        return
+    from auth import _load_users
+    remaining = [u for u in _load_users()
+                 if u.get("family_id") == family_id and u.get("group_id") == group_id_]
+    if remaining:
+        return
+    try:
+        from rotation import remove_from_rotation
+        remove_from_rotation(family_id, group_id_)
+    except Exception as e:
+        logger.error("Cascade: remove_from_rotation failed: %s", e)
+    try:
+        today_iso = _today_iso(group_id_)
+        sched = load_schedule(group_id_)
+        changed = False
+        for t in sched:
+            if t.get("date", "") < today_iso:
+                continue
+            if t.get("driver_family_id") == family_id:
+                t["driver_family_id"] = ""
+                t["driver_name"] = ""
+                changed = True
+            if t.get("return_driver_family_id") == family_id:
+                t["return_driver_family_id"] = ""
+                t["return_driver_name"] = ""
+                changed = True
+        if changed:
+            save_schedule(sched, group_id_)
+    except Exception as e:
+        logger.error("Cascade: schedule cleanup failed: %s", e)
+
 
 def _stale_groups(current_group_id: str) -> list:
     """Return groups that have no users assigned and aren't the admin's own group.
@@ -2553,6 +2806,10 @@ def admin_dedupe_self():
         try:
             delete_user(u["id"])
             deleted += 1
+            # Same cascade as single-user delete — deleted accounts may live
+            # in OTHER groups; without this their families stay in those
+            # groups' rotations/schedules as phantom drivers.
+            _cleanup_family_if_orphaned(u.get("family_id", ""), u.get("group_id", ""))
         except Exception as e:
             logger.error("Dedupe: failed to delete user %s: %s", u["id"], e)
 
@@ -2596,36 +2853,7 @@ def admin_delete_user(user_id):
         return redirect(url_for("admin_users"))
 
     try:
-        from auth import _load_users
-        other_users = [u for u in _load_users()
-                       if u.get("family_id") == family_id and u.get("group_id") == group_id_]
-        if family_id and not other_users:
-            # No remaining users for this family in this group — clean up.
-            try:
-                from rotation import remove_from_rotation
-                remove_from_rotation(family_id, group_id_)
-            except Exception as e:
-                logger.error("Cascade: remove_from_rotation failed: %s", e)
-            try:
-                # Clear future scheduled trips that pointed at this family.
-                today_iso = date.today().isoformat()
-                sched = load_schedule(group_id_)
-                changed = False
-                for t in sched:
-                    if t.get("date", "") < today_iso:
-                        continue
-                    if t.get("driver_family_id") == family_id:
-                        t["driver_family_id"] = ""
-                        t["driver_name"] = ""
-                        changed = True
-                    if t.get("return_driver_family_id") == family_id:
-                        t["return_driver_family_id"] = ""
-                        t["return_driver_name"] = ""
-                        changed = True
-                if changed:
-                    save_schedule(sched, group_id_)
-            except Exception as e:
-                logger.error("Cascade: schedule cleanup failed: %s", e)
+        _cleanup_family_if_orphaned(family_id, group_id_)
     except Exception as e:
         logger.error("Cascade cleanup error: %s", e)
 

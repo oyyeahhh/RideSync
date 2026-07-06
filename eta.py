@@ -15,16 +15,23 @@ from absences import get_absences
 MATRIX_URL = "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
 
 
-def compute_etas(driver_lat: float, driver_lng: float, trip_date: str, group_id: str = "grp_main") -> list[dict]:
+def compute_etas(driver_lat: float, driver_lng: float, trip_date: str,
+                 group_id: str = "grp_main", driver_family_id: str = "") -> list[dict]:
     """
     Returns a list of dicts sorted by ETA:
       [{family_id, name, minutes, lat, lng}, ...]
     Families that are absent or are the driver are excluded.
+
+    Pass driver_family_id for the trip's ACTUAL driver — the rotation pointer
+    (fallback) can disagree with a schedule-assigned or swapped driver, which
+    would put the driver's own house in their pickup list.
     """
-    rotation_data = load_rotation(group_id)
-    order = rotation_data.get("order", get_all_family_ids(group_id))
-    current_index = rotation_data.get("current_index", 0)
-    driver_id = order[current_index] if order else None
+    driver_id = driver_family_id or None
+    if not driver_id:
+        rotation_data = load_rotation(group_id)
+        order = rotation_data.get("order", get_all_family_ids(group_id))
+        current_index = rotation_data.get("current_index", 0)
+        driver_id = order[current_index] if order else None
     absences = get_absences(trip_date, group_id)
 
     pickup_families = []

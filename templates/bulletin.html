@@ -426,15 +426,19 @@
     });
   }
 
+  // Escape user-supplied strings (family names) before innerHTML.
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
   function updateEtaList(etas) {
     const list = document.getElementById("eta-list");
     if (!etas || etas.length === 0) { list.innerHTML = ""; return; }
     list.innerHTML = etas.map(eta => `
       <div style="display:flex;justify-content:space-between;align-items:center;
                   padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:8px;">
-        <div style="font-size:13px;font-weight:500;color:#FAF9F5;">${eta.name}</div>
+        <div style="font-size:13px;font-weight:500;color:#FAF9F5;">${esc(eta.name)}</div>
         <div style="font-size:13px;font-weight:700;color:${eta.minutes <= 2 ? '#3EC9E8' : 'rgba(255,255,255,0.7)'};">
-          ${eta.label}
+          ${esc(eta.label)}
         </div>
       </div>`).join("");
   }
@@ -451,7 +455,7 @@
           const icon = data.trip_leg === "return" ? "🏠" : "📍";
           const label = data.trip_leg === "return" ? "is on the way home" : "is on the way to pick up";
           document.getElementById("tracking-status").innerHTML =
-            `${icon} <strong>${data.driver_name}</strong> ${label}`;
+            `${icon} <strong>${esc(data.driver_name)}</strong> ${label}`;
         }
         if (data.lat && data.lng) {
           if (!map) {
