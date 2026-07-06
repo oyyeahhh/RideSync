@@ -1,56 +1,86 @@
-# Carpool App — Routing Prototype
+# CarpoolSync
 
-This is the v0 routing prototype. It does one thing: given a list of families with
-addresses, a driver, and a destination, it computes the optimal pickup order and
-prints the route with departure time.
+<img src="static/tesla.png" alt="" align="right" width="220">
 
-No web app yet. No database yet. No SMS yet. Just the core routing math, working
-against real addresses via Google Maps, so we can validate that the routing piece
-is solid before building anything else on top of it.
+**Carpool, on autopilot.**
 
-## Setup
+A small-team coordinator for parents who drive their kids to the same destination — soccer, school, music lessons. Replaces group-chat chaos with smart driver rotation, optimized pickup routes, WhatsApp invites, and a kid-friendly bulletin board for the kitchen iPad.
 
-1. Get a Google Maps API key (see main project notes). Make sure these APIs are
-   enabled: Routes API, Geocoding API.
+🌐 **Live:** [carpoolsync.up.railway.app](https://carpoolsync.up.railway.app)
+📖 **Marketing page:** [/about](https://carpoolsync.up.railway.app/about)
 
-2. Create a `.env` file in this directory:
-   ```
-   GOOGLE_MAPS_API_KEY=your_key_here
-   ```
+---
 
-3. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
+## 👋 New here? Start with the handoff docs
 
-4. Edit `families.py` with your actual carpool families and addresses.
+If you're a new contributor (or a fresh Claude session) picking this up, read these three docs in order before doing anything else:
 
-5. Run it:
-   ```
-   python route.py
-   ```
+| Read first | What it gives you |
+|---|---|
+| **[PROJECT_HANDOFF.md](PROJECT_HANDOFF.md)** | Full project context: tech stack, every feature, the auth/login history, design system, how the owner works |
+| **[QUICKSTART.md](QUICKSTART.md)** | 30-min hands-on verification: clone → run locally → push a trivial change → revert. Ends with a 7-question orientation quiz. |
+| **[AUTH_RECOVERY.md](AUTH_RECOVERY.md)** | Keep for emergencies — every "I'm locked out" escape hatch (emergency-login, env-var reset, etc.) |
 
-## What it does
+---
 
-- Geocodes every address once and caches the result (so we don't pay for
-  geocoding on every run).
-- Asks Google Routes API to compute the optimal pickup order given a driver's
-  home, the kids' pickup addresses, and the destination.
-- Prints the route with estimated departure time so the driver arrives on time.
+## What's in this repo (top-level)
 
-## What it doesn't do yet
+- `portal.py` — Flask app, all routes (~1900 LOC, single file)
+- `auth.py`, `auth_supabase.py` — legacy bcrypt auth + new Supabase Auth (behind feature flag)
+- `supabase_client.py` — Supabase SDK singletons
+- `supabase/schema.sql` — canonical Postgres schema (17 tables, ready to apply)
+- `templates/` — Jinja2: `dashboard.html`, `kid_bulletin.html`, `about.html`, etc.
+- `static/` — logo, mascot (Tesla full of kids), background
 
-- Pick the driver (you specify it as an argument)
-- Handle nightly confirmations
-- Send notifications
-- Track equity / mileage
-- Have a UI
+Module-by-module breakdown is in [PROJECT_HANDOFF.md § 3](PROJECT_HANDOFF.md).
 
-Those come next, once we trust the routing.
+## Tech stack
 
-## Data model notes
+- **Backend:** Python 3.11 + Flask, gunicorn
+- **Host:** Railway (with persistent volume at `/data`)
+- **Storage:** JSON files (migrating to Supabase Postgres)
+- **Auth:** bcrypt + Flask sessions (migrating to Supabase Auth)
+- **SMS / WhatsApp:** Twilio sandbox
+- **Maps:** Google Maps Platform (Routes + Geocoding)
+- **Background jobs:** APScheduler — auto-route 15-min ticker + nightly rotation advance
 
-Even though this is a CLI tool, the data classes (`Group`, `Family`, `Guardian`,
-`Kid`, `Address`) are structured the way the eventual database tables will be,
-including `group_id` everywhere. When we add a database later, the migration
-will be mostly mechanical.
+## Status at a glance
+
+| Layer | State |
+|---|---|
+| Production deploy | ✅ Live on Railway, persistent volume |
+| Multi-tenant groups | ✅ Done |
+| WhatsApp invites + signup | ✅ Done (Twilio sandbox) |
+| Driver rotation + skip-absent | ✅ Done + nightly auto-advance |
+| Recurring schedule | ✅ Done |
+| Optimal route + auto-send SMS | ✅ Done |
+| Live driver tracking | ✅ Done |
+| Kid bulletin (public iPad view) | ✅ Done |
+| Calendar feed (Google/Apple subscribe) | ✅ Done |
+| Admin tools (manage users, system view) | ✅ Done |
+| **Supabase Auth migration** | 🟡 Built behind `USE_SUPABASE_AUTH=1` flag, ready to enable |
+| **Supabase Postgres migration** | 🟡 Schema defined, modules not yet swapped |
+
+Full migration plan: [PROJECT_HANDOFF.md § 5](PROJECT_HANDOFF.md).
+
+## To run locally
+
+See [QUICKSTART.md](QUICKSTART.md) for the full walkthrough. Briefly:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+# create .env with stub values — see QUICKSTART.md for the template
+export FLASK_TESTING=1   # disables APScheduler locally
+python portal.py
+```
+
+App runs at `http://localhost:3000`.
+
+## Deploy
+
+Push to `main` → Railway auto-deploys in ~60–90s. No CI yet.
+
+## Who built it
+
+Orly Nadler ([@oyyeahhh](https://github.com/oyyeahhh)), with extensive pair-programming by Claude (Anthropic).
