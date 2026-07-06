@@ -30,7 +30,7 @@ from config import (
     get_group_name, get_assignment_mode, set_assignment_mode,
 )
 from storage import DATA_DIR, CODE_DIR, group_dir, migrate_legacy_data, atomic_write_json, read_json
-from families import get_family, get_destination, get_all_family_ids, add_family
+from families import get_family, get_destination, get_all_family_ids, add_family, update_family
 from rotation import _load as _load_rotation, add_to_rotation, set_driver as _set_driver, advance as advance_rotation, set_index as _set_rotation_index
 from trips import get_stats, load_trips, record_trip
 from schedule import load_schedule, save_schedule, add_trip, update_trip, remove_trip, remove_series, add_recurring_trips, claim_trip
@@ -41,7 +41,8 @@ from auth import (
     verify_password, create_user,
     generate_invite_token, verify_invite_token, mark_invite_used,
     generate_reset_token, verify_reset_token, mark_reset_used, update_password,
-    purge_old_tokens, delete_user, get_users_by_group,
+    purge_old_tokens, delete_user, get_users_by_group, update_user_profile,
+    get_pending_invites, get_invite_by_token,
 )
 from groups import create_group as _create_group, get_group, list_groups, get_or_create_display_token, regenerate_display_token, find_group_by_display_token
 from sms import send_sms, send_route_sms, SANDBOX_NUMBER, SANDBOX_KEYWORD
@@ -1303,6 +1304,92 @@ def invite():
     session["invite_link"] = signup_url
 
     return redirect(url_for("dashboard"))
+
+
+# ── Profile (edit your own family + contact info) ─────────────────────────────
+
+@app.route("/profile", methods=["GET", "POST"])
+@login_required
+def profile():
+    """Let a signed-in user fix their own contact info and, critically, their
+    home address — routing depends on it and there was previously no in-app
+    way to change it after signup."""
+    user = current_user()
+    group_id = gid()
+    if not user or not group_id:
+        return redirect(url_for("login"))
+
+    family_id = user.get("family_id", "")
+    family = None
+    if family_id:
+        try:
+            family = get_family(family_id, group_id)
+        except ValueError:
+            family = None
+
+    error = None
+    saved = session.pop("profile_saved", False)
+
+    if request.method == "POST":
+        your_name    = request.form.get("your_name", "").strip()
+        phone_raw    = request.form.get("phone", "").strip()
+        family_name  = request.form.get("family_name", "").strip()
+        address      = request.form.get("address", "").strip()
+        children_raw = request.form.get("children", "").strip()
+
+        # Normalize phone to E.164 (same rule as signup/invite).
+        digits = re.sub(r"\D", "", phone_raw)
+        if not digits:
+            phone = ""
+        elif len(digits) == 10:
+            phone = f"+1{digits}"
+        elif len(digits) == 11 and digits.startswith("1"):
+            phone = f"+{digits}"
+        else:
+            phone = ""
+
+        if not your_name:
+            error = "Please enter your name."
+        elif phone_raw and not phone:
+            error = "That phone number doesn't look right — enter a 10-digit US number."
+        elif family_id and not address:
+            error = "Home address is required — it's what the app uses to plan routes."
+        else:
+            # Children: one per line or comma-separated; drop blanks.
+            children = [c.strip() for c in re.split(r"[\n,]", children_raw) if c.strip()]
+            update_user_profile(user["id"], name=your_name, phone=phone)
+            if family_id:
+                update_family(
+                    family_id, group_id,
+                    name=family_name or (family.name if family else your_name),
+                    address=address,
+                    # Guardian contact for carpool SMS mirrors the user's phone.
+                    phone=phone,
+                    children=children,
+                )
+            session["profile_saved"] = True
+            return redirect(url_for("profile"))
+
+    # Prefill from current state (or the just-submitted values on error).
+    if request.method == "POST":
+        form = {
+            "your_name":   request.form.get("your_name", ""),
+            "phone":       request.form.get("phone", ""),
+            "family_name": request.form.get("family_name", ""),
+            "address":     request.form.get("address", ""),
+            "children":    request.form.get("children", ""),
+        }
+    else:
+        form = {
+            "your_name":   user.get("name", ""),
+            "phone":       user.get("phone", ""),
+            "family_name": family.name if family else "",
+            "address":     family.primary_address.street if (family and family.has_address) else "",
+            "children":    "\n".join(k.name for k in family.kids) if family else "",
+        }
+
+    return render_template("profile.html", form=form, error=error, saved=saved,
+                           has_family=bool(family_id), group_name=get_group_name(group_id))
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -2639,6 +2726,62 @@ def _nightly_advance_rotations() -> None:
             logger.error("Nightly rotation advance failed for %s: %s", gid_, e)
 
 
+def _daybefore_reminders() -> None:
+    """Hourly job: for each group where it's ~7pm LOCAL time, text tomorrow's
+    driver(s) a heads-up so they can plan their day. The 2-hour route SMS is
+    too late to rearrange a workday. Guarded by a per-trip reminder_sent flag
+    so each trip is reminded once."""
+    from groups import list_groups
+    for g in list_groups():
+        gid_ = g["id"]
+        try:
+            now_local = datetime.now(_group_tz(gid_))
+            if now_local.hour != 19:
+                continue
+            tomorrow = (now_local + timedelta(days=1)).strftime("%Y-%m-%d")
+            cfg = load_config(gid_)
+            group_name = cfg.get("group_name", "the") or "the"
+            schedule = load_schedule(gid_)
+            absent = set(get_absences(tomorrow, gid_))
+            for trip in schedule:
+                if trip.get("date") != tomorrow or trip.get("reminder_sent"):
+                    continue
+                # Resolve driver: trip assignment first, rotation fallback.
+                driver_fid = trip.get("driver_family_id") or ""
+                if not driver_fid:
+                    rot = _load_rotation(gid_)
+                    order = rot.get("order", [])
+                    idx = rot.get("current_index", 0)
+                    driver_fid = order[idx] if order else ""
+                if not driver_fid or driver_fid in absent:
+                    continue
+                try:
+                    driver = get_family(driver_fid, gid_)
+                except ValueError:
+                    continue
+                phone = driver.guardians[0].phone if driver.guardians else ""
+                if not phone:
+                    continue
+                try:
+                    arrive = datetime.strptime(trip["arrival_time"], "%H:%M").strftime("%-I:%M %p")
+                except (KeyError, ValueError):
+                    arrive = trip.get("arrival_time", "")
+                dest = trip.get("destination_name") or cfg.get("destination_name", "the destination")
+                msg = (
+                    f"🚗 Heads up — you're driving the {group_name} carpool tomorrow "
+                    f"to {dest}" + (f", arriving by {arrive}" if arrive else "") + ". "
+                    "You'll get the optimized pickup route about 2 hours before."
+                )
+                try:
+                    send_sms(to_phone=phone, message=msg)
+                    update_trip(trip["id"], gid_, reminder_sent=True)
+                    logger.info("Day-before reminder sent to %s for trip %s", driver.name, trip["id"])
+                except Exception as e:
+                    logger.error("Day-before reminder failed for trip %s: %s", trip["id"], e)
+        except Exception as e:
+            logger.error("Day-before reminders failed for %s: %s", gid_, e)
+
+
 def _start_scheduler() -> None:
     """Start the background job runner. We guard against duplicate scheduling
     in multi-worker gunicorn setups by using a filesystem lock — only the
@@ -2676,6 +2819,14 @@ def _start_scheduler() -> None:
         trigger="cron",
         minute=0,
         id="nightly_rotation",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _daybefore_reminders,
+        # Hourly; fires per-group only at 7pm local time.
+        trigger="cron",
+        minute=5,
+        id="daybefore_reminders",
         replace_existing=True,
     )
     scheduler.start()
@@ -2756,6 +2907,14 @@ def admin_users():
     flash_error = session.pop("admin_flash_error", None)
     stale_groups = _stale_groups(group_id)
 
+    # People invited but not yet signed up, each with a shareable signup link.
+    pending_invites = []
+    for inv in get_pending_invites(group_id):
+        pending_invites.append({
+            **inv,
+            "signup_url": url_for("signup", token=inv["token"], _external=True),
+        })
+
     # Find duplicate accounts across ALL groups that share the admin's email
     # (case-insensitive). Useful when accounts were created in earlier deploys
     # that ended up in different groups.
@@ -2779,7 +2938,37 @@ def admin_users():
         flash_error=flash_error,
         stale_groups=stale_groups,
         duplicates=duplicates,
+        pending_invites=pending_invites,
     )
+
+
+@app.route("/invite/resend/<token>", methods=["POST"])
+@login_required
+@admin_required
+def invite_resend(token):
+    """Re-send an existing pending invite over WhatsApp. Scoped to the admin's
+    own group so you can't poke tokens from other groups."""
+    group_id = gid()
+    invite = get_invite_by_token(token)
+    if not invite or invite.get("group_id") != group_id or invite.get("used"):
+        session["admin_flash_error"] = "That invite is no longer valid."
+        return redirect(url_for("admin_users"))
+
+    group_name = get_group_name(group_id)
+    signup_url = url_for("signup", token=token, _external=True)
+    message = (
+        f"You've been invited to join {group_name}!\n\n"
+        f"Click the link below to create your account:\n{signup_url}"
+    )
+    try:
+        send_sms(to_phone=invite["phone"], message=message)
+        session["admin_flash"] = f"Invite re-sent to {invite['phone']}."
+    except Exception as e:
+        logger.error("Invite resend failed for %s: %s", invite.get("phone"), e)
+        session["admin_flash_error"] = (
+            f"Couldn't send via WhatsApp. Share this link directly: {signup_url}"
+        )
+    return redirect(url_for("admin_users"))
 
 
 @app.route("/admin/users/dedupe", methods=["POST"])

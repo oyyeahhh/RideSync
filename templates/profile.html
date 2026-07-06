@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Profile — CarpoolSync</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500;600&family=Tiempos+Text:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Styrene A", ui-sans-serif, system-ui, sans-serif;
+      background: #FAF9F5;
+      color: #1A1714;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: transparent;
+      padding: 28px 48px 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    header img.site-logo { height: 90px; width: auto; display: block; }
+
+    main {
+      flex: 1;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 24px 24px 56px;
+    }
+
+    .card {
+      background: #FFFFFF;
+      border-radius: 14px;
+      padding: 36px 40px;
+      border: 1px solid #EAE8E3;
+      width: 100%;
+      max-width: 460px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+    }
+
+    .card-heading {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: 22px;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+
+    .card-sub { font-size: 14px; color: #8C8680; margin-bottom: 24px; }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #C0BAB4;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin: 22px 0 12px;
+    }
+
+    .form-field { margin-bottom: 14px; }
+
+    .form-field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: #8C8680;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 6px;
+    }
+
+    .form-field .hint {
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 400;
+      color: #B0ABA5;
+      font-size: 11px;
+    }
+
+    .form-field input, .form-field textarea {
+      width: 100%;
+      padding: 10px 13px;
+      border: 1px solid #EAE8E3;
+      border-radius: 7px;
+      font-size: 15px;
+      font-family: inherit;
+      background: #FDFCFA;
+      color: #1A1714;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .form-field textarea { resize: vertical; min-height: 64px; }
+    .form-field input:focus, .form-field textarea:focus { border-color: #D4784A; }
+
+    .error-banner {
+      background: #FDF0EC;
+      border: 1px solid #E8B8A4;
+      border-radius: 7px;
+      padding: 10px 13px;
+      font-size: 14px;
+      color: #8B3A1E;
+      margin-bottom: 18px;
+    }
+
+    .success-banner {
+      background: #F0FAF3;
+      border: 1px solid #B7DFC4;
+      border-radius: 7px;
+      padding: 10px 13px;
+      font-size: 14px;
+      color: #1A5C30;
+      margin-bottom: 18px;
+    }
+
+    .btn-submit {
+      width: 100%;
+      background: linear-gradient(135deg, #D4784A 0%, #C4633A 100%);
+      color: #FAF9F5;
+      border: none;
+      padding: 13px 20px;
+      border-radius: 7px;
+      font-size: 15px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      margin-top: 10px;
+    }
+
+    .btn-submit:hover { opacity: 0.9; }
+
+    .footer-link { text-align: center; margin-top: 18px; font-size: 14px; }
+    .footer-link a { color: #8C8680; text-decoration: none; }
+    .footer-link a:hover { text-decoration: underline; }
+
+    .divider { height: 1px; background: #EAE8E3; margin: 4px 0 0; }
+
+    @media (max-width: 480px) {
+      header { padding: 20px 24px; }
+      .card { padding: 26px 22px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <img src="/static/carpoolsynclogo.png" alt="CarpoolSync" class="site-logo">
+</header>
+
+<main>
+  <div class="card">
+    <div class="card-heading">My profile</div>
+    <div class="card-sub">Keep your details current — {{ group_name }} uses your address to plan pickup routes.</div>
+
+    {% if saved %}
+    <div class="success-banner">✓ Saved. Your changes take effect on the next route.</div>
+    {% endif %}
+    {% if error %}
+    <div class="error-banner">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="/profile">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="section-label">You</div>
+      <div class="form-field">
+        <label>Your Name</label>
+        <input type="text" name="your_name" value="{{ form.your_name }}" required autofocus>
+      </div>
+      <div class="form-field">
+        <label>Phone <span class="hint">(for carpool alerts &amp; password resets)</span></label>
+        <input type="tel" name="phone" value="{{ form.phone }}" placeholder="+1 201 555 0100" autocomplete="tel">
+      </div>
+
+      {% if has_family %}
+      <div class="section-label">Your Family</div>
+      <div class="form-field">
+        <label>Family Name</label>
+        <input type="text" name="family_name" value="{{ form.family_name }}" placeholder="e.g. Nadler Family">
+      </div>
+      <div class="form-field">
+        <label>Home Address <span class="hint">(used for pickup routing)</span></label>
+        <input type="text" name="address" value="{{ form.address }}" placeholder="123 Main St, Teaneck, NJ" required>
+      </div>
+      <div class="form-field">
+        <label>Children <span class="hint">(one per line)</span></label>
+        <textarea name="children" placeholder="Avigail&#10;Noam">{{ form.children }}</textarea>
+      </div>
+      {% endif %}
+
+      <button type="submit" class="btn-submit">Save changes</button>
+    </form>
+
+    <div class="footer-link"><a href="/">&larr; Back to dashboard</a></div>
+  </div>
+</main>
+
+</body>
+</html>

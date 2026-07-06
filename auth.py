@@ -124,6 +124,34 @@ def verify_invite_token(token: str) -> dict | None:
     return None
 
 
+def get_pending_invites(group_id: str) -> list:
+    """Unused, non-expired invites for a group — i.e. people who were invited
+    but haven't signed up yet. Newest first. Each item includes a computed
+    `days_ago` for display."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=INVITE_TTL_DAYS)
+    now = datetime.now(timezone.utc)
+    pending = []
+    for inv in _load_invites():
+        if inv.get("group_id") != group_id or inv.get("used"):
+            continue
+        try:
+            created = datetime.fromisoformat(inv["created_at"].replace("Z", "+00:00"))
+        except (KeyError, ValueError):
+            continue
+        if created < cutoff:
+            continue
+        pending.append({**inv, "days_ago": (now - created).days})
+    pending.sort(key=lambda i: i.get("created_at", ""), reverse=True)
+    return pending
+
+
+def get_invite_by_token(token: str) -> dict | None:
+    for inv in _load_invites():
+        if inv.get("token") == token:
+            return inv
+    return None
+
+
 def mark_invite_used(token: str) -> None:
     invites = _load_invites()
     for invite in invites:
@@ -208,6 +236,25 @@ def update_password(user_id: str, new_password: str) -> None:
         if u["id"] == user_id:
             u["password_hash"] = _hash_password(new_password)
     _save_users(users)
+
+
+def update_user_profile(user_id: str, *, name: str | None = None,
+                        phone: str | None = None) -> dict | None:
+    """Update a user's own editable profile fields (name shown in the header,
+    phone used for password-reset SMS). Returns the updated user or None."""
+    users = _load_users()
+    updated = None
+    for u in users:
+        if u.get("id") == user_id:
+            if name is not None:
+                u["name"] = name.strip()
+            if phone is not None:
+                u["phone"] = phone
+            updated = u
+            break
+    if updated is not None:
+        _save_users(users)
+    return updated
 
 
 def delete_user(user_id: str) -> bool:

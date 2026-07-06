@@ -90,6 +90,31 @@ def get_family(family_id: str, group_id: str) -> Family:
     raise ValueError(f"No family with id {family_id} in group {group_id}")
 
 
+def update_family(family_id: str, group_id: str, *, name: str | None = None,
+                  address: str | None = None, phone: str | None = None,
+                  children: list[str] | None = None) -> dict | None:
+    """Update a family's editable fields in place. Only keys passed (non-None)
+    are changed. Returns the updated dict, or None if the family isn't found.
+
+    Note on geocoding: coordinates are cached by address string, so changing
+    `address` transparently re-geocodes on the next route computation — no
+    stale lat/lng to clear here."""
+    data = _load_families_json(group_id)
+    for d in data:
+        if d["id"] == family_id:
+            if name is not None:
+                d["name"] = name
+            if address is not None:
+                d["address"] = address
+            if phone is not None:
+                d["phone"] = phone
+            if children is not None:
+                d["children"] = children
+            _save_families_json(data, group_id)
+            return d
+    return None
+
+
 # Destinations are currently hardcoded globally; kept for backward compat.
 _DESTINATIONS = [
     Destination(

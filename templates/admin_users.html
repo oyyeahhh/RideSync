@@ -432,6 +432,37 @@
     {% endfor %}
     {% endif %}
 
+    {% if pending_invites %}
+    <div class="cleanup-section">
+      <h2>Pending invites</h2>
+      <p>
+        {{ pending_invites | length }} invited {{ 'person hasn' if pending_invites | length == 1 else 'people haven' }}&rsquo;t signed up yet.
+        Re-send the WhatsApp, or copy the link and share it another way.
+      </p>
+      {% for inv in pending_invites %}
+      <div class="cleanup-group-row">
+        <div class="cleanup-group-info">
+          <div>
+            <strong>{{ inv.family_name or inv.phone }}</strong>
+            <span class="role-badge role-parent" style="margin-left:6px;">
+              {% if inv.days_ago == 0 %}invited today{% elif inv.days_ago == 1 %}invited yesterday{% else %}invited {{ inv.days_ago }} days ago{% endif %}
+            </span>
+          </div>
+          <div class="gid">&#128222; {{ inv.phone }}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button type="button" class="btn btn-reset"
+            onclick="copyInviteLink('{{ inv.signup_url }}', this)">&#128203; Copy link</button>
+          <form method="POST" action="/invite/resend/{{ inv.token }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-submit-reset">&#128257; Resend</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     {% if duplicates %}
     <div class="cleanup-section">
       <h2>Duplicate accounts on your email</h2>
@@ -507,6 +538,20 @@
         const input = el.querySelector('input[type="password"]');
         if (input) input.focus();
       }
+    }
+
+    async function copyInviteLink(url, btn) {
+      const orig = btn.innerHTML;
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch (e) {
+        // Fallback for older browsers / non-secure contexts.
+        const t = document.createElement('textarea');
+        t.value = url; document.body.appendChild(t); t.select();
+        document.execCommand('copy'); t.remove();
+      }
+      btn.innerHTML = '✓ Copied';
+      setTimeout(() => { btn.innerHTML = orig; }, 1500);
     }
   </script>
 </body>
