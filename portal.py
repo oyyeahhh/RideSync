@@ -33,7 +33,11 @@ from storage import DATA_DIR, CODE_DIR, group_dir, migrate_legacy_data, atomic_w
 from families import get_family, get_destination, get_all_family_ids, add_family, update_family
 from rotation import _load as _load_rotation, add_to_rotation, set_driver as _set_driver, advance as advance_rotation, set_index as _set_rotation_index
 from trips import get_stats, load_trips, record_trip
-from schedule import load_schedule, save_schedule, add_trip, update_trip, remove_trip, remove_series, add_recurring_trips, claim_trip
+from schedule import (
+    load_schedule, save_schedule, add_trip, update_trip, remove_trip,
+    remove_series, add_recurring_trips, claim_trip, get_trip,
+    get_or_create_drive_token, find_trip_by_drive_token, record_checkin,
+)
 from karma import get_karma, record_swap_request as _record_swap_req, record_swap_cover as _record_swap_cover
 from cal_feed import build_ics
 from auth import (
@@ -368,6 +372,17 @@ def _today_iso(group_id: str) -> str:
     bare date.today() drifts one day ahead of US timezones every evening —
     making today's trip vanish from the dashboard/bulletin after ~7-8pm."""
     return datetime.now(_group_tz(group_id)).strftime("%Y-%m-%d")
+
+
+def _drive_url(token: str) -> str:
+    """Absolute URL for the driver day-of page. url_for(_external=True) needs
+    a request context; the auto-route background job doesn't have one, so it
+    falls back to APP_BASE_URL (defaults to the production domain)."""
+    try:
+        return url_for("drive_view", token=token, _external=True)
+    except RuntimeError:
+        base = os.environ.get("APP_BASE_URL", "https://carpoolsync.up.railway.app").rstrip("/")
+        return f"{base}/drive/{token}"
 
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
@@ -780,6 +795,7 @@ def kid_display(token):
     # otherwise fall back to "everyone except driver/absent".
     cache = load_route_cache(group_id, trip_id=trip.get("id"), date=trip.get("date")) if trip else None
     absent_set = set(get_absences(trip["date"], group_id)) if trip else set()
+    checkin_set = set((trip.get("checkins") or {}).keys()) if trip else set()
     pickups = []
     if cache and trip and cache.get("date") == trip["date"]:
         for entry in cache.get("schedule", []):
@@ -800,6 +816,7 @@ def kid_display(token):
                 "pickup_time": pt,
                 "pickup_iso": iso,
                 "absent": is_absent,
+                "picked_up": fid in checkin_set,
             })
     elif trip:
         for fid in get_all_family_ids(group_id):
@@ -812,6 +829,7 @@ def kid_display(token):
                     "pickup_time": "",
                     "pickup_iso": "",
                     "absent": fid in absent_set,
+                    "picked_up": fid in checkin_set,
                 })
             except Exception:
                 continue
@@ -861,6 +879,184 @@ def kid_display(token):
         upcoming=upcoming_view,
         live_location=live_location,
     )
+
+
+# ── Driver day-of page (public, token-based) ─────────────────────────────────
+# The route SMS includes a /drive/<token> link. No login — drivers are in a
+# car; the unguessable per-trip token is the auth (same pattern as the
+# kid-bulletin display token).
+
+def _find_trip_by_drive_token_any(token: str):
+    """Locate (trip, group_id) for a drive token across all groups."""
+    if not token or len(token) < 12:
+        return None, None
+    for g in list_groups():
+        t = find_trip_by_drive_token(token, g["id"])
+        if t:
+            return t, g["id"]
+    return None, None
+
+
+def _drive_pickup_rows(trip: dict, group_id: str) -> list[dict]:
+    """Pickup list for the driver page: route-cache order when available,
+    else all families minus the driver. Includes absence, kid names, and
+    check-in state."""
+    absent = set(get_absences(trip.get("date", ""), group_id))
+    checkins = trip.get("checkins", {}) or {}
+    driver_fid = trip.get("driver_family_id") or ""
+
+    ordered = []
+    cache = load_route_cache(group_id, trip_id=trip.get("id"), date=trip.get("date"))
+    if cache and cache.get("date") == trip.get("date"):
+        ordered = [(e.get("family_id", ""), e.get("label") or "Family", e.get("pickup_time", ""))
+                   for e in cache.get("schedule", [])]
+    if not ordered:
+        for fid in get_all_family_ids(group_id):
+            if fid == driver_fid:
+                continue
+            try:
+                ordered.append((fid, get_family(fid, group_id).name, ""))
+            except ValueError:
+                continue
+
+    rows = []
+    for fid, label, ptime in ordered:
+        if fid == driver_fid:
+            continue
+        kids = ""
+        try:
+            fam = get_family(fid, group_id)
+            kids = " & ".join(k.name for k in fam.kids)
+        except ValueError:
+            pass
+        rows.append({
+            "family_id": fid,
+            "label": label,
+            "kids": kids,
+            "pickup_time": ptime,
+            "absent": fid in absent,
+            "checked_in": fid in checkins,
+        })
+    return rows
+
+
+@app.route("/drive/<token>")
+def drive_view(token):
+    trip, group_id = _find_trip_by_drive_token_any(token)
+    if not trip:
+        return "This drive link isn't valid anymore. Ask for a fresh route message.", 404
+    rows = _drive_pickup_rows(trip, group_id)
+    try:
+        arrive = datetime.strptime(trip.get("arrival_time", ""), "%H:%M").strftime("%-I:%M %p")
+    except ValueError:
+        arrive = trip.get("arrival_time", "")
+    try:
+        date_friendly = datetime.strptime(trip["date"], "%Y-%m-%d").strftime("%A, %b %-d")
+    except (KeyError, ValueError):
+        date_friendly = trip.get("date", "")
+    return render_template(
+        "drive.html",
+        token=token,
+        trip=trip,
+        pickups=rows,
+        arrive_by=arrive,
+        date_friendly=date_friendly,
+        group_name=get_group_name(group_id),
+        done=bool(trip.get("rotation_advanced")),
+    )
+
+
+@csrf.exempt
+@app.route("/drive/<token>/checkin", methods=["POST"])
+def drive_checkin(token):
+    """Mark a family picked up (or undo a mistap) and ping that family."""
+    trip, group_id = _find_trip_by_drive_token_any(token)
+    if not trip:
+        return jsonify({"ok": False, "error": "invalid link"}), 404
+    data = request.json or {}
+    family_id = data.get("family_id", "")
+    undo = bool(data.get("undo"))
+    rows = {r["family_id"]: r for r in _drive_pickup_rows(trip, group_id)}
+    if family_id not in rows:
+        return jsonify({"ok": False, "error": "unknown family"}), 400
+
+    updated, changed = record_checkin(trip["id"], group_id, family_id, undo=undo)
+    if not updated:
+        return jsonify({"ok": False, "error": "trip not found"}), 404
+    checkins = updated.get("checkins", {}) or {}
+    remaining = sum(1 for r in rows.values()
+                    if not r["absent"] and r["family_id"] not in checkins)
+
+    if changed:
+        # Ping the family — skipped on no-op double taps.
+        try:
+            fam = get_family(family_id, group_id)
+            phone = fam.guardians[0].phone if fam.guardians else ""
+            kids = " & ".join(k.name for k in fam.kids)
+            who = kids or f"The {fam.name} kids"
+            plural = (not kids) or ("&" in kids)
+            verb = "are" if plural else "is"
+            driver_label = updated.get("driver_name") or "the driver"
+            dest = updated.get("destination_name") or "the destination"
+            if undo:
+                msg = (f"Correction: {who} {'haven’t' if plural else 'hasn’t'} been picked up "
+                       "yet — please disregard the last message.")
+            elif remaining > 0:
+                msg = (f"✓ {who} {verb} in the car with {driver_label} — "
+                       f"{remaining} stop{'s' if remaining != 1 else ''} to go, then {dest}.")
+            else:
+                msg = f"✓ {who} {verb} in the car with {driver_label} — heading to {dest}!"
+            if phone:
+                send_sms(to_phone=phone, message=msg)
+        except Exception as e:
+            logger.error("Check-in ping failed for family %s: %s", family_id, e)
+
+    return jsonify({"ok": True, "checked_in": family_id in checkins, "remaining": remaining})
+
+
+@csrf.exempt
+@app.route("/drive/<token>/late", methods=["POST"])
+def drive_late(token):
+    """Running-late alert to all non-absent pickup families, token-scoped."""
+    trip, group_id = _find_trip_by_drive_token_any(token)
+    if not trip:
+        return jsonify({"ok": False, "error": "invalid link"}), 404
+    data = request.json or {}
+    minutes = str(data.get("minutes", "")).strip()[:4]
+    driver_name = trip.get("driver_name") or "The driver"
+    absences = get_absences(trip.get("date", ""), group_id)
+    driver_fid = trip.get("driver_family_id") or ""
+    msg = f"⏰ {driver_name} is running late"
+    if minutes:
+        msg += f" (~{minutes} min)"
+    msg += ". Hang tight!"
+    for fid in get_all_family_ids(group_id):
+        if fid == driver_fid or fid in absences:
+            continue
+        try:
+            family = get_family(fid, group_id)
+            if family.guardians:
+                send_sms(to_phone=family.guardians[0].phone, message=msg)
+        except Exception as e:
+            logger.error("Drive-late SMS failed for family %s: %s", fid, e)
+    return jsonify({"ok": True})
+
+
+@csrf.exempt
+@app.route("/drive/<token>/arrived", methods=["POST"])
+def drive_arrived(token):
+    """Final tap: same flow as the dashboard's 'Kids Arrived' (notify,
+    advance rotation, record history), authorized by the trip token."""
+    trip, group_id = _find_trip_by_drive_token_any(token)
+    if not trip:
+        return jsonify({"ok": False, "error": "invalid link"}), 404
+    info = {
+        "trip": trip,
+        "date": trip.get("date", ""),
+        "driver_id": trip.get("driver_family_id") or "",
+        "driver_name": trip.get("driver_name") or "",
+    }
+    return jsonify(_process_arrival(group_id, info))
 
 
 @app.route("/admin/display-url")
@@ -1512,6 +1708,18 @@ def dashboard():
         active_driver_id = next_driver_id
         trip_date = trip_time.strftime("%Y-%m-%d")
 
+    # Day-of check-in page link — shown to admins and the active driver so
+    # the flow still works if the route SMS (which carries the link) is lost.
+    drive_url = ""
+    if upcoming and (user.get("role") == "admin" or
+                     (user.get("family_id") and user.get("family_id") == active_driver_id)):
+        try:
+            tok = get_or_create_drive_token(upcoming[0]["id"], group_id)
+            if tok:
+                drive_url = url_for("drive_view", token=tok)
+        except Exception as e:
+            logger.warning("Could not build drive URL: %s", e)
+
     absences = get_absences(trip_date, group_id)
     pickup_families = []
     for fid in get_all_family_ids(group_id):
@@ -1560,6 +1768,7 @@ def dashboard():
         maps_api_key=os.environ.get("GOOGLE_MAPS_API_KEY", ""),
         assignment_mode=get_assignment_mode(group_id),
         kid_bulletin_url=kid_bulletin_url,
+        drive_url=drive_url,
     )
 
 
@@ -1795,13 +2004,46 @@ def schedule_update(trip_id):
     return jsonify(trip)
 
 
+def _notify_all_families(group_id: str, message: str) -> int:
+    """Send a message to every family in the group (first guardian's phone).
+    Returns how many sends succeeded."""
+    sent = 0
+    for fid in get_all_family_ids(group_id):
+        try:
+            fam = get_family(fid, group_id)
+            if fam.guardians and fam.guardians[0].phone:
+                send_sms(to_phone=fam.guardians[0].phone, message=message)
+                sent += 1
+        except Exception as e:
+            logger.error("Cancellation notice failed for family %s: %s", fid, e)
+    return sent
+
+
 @app.route("/schedule/remove/<trip_id>", methods=["POST"])
 @login_required
 @admin_required
 def schedule_remove(trip_id):
     group_id = gid()
+    data = request.get_json(silent=True) or {}
+    trip = get_trip(trip_id, group_id)
     remove_trip(trip_id, group_id)
-    return jsonify({"ok": True})
+    # Deleting a trip used to notify no one — families would still show up.
+    # Notify on request, and only for trips that haven't happened yet.
+    notified = 0
+    if data.get("notify") and trip and trip.get("date", "") >= _today_iso(group_id):
+        try:
+            date_friendly = datetime.strptime(trip["date"], "%Y-%m-%d").strftime("%a, %b %-d")
+        except (KeyError, ValueError):
+            date_friendly = trip.get("date", "")
+        try:
+            t = datetime.strptime(trip.get("arrival_time", ""), "%H:%M").strftime("%-I:%M %p")
+        except ValueError:
+            t = trip.get("arrival_time", "")
+        dest = trip.get("destination_name") or "the destination"
+        msg = (f"❌ Carpool cancelled: {dest} on {date_friendly}"
+               + (f" (was {t})" if t else "") + f". — {get_group_name(group_id)}")
+        notified = _notify_all_families(group_id, msg)
+    return jsonify({"ok": True, "notified": notified})
 
 
 @app.route("/schedule/remove-series/<series_id>", methods=["POST"])
@@ -1809,8 +2051,19 @@ def schedule_remove(trip_id):
 @admin_required
 def schedule_remove_series(series_id):
     group_id = gid()
+    data = request.get_json(silent=True) or {}
+    today = _today_iso(group_id)
+    series_trips = [t for t in load_schedule(group_id) if t.get("series_id") == series_id]
+    future = [t for t in series_trips if t.get("date", "") >= today]
     count = remove_series(series_id, group_id)
-    return jsonify({"ok": True, "removed": count})
+    notified = 0
+    if data.get("notify") and future:
+        dest = future[0].get("destination_name") or "the destination"
+        msg = (f"❌ The recurring {dest} carpool has been cancelled — "
+               f"{len(future)} upcoming trip{'s' if len(future) != 1 else ''} removed. "
+               f"— {get_group_name(group_id)}")
+        notified = _notify_all_families(group_id, msg)
+    return jsonify({"ok": True, "removed": count, "notified": notified})
 
 
 @app.route("/schedule/set-assignment-mode", methods=["POST"])
@@ -1988,7 +2241,13 @@ def arrived():
     # fix #3: only admin or the active driver can send this
     if user.get("role") != "admin" and user.get("family_id") != info["driver_id"]:
         return jsonify({"error": "Only the driver or an admin can send this."}), 403
+    return jsonify(_process_arrival(group_id, info))
 
+
+def _process_arrival(group_id: str, info: dict) -> dict:
+    """Shared 'kids arrived' flow: notify families, advance the rotation,
+    record history. Used by /arrived (dashboard) and the driver day-of page.
+    Caller is responsible for authorization. Returns the JSON-able result."""
     cfg = load_config(group_id)
     dest_name   = info["trip"].get("destination_name") if info["trip"] else None
     dest_name   = dest_name or cfg.get("destination_name", "the destination")
@@ -2000,13 +2259,13 @@ def arrived():
     # Idempotence: a double tap (or two parents tapping) must not re-SMS every
     # family and advance the rotation a second time.
     if info.get("trip") and info["trip"].get("rotation_advanced"):
-        return jsonify({"ok": True, "already": True})
+        return {"ok": True, "already": True}
     if not info.get("trip"):
         # No scheduled trip (rotation/config fallback) — treat an existing
         # history entry for this date + driver as "already recorded".
         if any(t.get("date") == trip_date and t.get("driver_family_id") == (driver_id or "")
                for t in load_trips(group_id)):
-            return jsonify({"ok": True, "already": True})
+            return {"ok": True, "already": True}
 
     msg = f"✅ Kids have arrived safely at {dest_name}! Thanks {driver_name}!"
 
@@ -2073,7 +2332,7 @@ def arrived():
     except Exception as e:
         logger.error("Failed to record trip history: %s", e)
 
-    return jsonify({"ok": True})
+    return {"ok": True}
 
 
 @app.route("/send-route", methods=["POST"])
@@ -2189,6 +2448,7 @@ def send_route():
     driver_phone = driver.guardians[0].phone if driver.guardians else ""
     if driver_phone:
         maps_url = build_maps_url(result)
+        drive_token = get_or_create_drive_token(trip["id"], group_id)
         try:
             send_route_sms(
                 to_phone=driver_phone,
@@ -2196,6 +2456,7 @@ def send_route():
                 driver_name=driver.name,
                 dest_name=dest_name,
                 maps_url=maps_url,
+                drive_url=_drive_url(drive_token) if drive_token else "",
             )
         except Exception as e:
             logger.error("Route SMS failed: %s", e)
@@ -2671,12 +2932,14 @@ def _auto_send_route_for_trip(trip: dict, trip_dt: datetime, cfg: dict, group_id
 
     try:
         maps_url = build_maps_url(result)
+        drive_token = get_or_create_drive_token(trip["id"], group_id)
         send_route_sms(
             to_phone=driver_phone,
             result=result,
             driver_name=driver.name,
             dest_name=dest_name,
             maps_url=maps_url,
+            drive_url=_drive_url(drive_token) if drive_token else "",
         )
         logger.info("Auto-route sent to %s for trip %s", driver.name, trip["id"])
     except Exception as e:

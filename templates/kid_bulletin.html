@@ -365,10 +365,12 @@
         <div class="pickup-list">
           {% for p in pickups %}
           <div class="pickup-row {% if p.absent %}absent{% endif %}">
-            <span class="who">{% if p.absent %}🙅{% else %}🧒{% endif %} {{ p.name }}</span>
+            <span class="who">{% if p.absent %}🙅{% elif p.picked_up %}🚗{% else %}🧒{% endif %} {{ p.name }}</span>
             <span class="when">
               {% if p.absent %}
                 away today
+              {% elif p.picked_up %}
+                <span style="color:#2a9d5c;font-weight:700;">✓ in the car</span>
               {% else %}
                 {{ p.pickup_time or '—' }}
                 {% if p.pickup_iso %}<span class="countdown" data-target="{{ p.pickup_iso }}"></span>{% endif %}

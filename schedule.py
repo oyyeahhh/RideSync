@@ -3,10 +3,11 @@ Per-group upcoming trip schedule.
 """
 
 import json
+import secrets
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
-from storage import group_dir, atomic_write_json, read_json
+from storage import group_dir, atomic_write_json, read_json, update_json
 
 WEEKDAY_NAMES = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
 
@@ -72,6 +73,57 @@ def remove_series(series_id: str, group_id: str) -> int:
 
 def get_trip(trip_id: str, group_id: str) -> dict | None:
     return next((t for t in load_schedule(group_id) if t["id"] == trip_id), None)
+
+
+def get_or_create_drive_token(trip_id: str, group_id: str) -> str | None:
+    """Opaque per-trip token for the driver's no-login day-of page
+    (/drive/<token>). Same pattern as the kid-bulletin display token: the
+    token IS the auth, so it must be unguessable. Returns None if the trip
+    doesn't exist."""
+    result = {}
+
+    def mutate(trips):
+        for t in trips:
+            if t["id"] == trip_id:
+                if not t.get("drive_token"):
+                    t["drive_token"] = secrets.token_urlsafe(16)
+                result["token"] = t["drive_token"]
+        return trips
+
+    update_json(_file(group_id), mutate, default=[])
+    return result.get("token")
+
+
+def find_trip_by_drive_token(token: str, group_id: str) -> dict | None:
+    if not token or len(token) < 12:
+        return None
+    return next((t for t in load_schedule(group_id)
+                 if t.get("drive_token") == token), None)
+
+
+def record_checkin(trip_id: str, group_id: str, family_id: str,
+                   undo: bool = False) -> tuple[dict | None, bool]:
+    """Mark (or unmark) a family as picked up on a trip. Read-modify-write
+    under a single lock so two quick taps can't drop each other.
+    Returns (updated_trip, changed) — changed is False when the tap was a
+    no-op (already checked in / already clear), which callers use to avoid
+    duplicate WhatsApp pings."""
+    result = {"trip": None, "changed": False}
+
+    def mutate(trips):
+        for t in trips:
+            if t["id"] == trip_id:
+                checkins = t.setdefault("checkins", {})
+                if undo:
+                    result["changed"] = checkins.pop(family_id, None) is not None
+                elif family_id not in checkins:
+                    checkins[family_id] = datetime.now().isoformat()
+                    result["changed"] = True
+                result["trip"] = t
+        return trips
+
+    update_json(_file(group_id), mutate, default=[])
+    return result["trip"], result["changed"]
 
 
 def claim_trip(trip_id: str, leg: str, family_id: str, family_name: str, group_id: str) -> dict | None:

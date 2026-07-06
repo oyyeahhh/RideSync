@@ -30,7 +30,8 @@ def send_sms(to_phone: str, message: str) -> None:
     print(f"SMS sent to {to_phone}")
 
 
-def send_route_sms(to_phone: str, result: dict, driver_name: str, dest_name: str, maps_url: str) -> None:
+def send_route_sms(to_phone: str, result: dict, driver_name: str, dest_name: str,
+                   maps_url: str, drive_url: str = "") -> None:
     depart = result["depart_at"]
     pickups = result["ordered_pickups"]
     legs = result["leg_durations_seconds"]
@@ -47,6 +48,8 @@ def send_route_sms(to_phone: str, result: dict, driver_name: str, dest_name: str
 
     lines.append(f"\nArrive at {dest_name} by {result['arrival_time'].strftime('%I:%M %p')}")
     lines.append(f"\nOpen in Maps:\n{maps_url}")
+    if drive_url:
+        lines.append(f"\nCheck kids in as you pick them up (parents get a ping):\n{drive_url}")
     lines.append("\nReminder: Open Google Maps -> tap your photo -> Share location -> send the link to the group.")
 
     send_sms(to_phone=to_phone, message="\n".join(lines))

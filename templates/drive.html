@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Today's Drive — CarpoolSync</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500;600;700&family=Tiempos+Text:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cream:  #FAF9F5;
+      --ink:    #1A1714;
+      --mid:    #6E6862;
+      --border: #EAE8E3;
+      --orange: #D4784A;
+      --coral:  #FF6B8A;
+      --cyan:   #3EC9E8;
+      --green:  #2a9d5c;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Styrene A", ui-sans-serif, system-ui, sans-serif;
+      background: var(--cream);
+      color: var(--ink);
+      min-height: 100vh;
+      padding: 16px 14px 40px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+    .top {
+      text-align: center;
+      margin-bottom: 14px;
+    }
+    .top img { height: 64px; width: auto; }
+    .group-name { font-size: 12px; color: var(--mid); margin-top: 2px; }
+
+    .hero {
+      background: linear-gradient(135deg, #1A1714 0%, #2d2a26 100%);
+      color: var(--cream);
+      border-radius: 18px;
+      padding: 18px 20px;
+      margin-bottom: 16px;
+    }
+    .hero .kicker {
+      font-size: 11px; font-weight: 700; letter-spacing: .07em;
+      text-transform: uppercase; color: var(--coral); margin-bottom: 6px;
+    }
+    .hero .dest {
+      font-family: "Tiempos Text", Georgia, serif;
+      font-size: 22px; font-weight: 500; line-height: 1.2;
+    }
+    .hero .meta { font-size: 13px; color: rgba(255,255,255,0.55); margin-top: 6px; }
+
+    .done-banner {
+      background: #F0FAF3; border: 1px solid #B7DFC4; color: #1A5C30;
+      border-radius: 12px; padding: 14px 16px; font-size: 15px;
+      font-weight: 600; text-align: center; margin-bottom: 16px;
+    }
+
+    .section-label {
+      font-size: 11px; font-weight: 700; letter-spacing: .07em;
+      text-transform: uppercase; color: #B0ABA5; margin: 18px 4px 10px;
+    }
+
+    .pickup {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; background: #fff; border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px 14px 14px 16px; margin-bottom: 10px;
+      transition: opacity .15s, background .15s;
+    }
+    .pickup .info { min-width: 0; }
+    .pickup .name { font-size: 16px; font-weight: 600; }
+    .pickup .sub { font-size: 12.5px; color: var(--mid); margin-top: 2px; }
+    .pickup.absent { opacity: .55; background: #FDF6F4; }
+    .pickup.checked { background: #F0FAF3; border-color: #B7DFC4; }
+
+    .check-btn {
+      flex-shrink: 0; min-width: 118px; padding: 13px 14px;
+      border-radius: 12px; font-size: 14px; font-weight: 700;
+      font-family: inherit; cursor: pointer; border: 1.5px solid;
+      transition: all .15s;
+    }
+    .check-btn.todo {
+      background: var(--ink); color: var(--cream); border-color: var(--ink);
+    }
+    .check-btn.done {
+      background: #DCFCE7; color: #166534; border-color: #86EFAC;
+    }
+    .check-btn:disabled { opacity: .5; cursor: default; }
+    .absent-chip {
+      flex-shrink: 0; font-size: 12px; font-weight: 600; color: var(--coral);
+      background: rgba(255,107,138,0.1); border: 1px solid rgba(255,107,138,0.3);
+      border-radius: 10px; padding: 8px 12px;
+    }
+
+    .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+    .btn-late {
+      width: 100%; padding: 15px; border-radius: 14px; font-size: 15px;
+      font-weight: 700; font-family: inherit; cursor: pointer;
+      background: rgba(255,107,138,0.12); color: #D64560;
+      border: 1.5px solid rgba(255,107,138,0.4);
+    }
+    .btn-arrived {
+      width: 100%; padding: 17px; border-radius: 14px; font-size: 16px;
+      font-weight: 700; font-family: inherit; cursor: pointer;
+      background: linear-gradient(135deg, var(--green), #37b96f);
+      color: #fff; border: none;
+    }
+    .btn-arrived:disabled, .btn-late:disabled { opacity: .5; cursor: default; }
+
+    .progress { text-align: center; font-size: 13px; color: var(--mid); margin-top: 12px; }
+    .foot { text-align: center; font-size: 11.5px; color: #B0ABA5; margin-top: 26px; }
+  </style>
+</head>
+<body>
+
+  <div class="top">
+    <img src="/static/carpoolsynclogo.png" alt="CarpoolSync">
+    <div class="group-name">{{ group_name }}</div>
+  </div>
+
+  <div class="hero">
+    <div class="kicker">{{ date_friendly }}</div>
+    <div class="dest">🚗 Driving to {{ trip.destination_name or "the destination" }}</div>
+    <div class="meta">Arrive by {{ arrive_by or "—" }} · tap ✓ as each kid gets in — their family gets a ping</div>
+  </div>
+
+  <div class="done-banner" id="done-banner" style="{% if not done %}display:none;{% endif %}">
+    🎉 Trip complete — families have been notified. Thanks for driving!
+  </div>
+
+  <div class="section-label">Pickups</div>
+  <div id="pickup-list">
+    {% for p in pickups %}
+    <div class="pickup {% if p.absent %}absent{% endif %} {% if p.checked_in %}checked{% endif %}" id="row-{{ p.family_id }}">
+      <div class="info">
+        <div class="name">{{ p.label }}</div>
+        <div class="sub">
+          {% if p.kids %}{{ p.kids }}{% endif %}
+          {% if p.pickup_time %}{% if p.kids %} · {% endif %}pickup ~{{ p.pickup_time }}{% endif %}
+        </div>
+      </div>
+      {% if p.absent %}
+      <span class="absent-chip">away today</span>
+      {% else %}
+      <button class="check-btn {{ 'done' if p.checked_in else 'todo' }}"
+              id="btn-{{ p.family_id }}"
+              onclick="toggleCheckin('{{ p.family_id }}')">
+        {{ '✓ In the car' if p.checked_in else 'Picked up' }}
+      </button>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="pickup"><div class="info"><div class="name">No pickups on this trip</div>
+      <div class="sub">Everyone is away, or you're the only family.</div></div></div>
+    {% endfor %}
+  </div>
+
+  <div class="progress" id="progress"></div>
+
+  <div class="actions">
+    <button class="btn-late" id="late-btn" onclick="sendLate()" {% if done %}disabled{% endif %}>⏰ Running late — tell everyone</button>
+    <button class="btn-arrived" id="arrived-btn" onclick="sendArrived()" {% if done %}disabled{% endif %}>
+      {% if done %}✓ Arrival already sent{% else %}✅ We've arrived — notify all families{% endif %}
+    </button>
+  </div>
+
+  <div class="foot">This page is private to this trip's link — no sign-in needed.</div>
+
+  <script>
+    const TOKEN = {{ token | tojson }};
+    // family_id -> checked state, seeded server-side.
+    const state = {
+      {% for p in pickups %}{{ p.family_id | tojson }}: { checked: {{ 'true' if p.checked_in else 'false' }}, absent: {{ 'true' if p.absent else 'false' }} },
+      {% endfor %}
+    };
+
+    function renderProgress() {
+      const ids = Object.keys(state).filter(id => !state[id].absent);
+      if (!ids.length) { document.getElementById('progress').textContent = ''; return; }
+      const done = ids.filter(id => state[id].checked).length;
+      document.getElementById('progress').textContent =
+        done === ids.length ? 'All kids picked up ✓' : `${done} of ${ids.length} picked up`;
+    }
+
+    async function toggleCheckin(fid) {
+      const btn = document.getElementById('btn-' + fid);
+      const row = document.getElementById('row-' + fid);
+      const undo = state[fid].checked;
+      if (undo && !confirm('Un-check this pickup? The family will get a correction message.')) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`/drive/${TOKEN}/checkin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ family_id: fid, undo }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) { alert(data.error || 'Could not update — try again.'); return; }
+        state[fid].checked = data.checked_in;
+        btn.className = 'check-btn ' + (data.checked_in ? 'done' : 'todo');
+        btn.textContent = data.checked_in ? '✓ In the car' : 'Picked up';
+        row.classList.toggle('checked', data.checked_in);
+        renderProgress();
+      } catch (e) {
+        alert('No connection — try again.');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function sendLate() {
+      const minutes = prompt('About how many minutes late? (leave blank to skip)');
+      if (minutes === null) return;
+      const btn = document.getElementById('late-btn');
+      btn.disabled = true;
+      try {
+        const res = await fetch(`/drive/${TOKEN}/late`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ minutes: (minutes || '').trim() }),
+        });
+        const data = await res.json();
+        alert(res.ok && data.ok ? 'Everyone has been told you\'re running late.' : (data.error || 'Could not send.'));
+      } catch (e) { alert('No connection — try again.'); }
+      btn.disabled = false;
+    }
+
+    async function sendArrived() {
+      if (!confirm('Notify all families that the kids have arrived?')) return;
+      const btn = document.getElementById('arrived-btn');
+      btn.disabled = true;
+      try {
+        const res = await fetch(`/drive/${TOKEN}/arrived`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          document.getElementById('done-banner').style.display = '';
+          document.getElementById('late-btn').disabled = true;
+          btn.textContent = data.already ? '✓ Arrival already sent' : '✓ Arrival sent';
+        } else {
+          alert(data.error || 'Could not send.');
+          btn.disabled = false;
+        }
+      } catch (e) {
+        alert('No connection — try again.');
+        btn.disabled = false;
+      }
+    }
+
+    renderProgress();
+  </script>
+</body>
+</html>

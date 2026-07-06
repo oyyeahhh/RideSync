@@ -796,6 +796,11 @@
             {% if live_location.active and live_location.trip_leg == 'return' %}⏹ End Return{% else %}🏠 Start Return{% endif %}
           </button>
           {% endif %}
+          {% if drive_url %}
+          <a href="{{ drive_url }}" style="flex:1;min-width:130px;padding:11px 16px;background:rgba(42,157,92,0.12);color:#4ade80;border:1px solid rgba(42,157,92,0.35);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;text-align:center;text-decoration:none;display:inline-block;box-sizing:border-box;">
+            ✓ Pickup Check-in
+          </a>
+          {% endif %}
           <button onclick="openLateModal()" style="flex:1;min-width:130px;padding:11px 16px;background:rgba(255,107,138,0.12);color:#FF6B8A;border:1px solid rgba(255,107,138,0.3);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
             ⏰ Running Late
           </button>
@@ -1688,26 +1693,30 @@
   }
 
   async function removeTrip(id, seriesId) {
+    const askNotify = () => confirm("Send a cancellation WhatsApp to all families?\n\nOK → notify everyone\nCancel → delete quietly");
     if (seriesId) {
       const seriesTrips = trips.filter(t => t.series_id === seriesId);
       if (seriesTrips.length > 1) {
         const wholeSeries = confirm(`This trip is part of a series of ${seriesTrips.length}.\n\nOK → Delete the ENTIRE series\nCancel → keep the series (you'll be asked about just this trip)`);
         if (wholeSeries) {
-          await fetch(`/schedule/remove-series/${seriesId}`, { method: "POST" });
+          const notify = askNotify();
+          await fetch(`/schedule/remove-series/${seriesId}`, { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({notify}) });
           trips = trips.filter(t => t.series_id !== seriesId);
           renderCalendar();
           return;
         }
         // Cancel must NOT silently delete the single trip — confirm separately.
         if (!confirm("Delete just this one trip?")) return;
-        await fetch(`/schedule/remove/${id}`, { method: "POST" });
+        const notify = askNotify();
+        await fetch(`/schedule/remove/${id}`, { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({notify}) });
         trips = trips.filter(t => t.id !== id);
         renderCalendar();
         return;
       }
     }
     if (!confirm("Delete this trip?")) return;
-    await fetch(`/schedule/remove/${id}`, { method: "POST" });
+    const notify = askNotify();
+    await fetch(`/schedule/remove/${id}`, { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({notify}) });
     trips = trips.filter(t => t.id !== id);
     renderCalendar();
   }
