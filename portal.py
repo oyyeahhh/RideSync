@@ -465,7 +465,7 @@ def gcal_url(trip: dict, group_id: str) -> str:
     arrival = datetime.strptime(f"{trip['date']} {trip['arrival_time']}", "%Y-%m-%d %H:%M").replace(tzinfo=tz)
 
     start = None
-    route_cache = load_route_cache(group_id)
+    route_cache = load_route_cache(group_id, trip_id=trip.get("id"), date=trip.get("date"))
     if route_cache and route_cache.get("date") == trip["date"]:
         try:
             depart_str = route_cache["depart_at"]
@@ -777,7 +777,7 @@ def kid_display(token):
 
     # Today's pickup list — prefer the route cache (real pickup times),
     # otherwise fall back to "everyone except driver/absent".
-    cache = load_route_cache(group_id) if trip else None
+    cache = load_route_cache(group_id, trip_id=trip.get("id"), date=trip.get("date")) if trip else None
     absent_set = set(get_absences(trip["date"], group_id)) if trip else set()
     pickups = []
     if cache and trip and cache.get("date") == trip["date"]:
@@ -1956,7 +1956,11 @@ def arrived():
     miles = 0.0
     minutes = 0
     try:
-        rc = load_route_cache(group_id)
+        rc = load_route_cache(
+            group_id,
+            trip_id=info["trip"]["id"] if info.get("trip") else None,
+            date=trip_date,
+        )
         if rc and rc.get("date") == trip_date:
             # legs are stored in seconds; total miles can be approximated from
             # leg distances if present, else leave at 0.
@@ -2091,7 +2095,8 @@ def send_route():
         arrival_time=arrival_dt,
         buffer_minutes=cfg.get("buffer_minutes", 15),
     )
-    save_route_cache(result, driver_name=driver.name, dest_name=dest_name, group_id=group_id)
+    save_route_cache(result, driver_name=driver.name, dest_name=dest_name,
+                     group_id=group_id, trip_id=trip["id"])
 
     # SMS the driver
     driver_phone = driver.guardians[0].phone if driver.guardians else ""
@@ -2245,7 +2250,7 @@ def bulletin(group_id):
             "position": i + 1,
         })
 
-    route_cache = load_route_cache(group_id)
+    route_cache = load_route_cache(group_id, date=trip_time.strftime("%Y-%m-%d"))
     live_location = get_location(group_id)
 
     return render_template(
@@ -2565,7 +2570,8 @@ def _auto_send_route_for_trip(trip: dict, trip_dt: datetime, cfg: dict, group_id
         arrival_time=trip_dt,
         buffer_minutes=cfg.get("buffer_minutes", 15),
     )
-    save_route_cache(result, driver_name=driver.name, dest_name=dest_name, group_id=group_id)
+    save_route_cache(result, driver_name=driver.name, dest_name=dest_name,
+                     group_id=group_id, trip_id=trip["id"])
 
     driver_phone = driver.guardians[0].phone if driver.guardians else ""
     if not driver_phone:
