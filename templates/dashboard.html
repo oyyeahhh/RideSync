@@ -1291,7 +1291,9 @@
   const NEXT_DRIVER_ID = "{{ next_driver_id or '' }}";
   let ASSIGNMENT_MODE = "{{ assignment_mode }}";
   // tojson escapes <, >, & — |safe with a raw json.dumps let a family or
-  // destination name containing </script> break out of this script tag.
+  // destination name containing a closing script tag break out of this one.
+  // (Never write that tag literally in here, even in a comment: the HTML
+  // parser ends the script block at the first occurrence it sees.)
   const SCHEDULE = {{ schedule | tojson }};
   // Escape user-supplied strings before interpolating into innerHTML.
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
