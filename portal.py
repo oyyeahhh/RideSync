@@ -1262,10 +1262,24 @@ def create_group_route():
                 else:
                     from auth_supabase import signup_with_password
                     s = signup_with_password(form["email"], password)
-                    if not s["ok"]:
-                        error = s["error"] or "Could not create your account. Please try again."
-                    else:
+                    if s["ok"]:
                         supabase_uid = s["supabase_uid"]
+                    elif "already exists" in (s["error"] or ""):
+                        # An orphaned Supabase Auth user (magic-link send or an
+                        # abandoned signup) with NO internal account — the elif
+                        # chain above guarantees no app account uses this email,
+                        # so the auth user owns no data. Adopt it by setting the
+                        # chosen password instead of dead-ending the signup.
+                        from auth_supabase import find_uid_by_email, admin_set_password
+                        uid = find_uid_by_email(form["email"])
+                        adopted = admin_set_password(uid, password) if uid else {"ok": False}
+                        if uid and adopted["ok"]:
+                            supabase_uid = uid
+                            logger.info("Signup adopted orphaned Supabase auth user uid=%s", uid)
+                        else:
+                            error = s["error"]
+                    else:
+                        error = s["error"] or "Could not create your account. Please try again."
 
             if error:
                 # Re-render the form with the error and the prior input.

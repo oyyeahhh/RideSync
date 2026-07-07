@@ -116,6 +116,30 @@ def signup_with_password(email: str, password: str) -> dict:
         return {"ok": False, "supabase_uid": None, "error": f"Signup failed: {msg}"}
 
 
+def find_uid_by_email(email: str) -> Optional[str]:
+    """Find an existing Supabase Auth user's UID by email (service role).
+    Used to adopt orphaned auth users — created by a magic-link send or an
+    abandoned signup — instead of dead-ending on 'already exists'."""
+    email = (email or "").strip().lower()
+    if not email or not is_configured():
+        return None
+    try:
+        client = get_service_client()
+        page = 1
+        while page <= 10:  # 1000 users is far beyond this app's scale
+            resp = client.auth.admin.list_users(page=page, per_page=100)
+            users = resp if isinstance(resp, list) else getattr(resp, "users", []) or []
+            if not users:
+                return None
+            for u in users:
+                if (getattr(u, "email", "") or "").lower() == email:
+                    return u.id
+            page += 1
+    except Exception as e:
+        logger.error("find_uid_by_email failed: %s", e)
+    return None
+
+
 def admin_set_password(supabase_uid: str, password: str) -> dict:
     """Set a password on an EXISTING Supabase Auth user (service-role admin
     API). Used when a first-time magic-link signer completes signup at
