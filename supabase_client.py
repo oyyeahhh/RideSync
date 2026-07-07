@@ -80,19 +80,25 @@ def health_check() -> dict:
             "sdk_installed": create_client is not None,
         }
     try:
-        # Touch the service client; a no-op auth.admin call confirms creds work.
+        # Touch the service client; an auth.admin call confirms creds work.
         client = get_service_client()
-        # auth.admin.list_users(page=1, per_page=1) is the lightest check
-        # that exercises the URL + service_role key together.
-        resp = client.auth.admin.list_users(page=1, per_page=1)
-        # supabase-py returns a list of User objects (or wraps them; we just
-        # need to confirm no exception bubbled up).
-        return {
+        resp = client.auth.admin.list_users(page=1, per_page=100)
+        users = resp if isinstance(resp, list) else getattr(resp, "users", []) or []
+        result = {
             "ok": True,
             "configured": True,
             "url": os.environ.get("SUPABASE_URL", ""),
-            "auth_users_count_estimate": (len(resp) if isinstance(resp, list) else None),
+            "auth_users": len(users),
         }
+        # Schema probe: the memberships table only exists once schema.sql has
+        # been run, so its reachability tells /health whether Phase 2a is done.
+        # (Service role bypasses RLS, so deny-all policies don't block this.)
+        try:
+            client.table("memberships").select("user_id", count="exact").limit(1).execute()
+            result["schema_applied"] = True
+        except Exception:
+            result["schema_applied"] = False
+        return result
     except Exception as e:
         return {
             "ok": False,

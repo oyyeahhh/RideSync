@@ -1110,6 +1110,17 @@ def health():
     else:
         supa_line = f"⚠️  CONFIGURED but connection failed: {supa.get('error', 'unknown')}"
 
+    auth_mode = ("🔐 Supabase Auth (USE_SUPABASE_AUTH=1)"
+                 if os.environ.get("USE_SUPABASE_AUTH", "").strip() == "1"
+                 else "🗝  Legacy bcrypt")
+    if supa.get("ok"):
+        schema_line = "✅ applied (memberships table reachable)" \
+            if supa.get("schema_applied") else "❌ NOT applied — run supabase/schema.sql in the SQL Editor"
+        auth_users_line = str(supa.get("auth_users", "?"))
+    else:
+        schema_line = "— (no connection)"
+        auth_users_line = "— (no connection)"
+
     return f"""<pre>
 CarpoolSync Health Check
 ========================
@@ -1120,6 +1131,9 @@ Storage      : {status}
 Groups       : {len(groups)} ({', '.join(g['id'] for g in groups) or 'none'})
 
 Supabase     : {supa_line}
+Schema       : {schema_line}
+Auth mode    : {auth_mode}
+Auth users   : {auth_users_line}
 
 {"⚠️  WARNING: DATA_DIR is the code directory." if is_ephemeral else "✅  Data will survive redeploys."}
 {"Set DATA_DIR=/data and mount a Railway volume at /data." if is_ephemeral else ""}
