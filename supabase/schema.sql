@@ -202,25 +202,30 @@ create table if not exists public.swap_state (
 );
 
 
--- ─── Row-Level Security (DISABLED for now) ────────────────────────────────────
--- During Phase 2 we access everything via the service-role key, so RLS is
--- effectively bypassed. When we wire Supabase Auth fully in a later phase
--- we'll enable RLS and add per-group policies.
-alter table public.groups          disable row level security;
-alter table public.users           disable row level security;
-alter table public.memberships     disable row level security;
-alter table public.families        disable row level security;
-alter table public.guardians       disable row level security;
-alter table public.kids            disable row level security;
-alter table public.rotation        disable row level security;
-alter table public.schedule        disable row level security;
-alter table public.trips           disable row level security;
-alter table public.absences        disable row level security;
-alter table public.karma           disable row level security;
-alter table public.invites         disable row level security;
-alter table public.password_resets disable row level security;
-alter table public.geocode_cache   disable row level security;
-alter table public.route_cache     disable row level security;
-alter table public.location        disable row level security;
-alter table public.confirmations   disable row level security;
-alter table public.swap_state      disable row level security;
+-- ─── Row-Level Security: ENABLED, no policies (deny-by-default) ───────────────
+-- The Flask app uses the service-role key, which BYPASSES RLS — so enabling
+-- RLS changes nothing for the app. What it does change: the anon
+-- ("publishable") key gets zero table access through Supabase's REST API.
+-- With RLS disabled, Supabase's default grants would let any holder of the
+-- anon key read every table (kids' names, addresses, phones). RLS on +
+-- no policies = locked to everyone except the server.
+-- Phase 2c adds real per-group policies here if browsers ever talk to
+-- Supabase directly.
+alter table public.groups          enable row level security;
+alter table public.users           enable row level security;
+alter table public.memberships     enable row level security;
+alter table public.families        enable row level security;
+alter table public.guardians       enable row level security;
+alter table public.kids            enable row level security;
+alter table public.rotation        enable row level security;
+alter table public.schedule        enable row level security;
+alter table public.trips           enable row level security;
+alter table public.absences        enable row level security;
+alter table public.karma           enable row level security;
+alter table public.invites         enable row level security;
+alter table public.password_resets enable row level security;
+alter table public.geocode_cache   enable row level security;
+alter table public.route_cache     enable row level security;
+alter table public.location        enable row level security;
+alter table public.confirmations   enable row level security;
+alter table public.swap_state      enable row level security;
