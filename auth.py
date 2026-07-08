@@ -242,12 +242,35 @@ def mark_reset_used(token: str) -> None:
     _save_resets(resets)
 
 
-def update_password(user_id: str, new_password: str) -> None:
+def update_password(user_id: str, new_password: str) -> bool:
+    """Set a user's password. Updates the local bcrypt hash AND — if the account
+    is linked to Supabase Auth and Supabase is configured — the Supabase password
+    too. The Supabase sync is what actually matters while USE_SUPABASE_AUTH=1,
+    since login verifies against Supabase, not the local hash. Without this, every
+    reset (admin, email, emergency) is a silent no-op against login.
+
+    Returns True if the password is fully in effect. Returns False if the local
+    hash was updated but the Supabase sync failed (login would still reject the
+    new password) — callers should surface that rather than claim success.
+    """
     users = _load_users()
+    target = None
     for u in users:
         if u["id"] == user_id:
             u["password_hash"] = _hash_password(new_password)
+            target = u
     _save_users(users)
+
+    if target and target.get("supabase_uid"):
+        try:
+            from supabase_client import is_configured
+            if is_configured():
+                from auth_supabase import admin_set_password
+                result = admin_set_password(target["supabase_uid"], new_password)
+                return bool(result.get("ok"))
+        except Exception:
+            return False
+    return True
 
 
 def update_user_profile(user_id: str, *, name: str | None = None,

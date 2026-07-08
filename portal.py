@@ -1327,19 +1327,8 @@ def reset_password(token):
         elif password != confirm:
             error = "Passwords don't match."
         else:
+            # update_password syncs Supabase Auth too when the account is linked.
             update_password(reset["user_id"], password)
-            # If this account is also linked to Supabase Auth, update the
-            # password there too — otherwise a reset via the legacy token
-            # wouldn't take effect while USE_SUPABASE_AUTH is on.
-            user = get_user_by_id(reset["user_id"])
-            if user and user.get("supabase_uid"):
-                try:
-                    from auth_supabase import admin_set_password
-                    from supabase_client import is_configured
-                    if is_configured():
-                        admin_set_password(user["supabase_uid"], password)
-                except Exception as e:
-                    logger.error("Supabase password sync after token reset failed: %s", e)
             mark_reset_used(token)
             return render_template("login.html", error=None,
                                    success="Password updated! Please sign in.")
@@ -3521,8 +3510,15 @@ def admin_reset_password(user_id):
     if target.get("group_id") != gid():
         session["admin_flash_error"] = "You can only manage users in your own group."
         return redirect(url_for("admin_users"))
-    update_password(user_id, new_password)
-    session["admin_flash"] = "Password updated successfully."
+    ok = update_password(user_id, new_password)
+    if ok:
+        session["admin_flash"] = "Password updated successfully."
+    else:
+        # Local hash changed but the Supabase sync failed — login (which checks
+        # Supabase) would still reject it, so don't claim success.
+        session["admin_flash_error"] = (
+            "Password saved locally but could NOT be synced to Supabase Auth — "
+            "the user may still be unable to log in. Check the server logs and retry.")
     return redirect(url_for("admin_users"))
 
 
