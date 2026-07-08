@@ -446,6 +446,15 @@ def login_required(f):
     def decorated(*args, **kwargs):
         if not session.get("user_id"):
             return redirect(url_for("login"))
+        if current_user() is None:
+            # The session points at a user that no longer exists (deleted
+            # account, store migration). Without this check a stale cookie
+            # bricks the whole app: /login redirects to the dashboard, and the
+            # dashboard has no user — the person can never reach a login form.
+            logger.warning("Clearing stale session for missing user_id=%s",
+                           session.get("user_id"))
+            session.clear()
+            return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated
 
@@ -554,7 +563,11 @@ def gcal_url_return(trip: dict, group_id: str) -> str:
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if session.get("user_id"):
-        return redirect(url_for("dashboard"))
+        if current_user() is not None:
+            return redirect(url_for("dashboard"))
+        # Stale cookie for a user that no longer exists — clear it and show
+        # the login form instead of bouncing to a broken dashboard.
+        session.clear()
 
     error = None
     email = ""
