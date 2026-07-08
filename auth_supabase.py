@@ -52,6 +52,33 @@ def send_magic_link(email: str, redirect_to: str) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+def send_password_reset_email(email: str, redirect_to: str) -> dict:
+    """Ask Supabase to email a password-recovery link to `email`. Clicking it
+    lands on `redirect_to?code=...`; the callback exchanges that code for a
+    short-lived session in which we can set a new password (admin API).
+
+    Supabase does not reveal whether the address exists, so this is safe to
+    call for any input. Returns {ok: bool, error: str | None}.
+
+    Delivery depends on Supabase's SMTP: the built-in sender is capped at
+    ~4 emails/hour on the free tier — configure custom SMTP (e.g. Resend) in
+    the Supabase dashboard to lift that. See AUTH_RECOVERY.md 'Custom SMTP'.
+    """
+    email = (email or "").strip().lower()
+    if not email or "@" not in email:
+        return {"ok": False, "error": "Please enter a valid email."}
+    if not is_configured():
+        return {"ok": False, "error": "Supabase is not configured on the server."}
+    try:
+        client = get_anon_client()
+        client.auth.reset_password_for_email(email, {"redirect_to": redirect_to})
+        logger.info("Password-reset email requested for %s***", email[:3])
+        return {"ok": True, "error": None}
+    except Exception as e:
+        logger.error("reset_password_for_email failed for %s***: %s", email[:3], e)
+        return {"ok": False, "error": str(e)}
+
+
 def exchange_code_for_session(code: str) -> Optional[dict]:
     """Exchange a magic-link callback `code` for a Supabase session.
     Returns the Supabase user dict (with id, email) on success, or None.

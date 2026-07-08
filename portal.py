@@ -1202,43 +1202,119 @@ def admin_backup():
                      mimetype="application/gzip")
 
 
+def _supabase_auth_on() -> bool:
+    return os.environ.get("USE_SUPABASE_AUTH", "").strip() == "1"
+
+
 @app.route("/forgot-password", methods=["GET", "POST"])
 def forgot_password():
+    # Delivery channel: with Supabase Auth on, passwords live in Supabase, so
+    # the reset MUST go through Supabase (email recovery link) or it's a no-op.
+    # With Supabase off, fall back to the legacy bcrypt + WhatsApp-SMS path.
+    via = "email" if _supabase_auth_on() else "whatsapp"
     sent = False
     error = None
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         ip = _client_ip()
         # Throttle: 3 reset requests per IP per 10 min, 2 per email per 10 min,
-        # plus a hard daily cap so nobody runs up Twilio cost or spams a victim.
+        # plus a hard daily cap so nobody spams a victim or runs up cost.
         if _rate_limited(f"reset:ip:{ip}", max_hits=3, window_seconds=600) or \
            _rate_limited(f"reset:email:{email}", max_hits=2, window_seconds=600) or \
            _rate_limited(f"reset:email_day:{email}", max_hits=5, window_seconds=86400):
             logger.warning("Password reset rate-limited for email=%s ip=%s", email[:3] + "***", ip)
-            # Still show success — we don't want to reveal whether limiting kicked in.
-            return render_template("forgot_password.html", sent=True, error=None)
+            # Still show success — never reveal whether limiting kicked in.
+            return render_template("forgot_password.html", sent=True, error=None, via=via)
 
-        user = get_user_by_email(email)
-        if user and user.get("phone"):
-            token = generate_reset_token(user["id"])
-            reset_url = url_for("reset_password", token=token, _external=True)
-            try:
-                send_sms(
-                    to_phone=user["phone"],
-                    message=f"Reset your CarpoolSync password:\n{reset_url}\n\nThis link expires in 1 hour.",
-                )
-            except Exception as e:
-                logger.error("Password reset SMS failed: %s", e)
-        # Always show "sent" to avoid revealing whether an email exists
+        if _supabase_auth_on():
+            # Supabase emails the recovery link itself; it also doesn't reveal
+            # whether the address exists, so we can call it unconditionally.
+            from auth_supabase import send_password_reset_email
+            redirect_url = url_for("auth_reset_callback", _external=True)
+            send_password_reset_email(email, redirect_url)
+        else:
+            user = get_user_by_email(email)
+            if user and user.get("phone"):
+                token = generate_reset_token(user["id"])
+                reset_url = url_for("reset_password", token=token, _external=True)
+                try:
+                    send_sms(
+                        to_phone=user["phone"],
+                        message=f"Reset your CarpoolSync password:\n{reset_url}\n\nThis link expires in 1 hour.",
+                    )
+                except Exception as e:
+                    logger.error("Password reset SMS failed: %s", e)
+        # Always show "sent" to avoid revealing whether an account exists.
         sent = True
-    return render_template("forgot_password.html", sent=sent, error=error)
+    return render_template("forgot_password.html", sent=sent, error=error, via=via)
+
+
+@app.route("/auth/reset-callback")
+def auth_reset_callback():
+    """Land here from a Supabase password-recovery email. Exchange the code for
+    a session to prove the email owner clicked the link, stash the verified
+    Supabase uid, and show the set-new-password form (session-based, no token
+    in the URL)."""
+    from auth_supabase import exchange_code_for_session
+    code = request.args.get("code", "")
+    if not code:
+        return render_template("forgot_password.html", sent=False, via="email",
+                               error="This reset link is missing or expired. Please request a new one."), 400
+    supa_user = exchange_code_for_session(code)
+    if not supa_user:
+        return render_template("forgot_password.html", sent=False, via="email",
+                               error="This reset link is invalid or expired. Please request a new one."), 400
+    # Proof-of-ownership established. Hold it briefly to authorize the next POST.
+    session["reset_supabase_uid"] = supa_user["id"]
+    session["reset_email"] = supa_user["email"]
+    return redirect(url_for("reset_password_session"))
+
+
+@app.route("/reset-password", methods=["GET", "POST"])
+def reset_password_session():
+    """Set-new-password form for the Supabase email-recovery flow. Authorized
+    by session state that /auth/reset-callback set after a verified click —
+    there's no token in the URL."""
+    uid = session.get("reset_supabase_uid")
+    if not uid:
+        return render_template("forgot_password.html", sent=False, via="email",
+                               error="Your reset session expired. Please request a new link."), 400
+    error = None
+    if request.method == "POST":
+        password = request.form.get("password", "").strip()
+        confirm = request.form.get("confirm_password", "")
+        if len(password) < 8:
+            error = "Password must be at least 8 characters."
+        elif password != confirm:
+            error = "Passwords don't match."
+        else:
+            from auth_supabase import admin_set_password
+            result = admin_set_password(uid, password)
+            if not result["ok"]:
+                error = result["error"] or "Could not update your password. Please try again."
+            else:
+                # Keep the local bcrypt hash in sync so the record stays usable
+                # if Supabase Auth is ever turned off. Best-effort.
+                email = (session.get("reset_email") or "").strip().lower()
+                local = get_user_by_email(email) if email else None
+                if local:
+                    try:
+                        update_password(local["id"], password)
+                    except Exception as e:
+                        logger.error("Local hash sync after reset failed: %s", e)
+                session.pop("reset_supabase_uid", None)
+                session.pop("reset_email", None)
+                logger.info("Password reset completed via Supabase for uid=%s", uid)
+                return render_template("login.html", error=None,
+                                       success="Password updated! Please sign in.")
+    return render_template("reset_password.html", action=url_for("reset_password_session"), error=error)
 
 
 @app.route("/reset-password/<token>", methods=["GET", "POST"])
 def reset_password(token):
     reset = verify_reset_token(token)
     if not reset:
-        return render_template("forgot_password.html", sent=False,
+        return render_template("forgot_password.html", sent=False, via="whatsapp",
                                error="This reset link is invalid or has expired.")
     error = None
     if request.method == "POST":
@@ -1250,10 +1326,22 @@ def reset_password(token):
             error = "Passwords don't match."
         else:
             update_password(reset["user_id"], password)
+            # If this account is also linked to Supabase Auth, update the
+            # password there too — otherwise a reset via the legacy token
+            # wouldn't take effect while USE_SUPABASE_AUTH is on.
+            user = get_user_by_id(reset["user_id"])
+            if user and user.get("supabase_uid"):
+                try:
+                    from auth_supabase import admin_set_password
+                    from supabase_client import is_configured
+                    if is_configured():
+                        admin_set_password(user["supabase_uid"], password)
+                except Exception as e:
+                    logger.error("Supabase password sync after token reset failed: %s", e)
             mark_reset_used(token)
             return render_template("login.html", error=None,
                                    success="Password updated! Please sign in.")
-    return render_template("reset_password.html", token=token, error=error)
+    return render_template("reset_password.html", action=url_for("reset_password", token=token), error=error)
 
 
 @app.route("/create-group", methods=["GET", "POST"])
