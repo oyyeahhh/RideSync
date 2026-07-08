@@ -71,12 +71,14 @@ if _legacy_data_present:
 # deploy carries every account over. A failure here means the app would run
 # with an empty user list while accounts exist in JSON — crash loudly instead.
 try:
-    from db_identity import migrate_json_identity_if_needed
+    from db_identity import migrate_json_identity_if_needed, migrate_json_group_files_if_needed
     migrate_json_identity_if_needed()
+    # Phase 2c: per-group data (families/rotation/schedule/trips/…) into Postgres.
+    migrate_json_group_files_if_needed()
 except Exception as _e:
     print(f"[IDENTITY MIGRATION] ❌ FAILED: {_e}")
-    print("[IDENTITY MIGRATION] Fix the error (did you run supabase/migration_2b_identity.sql?) "
-          "or unset USE_SUPABASE_DB to fall back to JSON.")
+    print("[IDENTITY MIGRATION] Fix the error (did you run supabase/migration_2b_identity.sql "
+          "and migration_2c_group_files.sql?) or unset USE_SUPABASE_DB to fall back to JSON.")
     raise
 
 
@@ -3603,13 +3605,21 @@ def admin_delete_group(group_id):
         return redirect(url_for("admin_users"))
     _save_groups(new_groups)
 
-    # Remove the group's data directory
+    # Remove the group's data directory (on-disk copy / cold backup)
     try:
         gdir = DATA_DIR / "groups" / group_id
         if gdir.exists():
             shutil.rmtree(gdir)
     except Exception as e:
         logger.error("Failed to remove group dir %s: %s", group_id, e)
+
+    # And its Postgres-backed data files, if identity/data live there.
+    try:
+        from db_identity import identity_db_enabled, db_delete_group_files
+        if identity_db_enabled():
+            db_delete_group_files(group_id)
+    except Exception as e:
+        logger.error("Failed to remove group_files rows for %s: %s", group_id, e)
 
     session["admin_flash"] = f"Group {group_id} deleted."
     return redirect(url_for("admin_users"))

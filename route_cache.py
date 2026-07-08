@@ -10,7 +10,7 @@ readable (treated as one legacy entry) so existing volumes need no migration.
 
 from datetime import datetime, timedelta
 from pathlib import Path
-from storage import group_dir, atomic_write_json, read_json
+from storage import group_dir, atomic_write_json, read_json, data_file_exists
 
 # Plenty for a week of trips; prevents the file from growing forever.
 _MAX_ENTRIES = 20
@@ -55,7 +55,7 @@ def _build_entry(result: dict, driver_name: str, dest_name: str, trip_id: str) -
 def _load_entries(group_id: str) -> dict:
     """Return the entries dict, converting the legacy single-entry format."""
     f = _file(group_id)
-    if not f.exists():
+    if not data_file_exists(f):
         return {}
     data = read_json(f, default={})
     if not isinstance(data, dict):

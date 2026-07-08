@@ -202,6 +202,20 @@ create table if not exists public.swap_state (
 );
 
 
+-- ─── group_files (Phase 2c: per-group JSON blobs) ─────────────────────────────
+-- Each per-group data file (families/rotation/schedule/trips/karma/absences/
+-- location/route_cache/confirmations/swap_state/trip_config) stored as one
+-- jsonb blob. group_id is plain text; the app deletes rows on group removal.
+create table if not exists public.group_files (
+  group_id    text not null,
+  filename    text not null,
+  payload     jsonb not null default '{}'::jsonb,
+  updated_at  timestamptz not null default now(),
+  primary key (group_id, filename)
+);
+create index if not exists group_files_group_idx on public.group_files (group_id);
+
+
 -- ─── Row-Level Security: ENABLED, no policies (deny-by-default) ───────────────
 -- The Flask app uses the service-role key, which BYPASSES RLS — so enabling
 -- RLS changes nothing for the app. What it does change: the anon
@@ -229,3 +243,4 @@ alter table public.route_cache     enable row level security;
 alter table public.location        enable row level security;
 alter table public.confirmations   enable row level security;
 alter table public.swap_state      enable row level security;
+alter table public.group_files     enable row level security;

@@ -149,10 +149,26 @@ Delete `USE_SUPABASE_DB`. The app falls back to the JSON files, which are left
 in place as a cold backup at the moment of migration (changes made while the
 flag was on won't be in them).
 
-### What still lives on the volume
-Families, rotation, schedule, trips, karma, invites, and per-group config are
-still JSON files. Use **`/admin/backup`** (any admin account, in the browser)
-to download all of it as a tar.gz whenever you want a snapshot.
+### Phase 2c — per-group data in Postgres too
+The same `USE_SUPABASE_DB=1` flag also moves every per-group data file
+(families, rotation, schedule, trips, karma, absences, location, route_cache,
+confirmations, swap_state, trip_config) into Postgres, stored as jsonb blobs in
+a `group_files` table. So once the flag is on, **nothing** the app relies on
+lives on the disposable volume.
+
+Prerequisite: run [`supabase/migration_2c_group_files.sql`](supabase/migration_2c_group_files.sql)
+once in the SQL Editor (alongside the 2b migration) before/at the time you set
+the flag. On the next boot the app copies any on-disk group files into Postgres
+automatically (`[GROUP-FILES MIGRATION]` in the deploy logs) and reads/writes
+them there afterward. On-disk copies are left as a cold backup.
+
+Still on the volume after 2c: `invites.json`, `resets.json`, and
+`geocode_cache.json` (short-lived tokens and a regenerable cache — low stakes).
+
+### Backups
+Use **`/admin/backup`** (any admin account, in the browser) to download every
+JSON file still on the volume as a tar.gz. Once Phase 2c is on, the durable
+data lives in Supabase — back that up from the Supabase dashboard.
 
 ### What you gain
 - Password hashing handled by Supabase (no atomic-write bugs)

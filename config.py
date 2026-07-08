@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from storage import group_dir, atomic_write_json, read_json
+from storage import group_dir, atomic_write_json, read_json, data_file_exists
 
 # Keep ADMIN_PHONE for backwards compat with SMS webhook
 ADMIN_PHONE = ""
@@ -36,7 +36,7 @@ def _default() -> dict:
 
 def load_config(group_id: str) -> dict:
     f = _file(group_id)
-    if not f.exists():
+    if not data_file_exists(f):
         return _default()
     return read_json(f, default=_default())
 

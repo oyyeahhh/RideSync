@@ -178,6 +178,97 @@ def db_save_groups(groups: list) -> None:
     delete_q.execute()
 
 
+# ── Per-group data files (families/rotation/schedule/trips/…) ─────────────────
+# Phase 2c: every per-group JSON file (group_dir(gid)/<name>.json) is stored as
+# one jsonb blob keyed by (group_id, filename) in the group_files table. This
+# keeps each data module's list/dict contract intact — storage.py routes its
+# read_json/atomic_write_json/update_json here for group-scoped paths, so no
+# module changes except the few that gate on file existence.
+
+def db_group_file_load(group_id: str, filename: str, default=None):
+    client = get_service_client()
+    rows = (client.table("group_files").select("payload")
+            .eq("group_id", group_id).eq("filename", filename).limit(1).execute().data) or []
+    if rows:
+        return rows[0]["payload"]
+    return [] if default is None else default
+
+
+def db_group_file_save(group_id: str, filename: str, data) -> None:
+    client = get_service_client()
+    client.table("group_files").upsert({
+        "group_id": group_id,
+        "filename": filename,
+        "payload": data,
+        "updated_at": _now_iso(),
+    }).execute()
+
+
+def db_group_file_update(group_id: str, filename: str, mutate_fn, default=None):
+    """Load → mutate → save, mirroring storage.update_json. Not transactional,
+    but this app is effectively single-writer (a scheduler lock plus low
+    concurrency), same assumption the JSON file locks made."""
+    data = db_group_file_load(group_id, filename, default)
+    result = mutate_fn(data)
+    if result is None:
+        result = data
+    db_group_file_save(group_id, filename, result)
+    return result
+
+
+def db_group_file_exists(group_id: str, filename: str) -> bool:
+    client = get_service_client()
+    resp = (client.table("group_files").select("group_id", count="exact")
+            .eq("group_id", group_id).eq("filename", filename).limit(1).execute())
+    return (resp.count or 0) > 0
+
+
+def db_delete_group_files(group_id: str) -> None:
+    """Remove every stored file for a group (called when a group is deleted).
+    group_files.group_id is plain text, not an FK, so this cleanup is explicit."""
+    client = get_service_client()
+    client.table("group_files").delete().eq("group_id", group_id).execute()
+
+
+def migrate_json_group_files_if_needed() -> None:
+    """If Postgres group data is enabled but the group_files table is empty,
+    copy every per-group JSON file from disk into it. Idempotent: skips once
+    populated. Reads files directly from disk (NOT via storage.read_json, which
+    now routes to Postgres) so it copies the real on-disk data. Runs at startup
+    right after the identity migration."""
+    if not identity_db_enabled():
+        return
+
+    import json
+    from storage import DATA_DIR
+
+    client = get_service_client()
+    resp = client.table("group_files").select("group_id", count="exact").limit(1).execute()
+    if (resp.count or 0) > 0:
+        return  # already migrated — Postgres is the source of truth now.
+
+    groups_root = DATA_DIR / "groups"
+    if not groups_root.is_dir():
+        print("[GROUP-FILES MIGRATION] No on-disk group data to migrate — fresh start.")
+        return
+
+    count = 0
+    for gdir in sorted(groups_root.iterdir()):
+        if not gdir.is_dir():
+            continue
+        group_id = gdir.name
+        for jf in sorted(gdir.glob("*.json")):
+            try:
+                payload = json.loads(jf.read_text())
+            except Exception as e:
+                print(f"[GROUP-FILES MIGRATION] ⚠️  Skipping unreadable {group_id}/{jf.name}: {e}")
+                continue
+            db_group_file_save(group_id, jf.name, payload)
+            count += 1
+    print(f"[GROUP-FILES MIGRATION] ✅ Copied {count} per-group file(s) into Postgres. "
+          "On-disk copies left as a cold backup.")
+
+
 # ── One-time JSON → Postgres migration ────────────────────────────────────────
 
 def migrate_json_identity_if_needed() -> None:

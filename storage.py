@@ -74,9 +74,51 @@ class _FileLock:
                 self._fh = None
 
 
+# ── Per-group data routing (Phase 2c) ─────────────────────────────────────────
+# When USE_SUPABASE_DB=1, per-group data files (DATA_DIR/groups/<gid>/<name>.json)
+# are stored in Postgres instead of on disk. The three JSON helpers below detect
+# such paths and route through db_identity; everything else stays on the
+# filesystem. Root-level files (users.json, groups.json, invites.json, …) never
+# match this pattern — identity has its own seam in auth.py/groups.py.
+
+def _group_file_key(path: Path):
+    """Return (group_id, filename) if `path` is a per-group data file, else None."""
+    try:
+        rel = Path(path).resolve().relative_to((DATA_DIR / "groups").resolve())
+    except (ValueError, OSError):
+        return None
+    parts = rel.parts
+    return (parts[0], parts[1]) if len(parts) == 2 else None
+
+
+def _pg_group_files_on() -> bool:
+    try:
+        from db_identity import identity_db_enabled
+        return identity_db_enabled()
+    except Exception:
+        return False
+
+
+def data_file_exists(path: Path) -> bool:
+    """Existence check that understands Postgres-backed group files. Modules
+    that gate a read on `path.exists()` must use this instead so they don't
+    treat 'lives in Postgres' as 'missing'."""
+    key = _group_file_key(path)
+    if key and _pg_group_files_on():
+        from db_identity import db_group_file_exists
+        return db_group_file_exists(*key)
+    return Path(path).exists()
+
+
 def atomic_write_json(path: Path, data) -> None:
     """Write JSON to `path` via tempfile + os.replace so partial writes never
-    leave a broken file on disk. Holds an exclusive lock for the duration."""
+    leave a broken file on disk. Holds an exclusive lock for the duration.
+    Per-group files route to Postgres when USE_SUPABASE_DB=1."""
+    key = _group_file_key(path)
+    if key and _pg_group_files_on():
+        from db_identity import db_group_file_save
+        db_group_file_save(key[0], key[1], data)
+        return
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with _FileLock(path):
@@ -106,7 +148,13 @@ def read_json(path: Path, default=None):
     failure silently returned [], the next save would persist that empty list
     and wipe the store (the likely cause of the historical users.json wipe).
     Atomic writes mean a corrupt file should never occur — if it does, loud
-    failure is the safe behavior."""
+    failure is the safe behavior.
+
+    Per-group files route to Postgres when USE_SUPABASE_DB=1."""
+    key = _group_file_key(path)
+    if key and _pg_group_files_on():
+        from db_identity import db_group_file_load
+        return db_group_file_load(key[0], key[1], default)
     path = Path(path)
     if not path.exists():
         return [] if default is None else default
@@ -123,7 +171,12 @@ def read_json(path: Path, default=None):
 def update_json(path: Path, mutate_fn, default=None):
     """read → mutate → write under a single lock. `mutate_fn(data)` may mutate
     in place or return a new value; the return value (or the mutated input)
-    is what gets persisted."""
+    is what gets persisted. Per-group files route to Postgres when
+    USE_SUPABASE_DB=1."""
+    key = _group_file_key(path)
+    if key and _pg_group_files_on():
+        from db_identity import db_group_file_update
+        return db_group_file_update(key[0], key[1], mutate_fn, default)
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with _FileLock(path):
