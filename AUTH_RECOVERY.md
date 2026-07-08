@@ -121,6 +121,39 @@ The bandaids above exist because we're using filesystem sessions + bcrypt + JSON
 ### To revert
 Delete `USE_SUPABASE_AUTH` (or set to `0`). The app falls back to bcrypt-based auth instantly. No data loss either direction — both paths read/write the same internal user records.
 
+---
+
+## Phase 2b: user/group records in Postgres (kills the "app forgot me" bug)
+
+With `USE_SUPABASE_AUTH=1` alone, passwords live in Supabase but your **profile**
+(users.json, groups.json) still lives on the Railway volume — if that file is
+ever lost, logins dead-end even with the right password. Phase 2b moves those
+records into Supabase Postgres so identity survives anything short of deleting
+the Supabase project.
+
+### To enable
+
+1. **In Supabase Dashboard → SQL Editor**, run [`supabase/migration_2b_identity.sql`](supabase/migration_2b_identity.sql) once.
+2. **In Railway → Variables**, add:
+   ```
+   USE_SUPABASE_DB = 1
+   ```
+3. Save. On the next boot the app copies any existing JSON users/groups into
+   Postgres automatically (look for `[IDENTITY MIGRATION]` in the deploy logs),
+   then reads and writes them there from then on.
+4. Verify on `/health` — the `Identity` line should read
+   `🐘 Supabase Postgres (USE_SUPABASE_DB=1) — N user(s)`.
+
+### To revert
+Delete `USE_SUPABASE_DB`. The app falls back to the JSON files, which are left
+in place as a cold backup at the moment of migration (changes made while the
+flag was on won't be in them).
+
+### What still lives on the volume
+Families, rotation, schedule, trips, karma, invites, and per-group config are
+still JSON files. Use **`/admin/backup`** (any admin account, in the browser)
+to download all of it as a tar.gz whenever you want a snapshot.
+
 ### What you gain
 - Password hashing handled by Supabase (no atomic-write bugs)
 - Login sessions stateless (no Flask filesystem sessions to wipe)

@@ -10,7 +10,7 @@ import logging
 import os
 import re
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone as dt_timezone
 from functools import wraps
 from pathlib import Path
 from urllib.parse import quote, quote_plus
@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    jsonify, Response, session, flash,
+    jsonify, Response, session, flash, send_file,
 )
 from flask_session import Session
 from twilio.request_validator import RequestValidator
@@ -65,6 +65,19 @@ _legacy_data_present = any((DATA_DIR / fname).exists() for fname in [
 ])
 if _legacy_data_present:
     migrate_legacy_data("grp_main")
+
+# Phase 2b: when Postgres identity is enabled (USE_SUPABASE_DB=1), copy any
+# existing JSON users/groups into the DB once, so flipping the flag on a live
+# deploy carries every account over. A failure here means the app would run
+# with an empty user list while accounts exist in JSON — crash loudly instead.
+try:
+    from db_identity import migrate_json_identity_if_needed
+    migrate_json_identity_if_needed()
+except Exception as _e:
+    print(f"[IDENTITY MIGRATION] ❌ FAILED: {_e}")
+    print("[IDENTITY MIGRATION] Fix the error (did you run supabase/migration_2b_identity.sql?) "
+          "or unset USE_SUPABASE_DB to fall back to JSON.")
+    raise
 
 
 def _bootstrap_legacy_group() -> None:
@@ -568,7 +581,19 @@ def login():
             if result["ok"]:
                 user = find_or_link_internal_user(result["supabase_uid"], email)
                 login_ok = user is not None
-            if not login_ok and not result["ok"] and "configured" in (result.get("error") or "").lower():
+                if user is None:
+                    # The password is RIGHT — Supabase just verified it — but
+                    # the internal profile record is missing (e.g. the data
+                    # volume was reset). Saying "Invalid email or password"
+                    # here would be a lie that dead-ends the user. Send them
+                    # to finish account setup with their email pre-verified;
+                    # create-group adopts the existing Supabase user.
+                    logger.warning("Login: Supabase auth OK but no internal user for %s*** — "
+                                   "redirecting to /create-group to rebuild the profile", email[:3])
+                    session["pending_supabase_uid"] = result["supabase_uid"]
+                    session["pending_email"] = email.lower()
+                    return redirect(url_for("create_group_route"))
+            if not result["ok"] and "configured" in (result.get("error") or "").lower():
                 # Supabase wasn't actually wired up — fall through to legacy.
                 use_supabase = False
 
@@ -1113,6 +1138,17 @@ def health():
     auth_mode = ("🔐 Supabase Auth (USE_SUPABASE_AUTH=1)"
                  if os.environ.get("USE_SUPABASE_AUTH", "").strip() == "1"
                  else "🗝  Legacy bcrypt")
+
+    # Where users/groups actually live (Phase 2b): Postgres or JSON files.
+    _db_flag = os.environ.get("USE_SUPABASE_DB", "").strip() == "1"
+    try:
+        from auth import _load_users as _health_load_users
+        _n_users = len(_health_load_users())
+        identity_line = (f"🐘 Supabase Postgres (USE_SUPABASE_DB=1) — {_n_users} user(s)"
+                         if _db_flag else
+                         f"📁 JSON on volume — {_n_users} user(s)")
+    except Exception as _e:
+        identity_line = f"❌ ERROR reading identity store: {_e}"
     if supa.get("ok"):
         schema_line = "✅ applied (memberships table reachable)" \
             if supa.get("schema_applied") else "❌ NOT applied — run supabase/schema.sql in the SQL Editor"
@@ -1134,10 +1170,36 @@ Supabase     : {supa_line}
 Schema       : {schema_line}
 Auth mode    : {auth_mode}
 Auth users   : {auth_users_line}
+Identity     : {identity_line}
 
 {"⚠️  WARNING: DATA_DIR is the code directory." if is_ephemeral else "✅  Data will survive redeploys."}
 {"Set DATA_DIR=/data and mount a Railway volume at /data." if is_ephemeral else ""}
 </pre>"""
+
+
+@app.route("/admin/backup")
+@admin_required
+def admin_backup():
+    """Download every JSON data file as a timestamped tar.gz — the one-click
+    'my data survives anything' button. Covers users, groups, families,
+    rotation, schedule, trips, invites, config; skips sessions/locks/caches
+    that aren't data. Restore = untar into DATA_DIR."""
+    import io
+    import tarfile
+    skip_dirs = {".git", ".flask_sessions", ".locks", "__pycache__",
+                 "node_modules", "venv", ".venv", "local_data"}
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        for path in sorted(DATA_DIR.rglob("*.json")):
+            rel = path.relative_to(DATA_DIR)
+            if skip_dirs & set(rel.parts[:-1]):
+                continue
+            tar.add(path, arcname=str(rel))
+    buf.seek(0)
+    stamp = datetime.now(dt_timezone.utc).strftime("%Y%m%d-%H%M%S")
+    return send_file(buf, as_attachment=True,
+                     download_name=f"carpool-backup-{stamp}.tar.gz",
+                     mimetype="application/gzip")
 
 
 @app.route("/forgot-password", methods=["GET", "POST"])
@@ -1204,11 +1266,17 @@ def create_group_route():
         return redirect(url_for("dashboard"))
 
     error = None
+    notice = None
     form = {}
-    # A first-time magic-link signer lands here with a verified email stashed
-    # in the session (see auth_callback) — pre-fill it so they don't retype.
+    # Two flows land here with a verified email stashed in the session:
+    # first-time magic-link signers (see auth_callback) and users whose
+    # password checked out against Supabase but whose profile record is
+    # missing (see login). Pre-fill the email and say what's going on.
     if request.method == "GET" and session.get("pending_email"):
         form = {"email": session["pending_email"]}
+        notice = (f"You're verified as {session['pending_email']}, but there's no "
+                  "carpool profile for that account yet. Fill in the form below to "
+                  "set it up — the password you choose here becomes your password.")
 
     if request.method == "POST":
         form = {
@@ -1364,7 +1432,7 @@ def create_group_route():
             session["just_created_group"] = group["name"]
             return redirect(url_for("welcome"))
 
-    return render_template("create_group.html", error=error, form=form)
+    return render_template("create_group.html", error=error, notice=notice, form=form)
 
 
 @app.route("/welcome")

@@ -53,7 +53,7 @@ create index if not exists families_group_idx on public.families (group_id);
 create table if not exists public.memberships (
   user_id     text not null references public.users(id) on delete cascade,
   group_id    text not null references public.groups(id) on delete cascade,
-  family_id   text references public.families(id) on delete set null,
+  family_id   text,  -- plain text (not an FK) while families live in JSON; Phase 2c restores the reference
   role        text not null default 'parent',  -- 'admin' | 'parent', scoped to this group
   joined_at   timestamptz not null default now(),
   primary key (user_id, group_id)

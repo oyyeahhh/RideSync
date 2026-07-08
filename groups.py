@@ -1,7 +1,11 @@
 """
 Carpool group registry. Groups are the top-level isolation boundary.
 Each group has its own families, schedule, rotation, config, etc.
-The groups index lives at DATA_DIR/groups.json (not inside a group subdir).
+
+Storage: the group index lives in Supabase Postgres when USE_SUPABASE_DB=1
+(see db_identity.py), otherwise at DATA_DIR/groups.json. _load_groups/
+_save_groups is the single seam. Per-group data files (trip_config.json etc.)
+stay on the filesystem either way.
 """
 
 import json
@@ -30,10 +34,17 @@ _DEFAULT_CONFIG = {
 
 
 def _load_groups() -> list:
+    from db_identity import identity_db_enabled, db_load_groups
+    if identity_db_enabled():
+        return db_load_groups()
     return read_json(GROUPS_FILE, default=[])
 
 
 def _save_groups(groups: list) -> None:
+    from db_identity import identity_db_enabled, db_save_groups
+    if identity_db_enabled():
+        db_save_groups(groups)
+        return
     atomic_write_json(GROUPS_FILE, groups)
 
 

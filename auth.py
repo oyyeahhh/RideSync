@@ -1,6 +1,11 @@
 """
 Authentication helpers.
 Users and invites are stored globally; each carries a group_id.
+
+Storage: users live in Supabase Postgres when USE_SUPABASE_DB=1 (see
+db_identity.py), otherwise in users.json. _load_users/_save_users is the
+single seam — everything else in this module and the app goes through it.
+Invites and password resets stay in JSON either way (low-stakes, short-lived).
 """
 
 import json
@@ -18,10 +23,17 @@ INVITE_TTL_DAYS = 7
 
 
 def _load_users() -> list:
+    from db_identity import identity_db_enabled, db_load_users
+    if identity_db_enabled():
+        return db_load_users()
     return read_json(USERS_FILE, default=[])
 
 
 def _save_users(users: list) -> None:
+    from db_identity import identity_db_enabled, db_save_users
+    if identity_db_enabled():
+        db_save_users(users)
+        return
     atomic_write_json(USERS_FILE, users)
 
 

@@ -114,6 +114,16 @@
       margin-bottom: 18px;
     }
 
+    .notice-banner {
+      background: #F0F5F1;
+      border: 1px solid #B9D4C0;
+      border-radius: 7px;
+      padding: 10px 13px;
+      font-size: 14px;
+      color: #2E5E3F;
+      margin-bottom: 18px;
+    }
+
     .btn-submit {
       width: 100%;
       background: linear-gradient(135deg, #D4784A 0%, #C4633A 100%);
@@ -170,6 +180,10 @@
 
     {% if error %}
     <div class="error-banner">{{ error }}</div>
+    {% endif %}
+
+    {% if notice %}
+    <div class="notice-banner">{{ notice }}</div>
     {% endif %}
 
     <form method="POST" action="/create-group">
