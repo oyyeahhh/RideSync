@@ -71,10 +71,14 @@ if _legacy_data_present:
 # deploy carries every account over. A failure here means the app would run
 # with an empty user list while accounts exist in JSON — crash loudly instead.
 try:
-    from db_identity import migrate_json_identity_if_needed, migrate_json_group_files_if_needed
+    from db_identity import (migrate_json_identity_if_needed,
+                              migrate_json_group_files_if_needed,
+                              migrate_global_files_if_needed)
     migrate_json_identity_if_needed()
     # Phase 2c: per-group data (families/rotation/schedule/trips/…) into Postgres.
     migrate_json_group_files_if_needed()
+    # Root-level invites.json/resets.json into Postgres so they survive volume resets.
+    migrate_global_files_if_needed()
 except Exception as _e:
     print(f"[IDENTITY MIGRATION] ❌ FAILED: {_e}")
     print("[IDENTITY MIGRATION] Fix the error (did you run supabase/migration_2b_identity.sql "
@@ -611,6 +615,10 @@ def login():
             if not result["ok"] and "configured" in (result.get("error") or "").lower():
                 # Supabase wasn't actually wired up — fall through to legacy.
                 use_supabase = False
+            elif not result["ok"]:
+                supa_err = result.get("error") or ""
+                if supa_err != "Invalid email or password.":
+                    error = supa_err
 
         if not use_supabase:
             user = get_user_by_email(email)
@@ -631,7 +639,8 @@ def login():
                 logger.error("Token purge failed: %s", e)
             return redirect(url_for("dashboard"))
         else:
-            error = "Invalid email or password."
+            if not error:
+                error = "Invalid email or password."
             # Detailed (but redacted) diagnostic so we can tell email-not-found
             # from password-mismatch in the logs without leaking secrets.
             email_masked = (email[:3] + "***") if email else "(empty)"
@@ -1156,14 +1165,23 @@ def health():
 
     # Where users/groups actually live (Phase 2b): Postgres or JSON files.
     _db_flag = os.environ.get("USE_SUPABASE_DB", "").strip() == "1"
+    _health_users = []
     try:
         from auth import _load_users as _health_load_users
-        _n_users = len(_health_load_users())
+        _health_users = _health_load_users()
+        _n_users = len(_health_users)
         identity_line = (f"🐘 Supabase Postgres (USE_SUPABASE_DB=1) — {_n_users} user(s)"
                          if _db_flag else
                          f"📁 JSON on volume — {_n_users} user(s)")
     except Exception as _e:
         identity_line = f"❌ ERROR reading identity store: {_e}"
+
+    _unlinked = [u for u in _health_users if not u.get("supabase_uid")]
+    if _unlinked:
+        _unlinked_emails = ", ".join(u.get("email", u["id"])[:3] + "***" for u in _unlinked)
+        unlinked_line = f"⚠️  {len(_unlinked)} user(s) missing supabase_uid: {_unlinked_emails}"
+    else:
+        unlinked_line = f"✅ all {len(_health_users)} user(s) linked"
     if supa.get("ok"):
         schema_line = "✅ applied (memberships table reachable)" \
             if supa.get("schema_applied") else "❌ NOT applied — run supabase/schema.sql in the SQL Editor"
@@ -1186,6 +1204,7 @@ Schema       : {schema_line}
 Auth mode    : {auth_mode}
 Auth users   : {auth_users_line}
 Identity     : {identity_line}
+Supabase link: {unlinked_line}
 
 {"⚠️  WARNING: DATA_DIR is the code directory." if is_ephemeral else "✅  Data will survive redeploys."}
 {"Set DATA_DIR=/data and mount a Railway volume at /data." if is_ephemeral else ""}

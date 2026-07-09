@@ -78,17 +78,34 @@ class _FileLock:
 # When USE_SUPABASE_DB=1, per-group data files (DATA_DIR/groups/<gid>/<name>.json)
 # are stored in Postgres instead of on disk. The three JSON helpers below detect
 # such paths and route through db_identity; everything else stays on the
-# filesystem. Root-level files (users.json, groups.json, invites.json, …) never
-# match this pattern — identity has its own seam in auth.py/groups.py.
+# filesystem. Identity has its own seam in auth.py/groups.py.
+#
+# Root-level files listed in _GLOBAL_PG_FILES are also routed to Postgres under
+# the reserved group_id "_global" so they survive volume resets.
+
+_GLOBAL_PG_FILES = {"invites.json", "resets.json"}
+
 
 def _group_file_key(path: Path):
-    """Return (group_id, filename) if `path` is a per-group data file, else None."""
+    """Return (group_id, filename) if `path` is a per-group data file or a
+    root-level file that should route to Postgres, else None."""
+    path = Path(path)
     try:
-        rel = Path(path).resolve().relative_to((DATA_DIR / "groups").resolve())
+        rel = path.resolve().relative_to((DATA_DIR / "groups").resolve())
+    except (ValueError, OSError):
+        pass
+    else:
+        parts = rel.parts
+        if len(parts) == 2:
+            return (parts[0], parts[1])
+
+    try:
+        rel = path.resolve().relative_to(DATA_DIR.resolve())
     except (ValueError, OSError):
         return None
-    parts = rel.parts
-    return (parts[0], parts[1]) if len(parts) == 2 else None
+    if len(rel.parts) == 1 and rel.name in _GLOBAL_PG_FILES:
+        return ("_global", rel.name)
+    return None
 
 
 def _pg_group_files_on() -> bool:

@@ -9,6 +9,7 @@ Invites and password resets stay in JSON either way (low-stakes, short-lived).
 """
 
 import json
+import os
 import uuid
 from datetime import datetime, timezone, timedelta
 
@@ -261,7 +262,30 @@ def update_password(user_id: str, new_password: str) -> bool:
             target = u
     _save_users(users)
 
-    if target and target.get("supabase_uid"):
+    if not target:
+        return True
+
+    use_supabase_auth = os.environ.get("USE_SUPABASE_AUTH", "").strip() == "1"
+
+    if not target.get("supabase_uid") and use_supabase_auth:
+        try:
+            from supabase_client import is_configured
+            if is_configured():
+                from auth_supabase import find_uid_by_email, admin_set_password
+                uid = find_uid_by_email(target.get("email", ""))
+                if uid:
+                    target["supabase_uid"] = uid
+                    users = _load_users()
+                    for u in users:
+                        if u["id"] == user_id:
+                            u["supabase_uid"] = uid
+                    _save_users(users)
+                else:
+                    return False
+        except Exception:
+            return False
+
+    if target.get("supabase_uid"):
         try:
             from supabase_client import is_configured
             if is_configured():
@@ -270,7 +294,8 @@ def update_password(user_id: str, new_password: str) -> bool:
                 return bool(result.get("ok"))
         except Exception:
             return False
-    return True
+
+    return not use_supabase_auth
 
 
 def update_user_profile(user_id: str, *, name: str | None = None,

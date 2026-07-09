@@ -269,6 +269,43 @@ def migrate_json_group_files_if_needed() -> None:
           "On-disk copies left as a cold backup.")
 
 
+def migrate_global_files_if_needed() -> None:
+    """Copy root-level invites.json and resets.json into Postgres under the
+    reserved _global group_id. Idempotent: skips if _global already has entries.
+    Reads directly from disk, not via storage.read_json (which now routes to
+    Postgres). Runs at startup after the group-files migration."""
+    if not identity_db_enabled():
+        return
+
+    import json
+    from storage import DATA_DIR, _GLOBAL_PG_FILES
+
+    client = get_service_client()
+    resp = (client.table("group_files").select("group_id", count="exact")
+            .eq("group_id", "_global").limit(1).execute())
+    if (resp.count or 0) > 0:
+        return
+
+    count = 0
+    for fname in sorted(_GLOBAL_PG_FILES):
+        src = DATA_DIR / fname
+        if not src.exists():
+            continue
+        try:
+            payload = json.loads(src.read_text())
+        except Exception as e:
+            print(f"[GLOBAL-FILES MIGRATION] ⚠️  Skipping unreadable {fname}: {e}")
+            continue
+        db_group_file_save("_global", fname, payload)
+        count += 1
+
+    if count:
+        print(f"[GLOBAL-FILES MIGRATION] ✅ Copied {count} root-level file(s) into Postgres. "
+              "On-disk copies left as a cold backup.")
+    else:
+        print("[GLOBAL-FILES MIGRATION] No on-disk global files to migrate — fresh start.")
+
+
 # ── One-time JSON → Postgres migration ────────────────────────────────────────
 
 def migrate_json_identity_if_needed() -> None:
