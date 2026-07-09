@@ -1211,6 +1211,19 @@ Supabase link: {unlinked_line}
 </pre>"""
 
 
+@app.route("/health/smtp-test")
+def smtp_test():
+    """Temporary diagnostic: attempt a Supabase password-reset email and return
+    the raw result. Remove after SMTP is confirmed working."""
+    from auth_supabase import send_password_reset_email
+    email = request.args.get("email", "").strip().lower()
+    if not email:
+        return "<pre>Usage: /health/smtp-test?email=you@example.com</pre>", 400
+    redirect_url = url_for("auth_reset_callback", _external=True)
+    result = send_password_reset_email(email, redirect_url)
+    return f"<pre>Email: {email[:3]}***\nRedirect: {redirect_url}\nResult: {result}</pre>"
+
+
 @app.route("/admin/backup")
 @admin_required
 def admin_backup():
@@ -1261,11 +1274,12 @@ def forgot_password():
             return render_template("forgot_password.html", sent=True, error=None, via=via)
 
         if _supabase_auth_on():
-            # Supabase emails the recovery link itself; it also doesn't reveal
-            # whether the address exists, so we can call it unconditionally.
             from auth_supabase import send_password_reset_email
             redirect_url = url_for("auth_reset_callback", _external=True)
-            send_password_reset_email(email, redirect_url)
+            logger.info("Password reset: calling Supabase for %s*** redirect_to=%s",
+                        email[:3], redirect_url)
+            reset_result = send_password_reset_email(email, redirect_url)
+            logger.info("Password reset result: %s", reset_result)
         else:
             user = get_user_by_email(email)
             if user and user.get("phone"):
