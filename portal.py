@@ -243,6 +243,14 @@ if not _secret:
     _secret = "dev-secret-change-me"
 app.secret_key = _secret
 
+# Railway terminates TLS — Flask sees plain HTTP. Tell it to trust the proxy
+# so url_for(_external=True) generates https:// links (critical for Supabase
+# callback URLs in password-reset and magic-link emails).
+if _is_prod:
+    app.config["PREFERRED_URL_SCHEME"] = "https"
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
 # Harden session cookies. SameSite=Lax lets normal links work; Secure means
 # cookies only travel over HTTPS (Railway terminates TLS for us); HttpOnly
 # blocks JS from reading the cookie.
