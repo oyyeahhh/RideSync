@@ -14,7 +14,7 @@ any date, message fan-out to every parent in a household, honest delivery
 counts, Trip Settings validation, email links that work in all three shapes
 Supabase produces, collapsed schedule, pinned requirements, a 56-test suite
 and CI. Still needed from Orly before parents are invited: push the branch
-and merge, set `OWNER_EMAILS` on Railway, submit the Twilio registration, and
+and merge, set `OWNER_EMAILS=orlyn8@gmail.com` on Railway (it must match the email of your admin login in the app), submit the Twilio registration, and
 in the Supabase dashboard point the Magic Link and Reset Password email
 templates at `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=magiclink`
 and `...&type=recovery` (the fragment fallback works without this, but the
@@ -30,7 +30,11 @@ token_hash flow is the reliable one).
 - **Two-parent households get every message.** Week one: every phone attached
   to a family receives what the family receives. Week two: a proper guardians
   list with `is_driver` and a notification preference.
-- **Assumed until told otherwise:** one car fits everyone; no return leg.
+- **Every trip has a return leg, usually driven by a different family.**
+  Return-leg parity moves from "later" into weeks two and three: return
+  driver from the rotation, route, reminder, check-ins, arrival, calendar
+  event and ETA for the return, and the driver-out flow for either leg.
+- **Assumed until told otherwise:** one car fits everyone.
 
 ## The rule that keeps the door open
 
@@ -78,7 +82,10 @@ First:
 - Guardians as a list (families.py:44-52, 69-87; portal.py:1556, 1695). 2 days.
 
 Then:
-- Driver-out flow with one-tap claim (portal.py:3000-3088, 3206, 3350). 2 to
+- Return-leg parity: the return driver comes from the rotation (or is
+  claimed), and gets a route, a reminder, check-ins, arrival, a calendar
+  event and an ETA. cal_feed.py emits outbound only today. 1 week.
+- Driver-out flow, for either leg, with one-tap claim (portal.py:3000-3088, 3206, 3350). 2 to
   3 days.
 - Series editing: this and following, skip range, moveable date
   (portal.py:2299-2309; schedule.py:66). 2 days.
@@ -106,8 +113,8 @@ If time:
   audit trail on trips. 2 days.
 - Memberships end to end: join a second group, leave, change email, admin
   transfer between groups. 1 week.
-- Return-leg parity (1 week), car capacity (after a group proves the size),
-  split households (2 to 3 days).
+- Car capacity (after a group proves the size), split households (2 to 3
+  days).
 - App factory and blueprints, scheduler as a cron service, numbered
   migrations, Postgres normalization one store at a time, one operations
   document. 3 to 4 weeks, spread out.
