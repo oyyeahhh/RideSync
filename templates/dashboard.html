@@ -631,6 +631,24 @@
 
     .btn-remove:hover { background: rgba(255,80,80,0.2); color: #fca5a5; }
 
+    /* Admin tools live behind one disclosure so a parent's page is short and
+       an admin's page opens on what everyone needs first. */
+    details.manage { display: grid; gap: 16px; }
+    details.manage > summary {
+      list-style: none; cursor: pointer;
+      display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+      padding: 16px 20px; min-height: 44px;
+      background: rgba(42, 39, 35, 0.93); color: #FAF9F5;
+      border: 1px solid rgba(255,255,255,0.07); border-radius: 28px;
+      font-size: 15px; font-weight: 600;
+    }
+    details.manage > summary::-webkit-details-marker { display: none; }
+    details.manage > summary::after { content: "Show"; font-size: 12px; font-weight: 600; color: var(--coral); }
+    details.manage[open] > summary::after { content: "Hide"; }
+    details.manage > summary:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+    .manage-hint { font-size: 12px; font-weight: 400; color: rgba(255,255,255,0.45); margin-right: auto; }
+    @media (max-width: 640px) { .manage-hint { display: none; } details.manage > summary { border-radius: 20px; } }
+
     .brand { text-align: center; padding: 24px 20px 8px; }
     .brand-logo { height: 260px; width: auto; display: inline-block; }
 
@@ -778,26 +796,37 @@
 
   <!-- 2. TODAY'S TRIP ACTIONS -->
   <div class="card" id="today-card">
-    <div class="card-label">Today's Trip</div>
+    <div class="card-label">{{ trip_date_label }}</div>
     <div style="display:flex;flex-direction:column;gap:12px;">
       <div>
         <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);margin-bottom:8px;letter-spacing:0.04em;">WHO'S COMING?</div>
         <div style="display:flex;flex-direction:column;gap:8px;" id="family-list">
           {% for fam in pickup_families %}
           <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:{% if fam.absent %}rgba(255,107,138,0.10){% else %}rgba(255,255,255,0.06){% endif %};" id="fam-row-{{ fam.id }}">
-            <span style="font-size:14px;font-weight:500;color:#FAF9F5;">{{ fam.name }}</span>
-            <button onclick="toggleAbsent('{{ fam.id }}')" id="absent-btn-{{ fam.id }}"
-              style="font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;border:1px solid;cursor:pointer;transition:all 0.15s;
+            <span style="font-size:15px;font-weight:500;color:#FAF9F5;">{{ fam.name }}{% if fam.mine %} <span style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.45);margin-left:6px;">you</span>{% endif %}</span>
+            {% if fam.mine or current_user.role == 'admin' %}
+            <button onclick="toggleAbsent('{{ fam.id }}')" id="absent-btn-{{ fam.id }}" aria-pressed="{{ 'true' if fam.absent else 'false' }}"
+              style="font-size:13px;font-weight:600;min-height:44px;padding:8px 16px;border-radius:22px;border:1px solid;cursor:pointer;transition:all 0.15s;
                 {% if fam.absent %}background:rgba(255,107,138,0.15);color:#FF6B8A;border-color:rgba(255,107,138,0.35);{% else %}background:rgba(62,201,232,0.12);color:#3EC9E8;border-color:rgba(62,201,232,0.35);{% endif %}">
-              {% if fam.absent %}Not Coming{% else %}Coming ✓{% endif %}
+              {% if fam.absent %}Not coming{% else %}Coming{% endif %}
             </button>
+            {% else %}
+            <span id="absent-btn-{{ fam.id }}" style="font-size:13px;font-weight:600;padding:8px 4px;{% if fam.absent %}color:#FF6B8A;{% else %}color:rgba(255,255,255,0.55);{% endif %}">
+              {% if fam.absent %}Not coming{% else %}Coming{% endif %}
+            </span>
+            {% endif %}
           </div>
           {% endfor %}
         </div>
       </div>
+      {% if not can_act %}
+      <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:14px;font-size:14px;color:rgba(255,255,255,0.6);line-height:1.5;">
+        {{ next_trip.driver }} is driving. You will hear from them if they are running late, and again when the kids arrive.
+      </div>
+      {% else %}
       <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-          <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);letter-spacing:0.04em;">DRIVER ACTIONS</div>
+          <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);letter-spacing:0.04em;">{% if is_driver and current_user.role != 'admin' %}YOU ARE DRIVING{% else %}DRIVER ACTIONS{% endif %}</div>
           {% if current_user.role == 'admin' or (current_user.family_id and current_user.family_id == next_driver_id) %}
           <button onclick="sendRoute()" id="send-route-btn" style="padding:6px 14px;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.15);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
             {% if current_user.role == 'admin' %}🗺 Send Route to Driver{% else %}🗺 Send My Route{% endif %}
@@ -833,6 +862,7 @@
           📍 Live location is being shared on the <a href="{{ kid_bulletin_url or ('/bulletin/' + group_id) }}" target="_blank" style="color:var(--coral);">Kids Bulletin</a>
         </div>
       </div>
+      {% endif %}
     </div>
   </div>
 
@@ -861,7 +891,7 @@
   </div>
 
   <!-- 4. DRIVING ROTATION -->
-  <div class="card">
+  <div class="card" id="rotation-card">
     <div class="card-label">Driving Rotation</div>
     <div class="rotation-list">
       {% for item in rotation %}
@@ -876,6 +906,11 @@
 
   <!-- 5. LIVE DRIVER MAP (admin, only when active) -->
   {% if current_user.role == "admin" %}
+  <details class="manage" id="manage">
+    <summary>
+      <span>Manage carpool</span>
+      <span class="manage-hint">Drivers, invites, trip settings, users</span>
+    </summary>
   <div class="card" id="dashboard-tracking-card" style="{% if not live_location.active %}display:none;{% endif %}">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <div class="card-label" style="margin-bottom:0;">Driver Location</div>
@@ -1120,9 +1155,11 @@
       </div>
     </div>
   </div>
+  </details>
   {% endif %}
 
   <!-- 9. STATS -->
+  {% if stats %}
   <div class="card">
     <div class="card-label">Stats</div>
     {% if stats %}
@@ -1148,7 +1185,10 @@
     {% endif %}
   </div>
 
+  {% endif %}
+
   <!-- 10. KARMA -->
+  {% if history %}
   <div class="card">
     <div class="card-label">Karma</div>
     <div class="karma-grid" id="karma-grid">
@@ -1172,7 +1212,10 @@
     </div>
   </div>
 
+  {% endif %}
+
   <!-- 11. TRIP HISTORY -->
+  {% if history %}
   <div class="card">
     <div class="card-label">Trip History</div>
     {% if history %}
@@ -1193,6 +1236,7 @@
     <p class="empty">No trips recorded yet.</p>
     {% endif %}
   </div>
+  {% endif %}
 
   <!-- Kid Bulletin Display URL Modal -->
   <div id="display-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;">
@@ -2167,7 +2211,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     Schedule
   </a>
-  <a href="#" onclick="document.getElementById('upcoming-list').scrollIntoView({behavior:'smooth'});return false;">
+  <a href="#" onclick="document.getElementById('rotation-card').scrollIntoView({behavior:'smooth'});return false;">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
     Rotation
   </a>

@@ -2028,7 +2028,28 @@ def dashboard():
             "id": fid,
             "name": family.name,
             "absent": fid in absences,
+            "mine": bool(user.get("family_id")) and fid == user.get("family_id"),
         })
+
+    # Who is looking decides what the page offers. A parent who is not driving
+    # used to see four driver buttons that all failed with "forbidden".
+    is_admin = user.get("role") == "admin"
+    is_driver = bool(user.get("family_id")) and user.get("family_id") == active_driver_id
+    can_act = is_admin or is_driver
+
+    # The attendance card used to be called "Today's Trip" while showing the
+    # next trip, so "not coming" on a Tuesday quietly changed next week.
+    try:
+        _td = date.fromisoformat(trip_date)
+        _today = date.fromisoformat(_today_iso(group_id))
+        if _td == _today:
+            trip_date_label = "Today's trip"
+        elif _td == _today + timedelta(days=1):
+            trip_date_label = "Tomorrow's trip"
+        else:
+            trip_date_label = f"{_td.strftime('%A')}'s trip, {_td.strftime('%b')} {_td.day}"
+    except ValueError:
+        trip_date_label = "Next trip"
 
     invite_status = session.pop("invite_status", None)
     invite_link = session.pop("invite_link", None)
@@ -2061,7 +2082,11 @@ def dashboard():
         settings_error=settings_error,
         pickup_families=pickup_families,
         next_driver_id=next_driver_id,
+        active_driver_id=active_driver_id,
+        is_driver=is_driver,
+        can_act=can_act,
         trip_date=trip_date,
+        trip_date_label=trip_date_label,
         live_location=get_location(group_id),
         maps_api_key=os.environ.get("GOOGLE_MAPS_API_KEY", ""),
         assignment_mode=get_assignment_mode(group_id),
