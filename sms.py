@@ -2,12 +2,14 @@
 SMS sending via Twilio.
 """
 
+import logging
 import os
 from datetime import timedelta
 from dotenv import load_dotenv
 from twilio.rest import Client
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
 AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
@@ -19,6 +21,27 @@ FROM_NUMBER = os.environ.get("TWILIO_FROM_NUMBER")
 SANDBOX_NUMBER = os.environ.get("TWILIO_SANDBOX_NUMBER", "+14155238886")
 SANDBOX_KEYWORD = os.environ.get("TWILIO_SANDBOX_KEYWORD", "")
 
+# MESSAGE_CHANNEL decides how the number is addressed. "whatsapp" is the
+# Twilio sandbox (recipients must have texted the join keyword within 72h);
+# "sms" is plain text from FROM_NUMBER once carrier registration is approved.
+# Read at call time so a Railway variable change needs no code change.
+_VALID_CHANNELS = ("sms", "whatsapp")
+
+
+def message_channel() -> str:
+    ch = os.environ.get("MESSAGE_CHANNEL", "whatsapp").strip().lower()
+    return ch if ch in _VALID_CHANNELS else "whatsapp"
+
+
+def uses_whatsapp() -> bool:
+    return message_channel() == "whatsapp"
+
+
+def _address(number: str) -> str:
+    """Strip any existing prefix, then apply the one the channel needs."""
+    bare = number.split(":", 1)[1] if number.startswith("whatsapp:") else number
+    return f"whatsapp:{bare}" if uses_whatsapp() else bare
+
 
 def send_sms(to_phone: str, message: str) -> None:
     if not all([ACCOUNT_SID, AUTH_TOKEN, FROM_NUMBER]):
@@ -28,10 +51,8 @@ def send_sms(to_phone: str, message: str) -> None:
     from twilio.http.http_client import TwilioHttpClient
     client = Client(ACCOUNT_SID, AUTH_TOKEN,
                     http_client=TwilioHttpClient(timeout=10))
-    to = to_phone if to_phone.startswith("whatsapp:") else f"whatsapp:{to_phone}"
-    from_ = FROM_NUMBER if FROM_NUMBER.startswith("whatsapp:") else f"whatsapp:{FROM_NUMBER}"
-    client.messages.create(body=message, from_=from_, to=to)
-    print(f"SMS sent to {to_phone}")
+    client.messages.create(body=message, from_=_address(FROM_NUMBER), to=_address(to_phone))
+    logger.info("%s message queued to %s***", message_channel(), to_phone[:6])
 
 
 def send_route_sms(to_phone: str, result: dict, driver_name: str, dest_name: str,

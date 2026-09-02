@@ -123,10 +123,14 @@
       margin: 20px auto 0;
       padding: 0 20px 40px;
       display: grid;
+      /* minmax(0, 1fr): without it the single grid column grows to the widest
+         card's intrinsic width, and every card on a phone became 607px wide. */
+      grid-template-columns: minmax(0, 1fr);
       gap: 16px;
     }
 
     .card {
+      min-width: 0;
       background: rgba(42, 39, 35, 0.93);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
@@ -448,7 +452,9 @@
 
     .cal-grid {
       display: grid;
-      grid-template-columns: repeat(7, 1fr);
+      /* minmax(0, 1fr): a bare 1fr has an auto minimum, so a nowrap chip made
+         the column grow and pushed the whole card past the phone's edge. */
+      grid-template-columns: repeat(7, minmax(0, 1fr));
       gap: 4px;
     }
 
@@ -499,6 +505,8 @@
       display: flex;
       align-items: center;
       gap: 3px;
+      min-width: 0;
+      max-width: 100%;
     }
     .cal-trip-dot.return-dot {
       background: linear-gradient(135deg, var(--cyan) 0%, #2db8d8 100%);
@@ -623,7 +631,14 @@
 
     .btn-remove:hover { background: rgba(255,80,80,0.2); color: #fca5a5; }
 
+    .brand { text-align: center; padding: 24px 20px 8px; }
+    .brand-logo { height: 260px; width: auto; display: inline-block; }
+
     @media (max-width: 640px) {
+      /* Brand: a phone screen is 844px tall; the logo does not get 290 of them. */
+      .brand { padding: 12px 16px 4px; }
+      .brand-logo { height: 64px; }
+
       /* Header */
       .header-wrap { padding: 0 10px; top: 10px; }
       header { padding: 10px 14px; }
@@ -636,12 +651,18 @@
       .card { padding: 18px 16px; }
       .card-label { margin-bottom: 14px; }
 
-      /* Calendar */
-      .cal-grid { gap: 2px; }
-      .cal-day { min-height: 76px; padding: 4px 5px; }
-      .cal-day-num { font-size: 11px; margin-bottom: 2px; }
-      .cal-day-name { font-size: 9px; padding: 2px 0 6px; }
-      .cal-trip-dot { font-size: 9px; padding: 1px 3px; }
+      /* Schedule header: label and buttons on one row, month nav on its own. */
+      .cal-header { flex-wrap: wrap; gap: 10px; }
+      .cal-header > div:last-child { flex-wrap: wrap; width: 100%; justify-content: space-between; row-gap: 8px; }
+      .cal-nav { margin-left: auto; }
+
+      /* Calendar: chips become colour bars; the list below carries the names. */
+      .cal-grid { gap: 3px; }
+      .cal-day { min-height: 52px; padding: 4px 5px; border-radius: 8px; }
+      .cal-day-num { font-size: 12px; margin-bottom: 3px; }
+      .cal-day-name { font-size: 10px; padding: 2px 0 6px; letter-spacing: 0.02em; }
+      .cal-trip-dot { height: 6px; padding: 0; border-radius: 3px; margin-top: 3px; }
+      .cal-trip-dot span { display: none; }
 
       /* Forms */
       .form-grid { grid-template-columns: 1fr !important; }
@@ -707,8 +728,8 @@
 </head>
 <body>
 
-<div style="text-align:center;padding:24px 20px 8px;">
-  <img src="/static/carpoolsynclogo.png" alt="CarpoolSync" style="height:260px;width:auto;display:inline-block;">
+<div class="brand">
+  <img src="/static/carpoolsynclogo.png" alt="CarpoolSync" class="brand-logo" width="347" height="260">
 </div>
 <div class="header-wrap">
 <header>
