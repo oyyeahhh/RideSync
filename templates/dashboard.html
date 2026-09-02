@@ -649,6 +649,20 @@
     .manage-hint { font-size: 12px; font-weight: 400; color: rgba(255,255,255,0.45); margin-right: auto; }
     @media (max-width: 640px) { .manage-hint { display: none; } details.manage > summary { border-radius: 20px; } }
 
+    .attend-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 10px 0 2px; border-top: 1px solid rgba(255,255,255,0.07);
+    }
+    .attend-label { font-size: 13px; color: rgba(255,255,255,0.6); }
+    .attend-btn {
+      min-height: 44px; padding: 8px 16px; border-radius: 22px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border: 1px solid rgba(62,201,232,0.35);
+      background: rgba(62,201,232,0.12); color: #3EC9E8;
+    }
+    .attend-btn.out { border-color: rgba(255,107,138,0.35); background: rgba(255,107,138,0.15); color: #FF6B8A; }
+    .attend-btn:disabled { opacity: 0.6; cursor: wait; }
+    .attend-btn:focus-visible { outline: 2px solid #FAF9F5; outline-offset: 2px; }
+
     .brand { text-align: center; padding: 24px 20px 8px; }
     .brand-logo { height: 260px; width: auto; display: inline-block; }
 
@@ -1352,7 +1366,9 @@
 </script>
 <script>
   const IS_ADMIN = {{ 'true' if current_user.role == 'admin' else 'false' }};
-  const MY_FAMILY_ID = "{{ current_user.family_id or '' }}";
+  const MY_FAMILY_ID = {{ (current_user.family_id or '') | tojson }};
+  const TRIP_DATE = {{ trip_date | tojson }};
+  const ABSENCES = {{ absences_by_date | tojson }};
   const NEXT_DRIVER_ID = "{{ next_driver_id or '' }}";
   let ASSIGNMENT_MODE = "{{ assignment_mode }}";
   // tojson escapes <, >, & — |safe with a raw json.dumps let a family or
@@ -1522,6 +1538,23 @@
 
       const gcalReturnBtn = t.gcal_url_return ? `<a class="btn-gcal" href="${t.gcal_url_return}" target="_blank">+ Google Cal</a>` : '';
 
+      // Your family's attendance for this date. Drivers do not mark absent
+      // here; a driver who is out needs the swap flow, not an empty car.
+      let attendRow = "";
+      if (MY_FAMILY_ID) {
+        const driving = t.driver_family_id === MY_FAMILY_ID || (hasReturn && t.return_driver_family_id === MY_FAMILY_ID);
+        if (driving) {
+          attendRow = `<div class="attend-row"><span class="attend-label">You are driving this one.</span></div>`;
+        } else {
+          const absent = isAbsent(t.date, MY_FAMILY_ID);
+          attendRow = `<div class="attend-row">
+              <span class="attend-label">${absent ? "Your kids are marked out." : "Your kids are coming."}</span>
+              <button type="button" class="attend-btn ${absent ? "out" : ""}" aria-pressed="${absent}"
+                onclick="toggleAbsentFor('${t.date}', MY_FAMILY_ID, this)">${absent ? "Not coming" : "Coming"}</button>
+            </div>`;
+        }
+      }
+
       return `
         <div class="upcoming-item" style="flex-direction:column;align-items:stretch;gap:0">
           <!-- Date + destination header -->
@@ -1545,6 +1578,7 @@
             ${legCard(t, "return")}
             ${gcalReturnBtn}
           </div>` : ""}
+          ${attendRow}
         </div>`;
     }).join("");
   }
@@ -1959,17 +1993,69 @@
 
   // ── Today's Trip actions ──────────────────────────────────────────────────
 
+  function isAbsent(date, familyId) {
+    return (ABSENCES[date] || []).includes(familyId);
+  }
+
+  function setAbsent(date, familyId, absent) {
+    const list = ABSENCES[date] || (ABSENCES[date] = []);
+    const i = list.indexOf(familyId);
+    if (absent && i < 0) list.push(familyId);
+    if (!absent && i >= 0) list.splice(i, 1);
+  }
+
+  // Attendance for any trip date. Used by the per-trip toggles in the list.
+  async function toggleAbsentFor(date, familyId, btn) {
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetch("/toggle-absent", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({family_id: familyId, date: date}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.absent !== "boolean") {
+        alert(data.error || "Could not update attendance.");
+        return null;
+      }
+      setAbsent(date, familyId, data.absent);
+      renderUpcoming();
+      if (date === TRIP_DATE) paintTodayRow(familyId, data.absent);
+      return data.absent;
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function paintTodayRow(familyId, absent) {
+    const btn = document.getElementById(`absent-btn-${familyId}`);
+    const row = document.getElementById(`fam-row-${familyId}`);
+    if (!btn) return;
+    if (absent) {
+      btn.textContent = "Not coming";
+      btn.style.cssText = btn.style.cssText.replace(/background:[^;]+;color:[^;]+;border-color:[^;]+/, "background:rgba(255,107,138,0.15);color:#FF6B8A;border-color:rgba(255,107,138,0.35)");
+      if (row) row.style.background = "rgba(255,107,138,0.10)";
+    } else {
+      btn.textContent = "Coming";
+      btn.style.cssText = btn.style.cssText.replace(/background:[^;]+;color:[^;]+;border-color:[^;]+/, "background:rgba(62,201,232,0.12);color:#3EC9E8;border-color:rgba(62,201,232,0.35)");
+      if (row) row.style.background = "rgba(255,255,255,0.06)";
+    }
+    btn.setAttribute("aria-pressed", absent ? "true" : "false");
+  }
+
   async function toggleAbsent(familyId) {
     const res = await fetch("/toggle-absent", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({family_id: familyId}),
+      body: JSON.stringify({family_id: familyId, date: TRIP_DATE}),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || typeof data.absent !== "boolean") {
       alert(data.error || "Could not update attendance.");
       return;
     }
+    setAbsent(TRIP_DATE, familyId, data.absent);
+    renderUpcoming();
     const btn = document.getElementById(`absent-btn-${familyId}`);
     const row = document.getElementById(`fam-row-${familyId}`);
     if (data.absent) {

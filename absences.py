@@ -29,3 +29,9 @@ def toggle_absent(date: str, family_id: str, group_id: str) -> bool:
 
 def get_absences(date: str, group_id: str) -> list[str]:
     return _load(group_id).get(date, [])
+
+
+def get_all_absences(group_id: str) -> dict[str, list[str]]:
+    """date -> family ids marked absent. Lets the schedule show attendance
+    per trip instead of only for the next one."""
+    return _load(group_id)

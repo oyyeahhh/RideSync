@@ -30,7 +30,7 @@ from config import (
     get_group_name, get_assignment_mode, set_assignment_mode,
 )
 from storage import DATA_DIR, CODE_DIR, group_dir, migrate_legacy_data, atomic_write_json, read_json
-from families import get_family, get_destination, get_all_family_ids, add_family, update_family
+from families import get_family, get_destination, get_all_family_ids, add_family, update_family, family_phones
 from rotation import _load as _load_rotation, add_to_rotation, set_driver as _set_driver, advance as advance_rotation, set_index as _set_rotation_index
 from trips import get_stats, load_trips, record_trip
 from schedule import (
@@ -50,7 +50,7 @@ from auth import (
 )
 from groups import create_group as _create_group, get_group, list_groups, get_or_create_display_token, regenerate_display_token, find_group_by_display_token
 from sms import send_sms, send_route_sms, SANDBOX_NUMBER, SANDBOX_KEYWORD
-from absences import toggle_absent, get_absences
+from absences import toggle_absent, get_absences, get_all_absences
 from route_cache import load as load_route_cache, save as save_route_cache
 from routing import compute_optimal_route, build_maps_url
 from geocode import geocode_address
@@ -1127,16 +1127,10 @@ def drive_late(token):
     if minutes:
         msg += f" (~{minutes} min)"
     msg += ". Hang tight!"
-    for fid in get_all_family_ids(group_id):
-        if fid == driver_fid or fid in absences:
-            continue
-        try:
-            family = get_family(fid, group_id)
-            if family.guardians:
-                send_sms(to_phone=family.guardians[0].phone, message=msg)
-        except Exception as e:
-            logger.error("Drive-late SMS failed for family %s: %s", fid, e)
-    return jsonify({"ok": True})
+    targets = [fid for fid in get_all_family_ids(group_id)
+               if fid != driver_fid and fid not in absences]
+    sent, failed = notify_families(targets, group_id, msg)
+    return jsonify({"ok": True, "sent": sent, "failed": failed})
 
 
 @csrf.exempt
@@ -2087,6 +2081,7 @@ def dashboard():
         can_act=can_act,
         trip_date=trip_date,
         trip_date_label=trip_date_label,
+        absences_by_date=get_all_absences(group_id),
         live_location=get_location(group_id),
         maps_api_key=os.environ.get("GOOGLE_MAPS_API_KEY", ""),
         assignment_mode=get_assignment_mode(group_id),
@@ -2339,18 +2334,39 @@ def schedule_update(trip_id):
     return jsonify(trip)
 
 
-def _notify_all_families(group_id: str, message: str) -> int:
-    """Send a message to every family in the group (first guardian's phone).
-    Returns how many sends succeeded."""
-    sent = 0
-    for fid in get_all_family_ids(group_id):
+def notify_family(family_id: str, group_id: str, message: str) -> tuple[int, int]:
+    """Send one message to every phone attached to a family.
+    Returns (sent, failed). Never raises: a dead number for one parent must
+    not stop the other parent, or the next family, from hearing."""
+    sent = failed = 0
+    phones = family_phones(family_id, group_id)
+    if not phones:
+        logger.warning("No phone on file for family %s in %s", family_id, group_id)
+        return 0, 1
+    for phone in phones:
         try:
-            fam = get_family(fid, group_id)
-            if fam.guardians and fam.guardians[0].phone:
-                send_sms(to_phone=fam.guardians[0].phone, message=message)
-                sent += 1
+            send_sms(to_phone=phone, message=message)
+            sent += 1
         except Exception as e:
-            logger.error("Cancellation notice failed for family %s: %s", fid, e)
+            failed += 1
+            logger.error("Message to family %s (%s***) failed: %s", family_id, phone[:6], e)
+    return sent, failed
+
+
+def notify_families(family_ids, group_id: str, message: str) -> tuple[int, int]:
+    """Fan a message out to several families. Returns (sent, failed) totals."""
+    sent = failed = 0
+    for fid in family_ids:
+        s, f = notify_family(fid, group_id, message)
+        sent += s
+        failed += f
+    return sent, failed
+
+
+def _notify_all_families(group_id: str, message: str) -> int:
+    """Send a message to every family in the group. Returns how many phones
+    were reached."""
+    sent, _failed = notify_families(get_all_family_ids(group_id), group_id, message)
     return sent
 
 
@@ -2539,14 +2555,20 @@ def schedule_add_recurring():
 @login_required
 def toggle_absent_route():
     group_id = gid()
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     family_id = data.get("family_id")
     user = current_user()
     if user.get("role") != "admin" and user.get("family_id") != family_id:
-        return jsonify({"error": "forbidden"}), 403
-    trip_date = _next_trip_info(group_id)["date"]   # fix #2
+        return jsonify({"error": "You can only change attendance for your own family."}), 403
+    if family_id not in get_all_family_ids(group_id):
+        return jsonify({"error": "That family is not in this carpool."}), 404
+    # Any date, not only the next trip. "We're out Thursday" has to work on a
+    # Tuesday when Tuesday's trip is the next one.
+    trip_date = data.get("date") or _next_trip_info(group_id)["date"]
+    if not _valid_iso_date(trip_date):
+        return jsonify({"error": "Date must be YYYY-MM-DD."}), 400
     now_absent = toggle_absent(trip_date, family_id, group_id)
-    return jsonify({"absent": now_absent})
+    return jsonify({"ok": True, "absent": now_absent, "date": trip_date, "family_id": family_id})
 
 
 @app.route("/running-late", methods=["POST"])
@@ -2571,18 +2593,10 @@ def running_late():
         msg += f" (~{minutes} min)"
     msg += ". Hang tight!"
 
-    for fid in get_all_family_ids(group_id):
-        if fid == driver_id or fid in absences:
-            continue
-        try:
-            family = get_family(fid, group_id)
-            if not family.guardians:
-                continue
-            send_sms(to_phone=family.guardians[0].phone, message=msg)
-        except Exception as e:
-            logger.error("Failed to send running-late SMS to family %s: %s", fid, e)
-
-    return jsonify({"ok": True})
+    targets = [fid for fid in get_all_family_ids(group_id)
+               if fid != driver_id and fid not in absences]
+    sent, failed = notify_families(targets, group_id, msg)
+    return jsonify({"ok": True, "sent": sent, "failed": failed})
 
 
 @app.route("/arrived", methods=["POST"])
@@ -2632,18 +2646,9 @@ def _process_arrival(group_id: str, info: dict) -> dict:
 
     msg = f"✅ Kids have arrived safely at {dest_name}! Thanks {driver_name}!"
 
-    pickup_ids = []
-    for fid in get_all_family_ids(group_id):
-        if fid == driver_id or fid in absences:
-            continue
-        try:
-            family = get_family(fid, group_id)
-            if not family.guardians:          # fix #5
-                continue
-            pickup_ids.append(fid)
-            send_sms(to_phone=family.guardians[0].phone, message=msg)
-        except Exception as e:
-            logger.error("Failed to send arrival SMS to family %s: %s", fid, e)
+    pickup_ids = [fid for fid in get_all_family_ids(group_id)
+                  if fid != driver_id and fid not in absences]
+    sent, failed = notify_families(pickup_ids, group_id, msg)
 
     # Advance rotation after trip completes, skipping anyone marked absent.
     try:
@@ -2688,7 +2693,7 @@ def _process_arrival(group_id: str, info: dict) -> dict:
     except Exception as e:
         logger.error("Failed to record trip history: %s", e)
 
-    return {"ok": True}
+    return {"ok": True, "sent": sent, "failed": failed, "families": len(pickup_ids)}
 
 
 @app.route("/send-route", methods=["POST"])
