@@ -4,6 +4,7 @@ All public functions take group_id as a parameter.
 """
 
 import json
+import re
 import uuid
 from pathlib import Path
 
@@ -67,7 +68,11 @@ def get_all_family_ids(group_id: str) -> list[str]:
 
 def add_family(name: str, address: str, phone: str, children: list[str], group_id: str) -> dict:
     """Create a new family entry, persist it, and return the dict."""
-    slug = name.lower().split()[-1] if name else "family"
+    raw_slug = name.lower().split()[-1] if name else "family"
+    # Ids are emitted into inline JS and HTML attributes. An apostrophe (O'Brien)
+    # used to produce fam_o&#39;brien_1a2b, which is a syntax error in every
+    # handler that received it.
+    slug = re.sub(r"[^a-z0-9]", "", raw_slug) or "family"
     family_id = f"fam_{slug}_{uuid.uuid4().hex[:4]}"
     entry = {
         "id": family_id,

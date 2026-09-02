@@ -399,7 +399,7 @@
           <form
             method="POST"
             action="/admin/users/delete/{{ u.id }}"
-            onsubmit="return confirm('Delete {{ u.name or u.email }}? This cannot be undone.');"
+            onsubmit="return confirm('Delete ' + {{ (u.name or u.email) | tojson }} + '? This cannot be undone.');"
             style="display:inline;"
           >
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

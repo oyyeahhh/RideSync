@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    jsonify, Response, session, flash, send_file,
+    jsonify, Response, session, flash, send_file, abort,
 )
 from flask_session import Session
 from twilio.request_validator import RequestValidator
@@ -231,8 +231,21 @@ _startup_check()
 app = Flask(__name__)
 _secret = os.environ.get("SECRET_KEY", "")
 # Refuse to start in production without a real SECRET_KEY.
-# Treat "Railway-like" (DATA_DIR set + not the code dir) as production.
-_is_prod = bool(os.environ.get("DATA_DIR")) and str(DATA_DIR) != str(CODE_DIR)
+# Production is decided by the environment, not by where the data happens to
+# live. Keying this off DATA_DIR meant a local .env turned on Secure cookies
+# (breaking every local login) and removing the Railway volume silently turned
+# the hardening off.
+_on_railway = bool(os.environ.get("RAILWAY_ENVIRONMENT")
+                   or os.environ.get("RAILWAY_PROJECT_ID")
+                   or os.environ.get("RAILWAY_SERVICE_NAME"))
+_env_name = os.environ.get("FLASK_ENV", "").strip().lower()
+if _on_railway or _env_name in ("production", "prod"):
+    _is_prod = True
+elif _env_name in ("development", "dev", "local") or os.environ.get("FLASK_TESTING") == "1":
+    _is_prod = False
+else:
+    _is_prod = bool(os.environ.get("DATA_DIR")) and str(DATA_DIR) != str(CODE_DIR)
+logger.info("Running in %s mode", "production" if _is_prod else "development")
 if not _secret:
     if _is_prod:
         raise RuntimeError(
@@ -307,7 +320,7 @@ def _server_error(e):
         return jsonify({"ok": False, "error": "Server error"}), 500
     return ("<h2>Something went wrong</h2>"
             "<p>The error has been logged. "
-            "<a href='/dashboard'>Back to dashboard</a></p>"), 500
+            "<a href='/'>Back to dashboard</a></p>"), 500
 
 
 @app.errorhandler(413)
@@ -446,10 +459,12 @@ def _rate_limited(key: str, max_hits: int, window_seconds: int) -> bool:
 
 
 def _client_ip() -> str:
-    """Best-effort IP behind Railway's proxy."""
-    fwd = request.headers.get("X-Forwarded-For", "")
-    if fwd:
-        return fwd.split(",")[0].strip()
+    """Client IP behind Railway's proxy.
+
+    ProxyFix already rewrites remote_addr from the trusted rightmost
+    X-Forwarded-For entry. Reading the leftmost entry ourselves let a caller
+    spoof a fresh IP per request and walk straight past the login limiter.
+    """
     return request.remote_addr or "unknown"
 
 
@@ -511,6 +526,32 @@ def _next_trip_info(group_id: str) -> dict:
 
 # ── Utility ───────────────────────────────────────────────────────────────────
 
+_HHMM_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def _valid_hhmm(value, required: bool = True) -> bool:
+    """True when value is a 24-hour HH:MM string.
+
+    An empty value passes only when required is False. Times reach us from
+    <input type="time">, which submits "" when the field is cleared, and a
+    stored "" later crashes every strptime that touches the trip.
+    """
+    if not isinstance(value, str) or not value:
+        return not required
+    return bool(_HHMM_RE.match(value))
+
+
+def _valid_iso_date(value) -> bool:
+    """True when value is a real YYYY-MM-DD calendar date."""
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
 def gcal_url(trip: dict, group_id: str) -> str:
     """Build a Google Calendar 'add event' URL for the outbound leg."""
     tz = ZoneInfo(load_config(group_id).get("timezone", "America/New_York"))
@@ -571,7 +612,6 @@ def gcal_url_return(trip: dict, group_id: str) -> str:
 
 # ── Auth routes ───────────────────────────────────────────────────────────────
 
-@csrf.exempt
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if session.get("user_id"):
@@ -1219,21 +1259,37 @@ Supabase link: {unlinked_line}
 </pre>"""
 
 
-@app.route("/health/smtp-test")
-def smtp_test():
-    """Temporary diagnostic: attempt a Supabase password-reset email and return
-    the raw result. Remove after SMTP is confirmed working."""
-    from auth_supabase import send_password_reset_email
-    email = request.args.get("email", "").strip().lower()
-    if not email:
-        return "<pre>Usage: /health/smtp-test?email=you@example.com</pre>", 400
-    redirect_url = url_for("auth_reset_callback", _external=True)
-    result = send_password_reset_email(email, redirect_url)
-    return f"<pre>Email: {email[:3]}***\nRedirect: {redirect_url}\nResult: {result}</pre>"
+def _owner_emails() -> set[str]:
+    """Platform-owner allowlist from OWNER_EMAILS (comma separated).
+
+    Anyone can create a group and become its admin, so admin_required alone
+    cannot gate anything that reaches across groups.
+    """
+    raw = os.environ.get("OWNER_EMAILS", "")
+    return {e.strip().lower() for e in raw.split(",") if e.strip()}
+
+
+def _is_owner() -> bool:
+    user = current_user() or {}
+    email = (user.get("email") or "").strip().lower()
+    return bool(email) and email in _owner_emails()
+
+
+def owner_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not _is_owner():
+            logger.warning("Owner-only route %s refused for user_id=%s",
+                           request.path, session.get("user_id"))
+            abort(404)
+        return f(*args, **kwargs)
+    return decorated
 
 
 @app.route("/admin/backup")
+@login_required
 @admin_required
+@owner_required
 def admin_backup():
     """Download every JSON data file as a timestamped tar.gz — the one-click
     'my data survives anything' button. Covers users, groups, families,
@@ -1880,8 +1936,21 @@ def dashboard():
 
     schedule = load_schedule(group_id)
     for trip in schedule:
-        trip["gcal_url"] = gcal_url(trip, group_id)
-        trip["gcal_url_return"] = gcal_url_return(trip, group_id)
+        # One trip with a malformed date or time must not 500 the dashboard for
+        # the whole group. Degrade to a missing calendar link instead.
+        try:
+            trip["gcal_url"] = gcal_url(trip, group_id)
+        except Exception:
+            logger.warning("Bad calendar data on trip %s in group %s",
+                           trip.get("id"), group_id)
+            trip["gcal_url"] = ""
+        try:
+            trip["gcal_url_return"] = gcal_url_return(trip, group_id)
+        except Exception:
+            trip["gcal_url_return"] = ""
+        # drive_token authorizes the login-free driver endpoints. It must not
+        # ride along into the browser for every group member.
+        trip.pop("drive_token", None)
 
     families = [{"id": fid, "name": get_family(fid, group_id).name} for fid in get_all_family_ids(group_id)]
     raw_karma = {k["family_id"]: k for k in get_karma(group_id)}
@@ -2177,7 +2246,15 @@ def _rotation_pairs_from(start_index: int, group_id: str) -> list[tuple[str, str
 @admin_required
 def schedule_add():
     group_id = gid()
-    data = request.json
+    data = request.get_json(silent=True) or {}
+    if not _valid_iso_date(data.get("date", "")):
+        return jsonify({"ok": False, "error": "Trip date is required, as YYYY-MM-DD."}), 400
+    if not data.get("destination_name") or not data.get("destination_address"):
+        return jsonify({"ok": False, "error": "Destination name and address are both required."}), 400
+    if not _valid_hhmm(data.get("arrival_time", "")):
+        return jsonify({"ok": False, "error": "Arrive-by time is required and must look like 16:30."}), 400
+    if not _valid_hhmm(data.get("return_time", ""), required=False):
+        return jsonify({"ok": False, "error": "Return time must look like 18:00, or be left empty."}), 400
     driver_fid = data.get("driver_family_id", "")
     driver_name = data.get("driver_name", "")
 
@@ -2212,7 +2289,11 @@ def schedule_add():
 @admin_required
 def schedule_update(trip_id):
     group_id = gid()
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
+    if not _valid_hhmm(data.get("arrival_time", "")):
+        return jsonify({"ok": False, "error": "Arrive-by time is required and must look like 16:30."}), 400
+    if not _valid_hhmm(data.get("return_time", ""), required=False):
+        return jsonify({"ok": False, "error": "Return time must look like 18:00, or be left empty."}), 400
     driverEl_id = data.get("driver_family_id", "")
     rdEl_id = data.get("return_driver_family_id", "")
     trip = update_trip(
@@ -2334,7 +2415,25 @@ def schedule_claim(trip_id, leg):
 @admin_required
 def schedule_add_recurring():
     group_id = gid()
-    data = request.json
+    data = request.get_json(silent=True) or {}
+    # A recurring series writes dozens of trips at once, so a malformed time
+    # here used to poison the whole schedule in a single request.
+    if not _valid_iso_date(data.get("start_date", "")) or not _valid_iso_date(data.get("end_date", "")):
+        return jsonify({"ok": False, "error": "Start and end dates are required, as YYYY-MM-DD."}), 400
+    if data["end_date"] < data["start_date"]:
+        return jsonify({"ok": False, "error": "The end date cannot come before the start date."}), 400
+    if not data.get("destination_name") or not data.get("destination_address"):
+        return jsonify({"ok": False, "error": "Destination name and address are both required."}), 400
+    if not _valid_hhmm(data.get("arrival_time", "")):
+        return jsonify({"ok": False, "error": "Arrive-by time is required and must look like 16:30."}), 400
+    if not _valid_hhmm(data.get("return_time", ""), required=False):
+        return jsonify({"ok": False, "error": "Return time must look like 18:00, or be left empty."}), 400
+    try:
+        weekdays = [int(d) for d in data.get("weekdays", [])]
+    except (TypeError, ValueError):
+        weekdays = []
+    if not weekdays or any(d < 0 or d > 6 for d in weekdays):
+        return jsonify({"ok": False, "error": "Pick at least one weekday for the series."}), 400
     driver_fid = data.get("driver_family_id", "")
     driver_name = data.get("driver_name", "")
     auto_mode = get_assignment_mode(group_id) == "auto"
@@ -2496,6 +2595,16 @@ def _process_arrival(group_id: str, info: dict) -> dict:
                for t in load_trips(group_id)):
             return {"ok": True, "already": True}
 
+    # Claim the trip before doing any slow work. Twilio sends take seconds, and
+    # a second tap in that window used to pass the check above, texting every
+    # family twice and skipping a driver in the rotation.
+    if info.get("trip"):
+        try:
+            update_trip(info["trip"]["id"], group_id, rotation_advanced=True)
+        except Exception as e:
+            logger.error("Failed to claim trip %s for arrival: %s",
+                         info["trip"].get("id"), e)
+
     msg = f"✅ Kids have arrived safely at {dest_name}! Thanks {driver_name}!"
 
     pickup_ids = []
@@ -2519,13 +2628,6 @@ def _process_arrival(group_id: str, info: dict) -> dict:
         advance_rotation(group_id)
     except Exception as e:
         logger.error("Failed to advance rotation: %s", e)
-
-    # Mark today's trip(s) as rotation_advanced so the nightly cron skips it.
-    if info.get("trip"):
-        try:
-            update_trip(info["trip"]["id"], group_id, rotation_advanced=True)
-        except Exception as e:
-            logger.error("Failed to mark trip rotation_advanced: %s", e)
 
     # Pull real miles/minutes from the route cache if it covers this trip.
     miles = 0.0
@@ -3586,6 +3688,12 @@ def admin_system():
     from groups import _load_groups
     users = _load_users()
     groups = _load_groups()
+    # A group admin sees only their own group. The OWNER_EMAILS allowlist keeps
+    # the platform-wide view for whoever runs the deployment.
+    if not _is_owner():
+        my_gid = gid()
+        users = [u for u in users if u.get("group_id") == my_gid]
+        groups = [g for g in groups if g.get("id") == my_gid]
     # Volume / storage info
     data_dir_env = os.environ.get("DATA_DIR", "NOT SET")
     is_ephemeral = str(DATA_DIR) == str(CODE_DIR)

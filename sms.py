@@ -23,7 +23,11 @@ SANDBOX_KEYWORD = os.environ.get("TWILIO_SANDBOX_KEYWORD", "")
 def send_sms(to_phone: str, message: str) -> None:
     if not all([ACCOUNT_SID, AUTH_TOKEN, FROM_NUMBER]):
         raise RuntimeError("Twilio credentials not set in .env")
-    client = Client(ACCOUNT_SID, AUTH_TOKEN)
+    # Without an explicit timeout the Twilio SDK waits forever, and the app has
+    # only two request workers.
+    from twilio.http.http_client import TwilioHttpClient
+    client = Client(ACCOUNT_SID, AUTH_TOKEN,
+                    http_client=TwilioHttpClient(timeout=10))
     to = to_phone if to_phone.startswith("whatsapp:") else f"whatsapp:{to_phone}"
     from_ = FROM_NUMBER if FROM_NUMBER.startswith("whatsapp:") else f"whatsapp:{FROM_NUMBER}"
     client.messages.create(body=message, from_=from_, to=to)

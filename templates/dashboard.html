@@ -1605,7 +1605,8 @@
 
   // Live preview updates
   document.querySelectorAll("#m-weekdays input").forEach(cb => cb.addEventListener("change", updateRepeatPreview));
-  document.getElementById("m-end-date").addEventListener("change", updateRepeatPreview);
+  const endDateEl = document.getElementById("m-end-date");
+  if (endDateEl) endDateEl.addEventListener("change", updateRepeatPreview);
 
   function getWeekdayIndex(jsDay) {
     // JS: Sun=0,Mon=1…Sat=6  →  Python: Mon=0…Sun=6
