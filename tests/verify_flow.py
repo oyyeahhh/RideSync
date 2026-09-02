@@ -30,7 +30,7 @@ r = s.post(BASE + "/create-group", data={
     "csrf_token": tok, "group_name": "Test Soccer Carpool", "name": "Test Admin",
     "family_name": "Testfamily", "email": "admin@example.com", "phone": "+15551234567",
     "password": "Sunflower99", "address": "1600 Pennsylvania Ave NW, Washington, DC",
-    "child_name": "Kid One"}, allow_redirects=False)
+    "child_name": "Kid One", "sms_consent": "yes"}, allow_redirects=False)
 check("POST /create-group", r.status_code == 302, "status=%d" % r.status_code)
 
 s.get(BASE + "/logout")

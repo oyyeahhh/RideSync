@@ -98,6 +98,10 @@ def create_user(*, phone: str, name: str, email: str, password: str,
         "child_name": child_name.strip(),
         "address": address.strip(),
         "joined_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        # Set by the signup routes once the person ticks the SMS consent box.
+        # Kept on the record because carrier registration asks how and when
+        # consent was collected.
+        "sms_consent_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
     users.append(user)
     _save_users(users)

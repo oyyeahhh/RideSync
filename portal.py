@@ -869,6 +869,16 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.route("/privacy")
+def privacy():
+    """Plain-language privacy and messaging notice. Linked from every consent
+    checkbox and from the About footer. Carrier registration needs a public
+    page like this to exist."""
+    return render_template("privacy.html",
+                           contact_email=os.environ.get("CONTACT_EMAIL", "orlyn8@gmail.com"),
+                           updated="2 September 2026")
+
+
 @app.route("/about")
 def about():
     """Public landing/marketing page. No login required."""
@@ -1532,7 +1542,10 @@ def create_group_route():
         if digits:
             form["phone"] = f"+1{digits}" if len(digits) == 10 else f"+{digits}"
 
-        if not form["group_name"]:
+        form["sms_consent"] = request.form.get("sms_consent", "") == "yes"
+        if not form["sms_consent"]:
+            error = "Please tick the box agreeing to receive carpool texts. That is how the app reaches you."
+        elif not form["group_name"]:
             error = "Please name your carpool group."
         elif not form["name"]:
             error = "Please enter your name."
@@ -1707,11 +1720,16 @@ def signup():
             "family_name": request.form.get("family_name", "").strip(),
             "child_name": request.form.get("child_name", "").strip(),
             "address": request.form.get("address", "").strip(),
+            "sms_consent": request.form.get("sms_consent", "") == "yes",
         }
         password = request.form.get("password", "").strip()
         invite_group_id = invite.get("group_id", "")
 
-        if not form["name"]:
+        # Carriers require an explicit opt-in before any text is sent, and the
+        # registration asks for proof of how it was collected. This is it.
+        if not form["sms_consent"]:
+            error = "Please tick the box agreeing to receive carpool texts. That is how the app reaches you."
+        elif not form["name"]:
             error = "Please enter your name."
         elif not form["family_name"]:
             error = "Please enter your family name."

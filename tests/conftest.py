@@ -51,7 +51,7 @@ def group(app):
         "csrf_token": tok, "group_name": "Test Soccer", "name": "Test Admin",
         "family_name": "Nadler", "email": ADMIN["email"], "phone": "5551234567",
         "password": ADMIN["password"], "address": "12 Maple St, Maplewood, NJ",
-        "child_name": "Avi"})
+        "child_name": "Avi", "sms_consent": "yes"})
     assert r.status_code == 302, r.get_data(as_text=True)[:300]
     # invite a parent; Twilio is unconfigured so the link is in the flash
     dash = c.get("/").get_data(as_text=True)
@@ -66,7 +66,7 @@ def group(app):
     r = p.post("/signup", data={
         "csrf_token": tok, "token": token, "name": "Dana Cohen", "email": PARENT["email"],
         "family_name": "Cohen", "child_name": "Noa", "password": PARENT["password"],
-        "address": "48 Oak Ave, Maplewood, NJ"})
+        "address": "48 Oak Ave, Maplewood, NJ", "sms_consent": "yes"})
     assert r.status_code in (302, 200)
     return {"invite_link": link}
 
