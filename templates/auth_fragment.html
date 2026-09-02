@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Signing you in · CarpoolSync</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #FAF9F5; color: #1A1714;
+           font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 26rem; padding: 2rem 1.5rem; text-align: center; }
+    h1 { font-size: 1.25rem; margin: 0 0 0.6rem; }
+    p { margin: 0 0 1rem; line-height: 1.55; color: #5c574d; }
+    a.btn { display: inline-block; min-height: 44px; line-height: 44px; padding: 0 20px; border-radius: 22px;
+            background: #1A1714; color: #FAF9F5; text-decoration: none; font-weight: 600; }
+    .err { color: #b3261e; }
+  </style>
+</head>
+<body>
+<main>
+  <h1 id="title">One moment</h1>
+  <p id="msg">Checking your link.</p>
+  <p id="fallback" hidden><a class="btn" href="{{ url_for('forgot_password') if purpose == 'reset' else url_for('login') }}">Request a new link</a></p>
+</main>
+<script>
+  // Supabase's default email templates redirect with the tokens after a '#'.
+  // Browsers never send the fragment to the server, so we read it here and
+  // hand the access token over. The server validates it with Supabase before
+  // trusting anything.
+  (function () {
+    var params = new URLSearchParams(location.hash.replace(/^#/, ""));
+    var token = params.get("access_token");
+    var errDesc = params.get("error_description") || params.get("error");
+    var title = document.getElementById("title"), msg = document.getElementById("msg"), fb = document.getElementById("fallback");
+    function fail(text) { title.textContent = "This link did not work"; msg.textContent = text; msg.className = "err"; fb.hidden = false; }
+    if (errDesc) { fail(decodeURIComponent(errDesc.replace(/\+/g, " "))); return; }
+    if (!token) { fail("The link is missing its sign-in token. It may have expired, or been opened in a way that dropped it. Request a new one and open it on this device."); return; }
+    history.replaceState(null, "", location.pathname + location.search);
+    fetch("/auth/fragment", {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token() }}"},
+      body: JSON.stringify({access_token: token, purpose: "{{ purpose }}"})
+    }).then(function (r) { return r.json().then(function (d) { return {ok: r.ok, d: d}; }); })
+      .then(function (res) {
+        if (res.ok && res.d.ok && res.d.redirect) { location.replace(res.d.redirect); }
+        else { fail((res.d && res.d.error) || "That link is invalid or has expired. Please request a new one."); }
+      })
+      .catch(function () { fail("No connection. Check your signal and open the link again."); });
+  })();
+</script>
+</body>
+</html>

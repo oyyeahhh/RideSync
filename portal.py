@@ -12,6 +12,7 @@ import re
 import uuid
 from datetime import date, datetime, timedelta, timezone as dt_timezone
 from functools import wraps
+from typing import Optional
 from pathlib import Path
 from urllib.parse import quote, quote_plus
 from zoneinfo import ZoneInfo
@@ -733,19 +734,77 @@ def auth_magic_link_send():
                            magic_sent=True)
 
 
+def _supabase_user_from_query() -> Optional[dict]:
+    """Resolve the user behind an email link from whatever the link carried.
+    See auth_supabase for the three shapes a Supabase link can take."""
+    from auth_supabase import exchange_code_for_session, verify_token_hash
+    token_hash = request.args.get("token_hash", "").strip()
+    if token_hash:
+        return verify_token_hash(token_hash, request.args.get("type", "magiclink").strip())
+    code = request.args.get("code", "").strip()
+    if code:
+        return exchange_code_for_session(code)
+    return None
+
+
+def _link_carried_nothing() -> bool:
+    """True when the query string has neither token_hash nor code nor an
+    error: the tokens are probably sitting in the URL fragment."""
+    return not any(request.args.get(k) for k in ("token_hash", "code", "error", "error_description"))
+
+
+def _finish_magic_login(supa_user: dict):
+    """Second half of the magic-link flow, shared by the query-string and
+    fragment paths. Returns a redirect response."""
+    from auth_supabase import find_or_link_internal_user
+    internal = find_or_link_internal_user(supa_user["id"], supa_user["email"])
+    if not internal:
+        session["pending_supabase_uid"] = supa_user["id"]
+        session["pending_email"] = supa_user["email"]
+        return redirect(url_for("create_group_route"))
+    session.clear()
+    session["user_id"] = internal["id"]
+    session["group_id"] = internal.get("group_id", "")
+    session.permanent = True
+    logger.info("Magic-link login OK for user_id=%s", internal["id"])
+    return redirect(url_for("dashboard"))
+
+
+def _begin_password_reset(supa_user: dict):
+    """Second half of the recovery flow: remember who proved ownership, then
+    send them to the new-password form."""
+    session["reset_supabase_uid"] = supa_user["id"]
+    session["reset_email"] = supa_user["email"]
+    return redirect(url_for("reset_password_session"))
+
+
+@app.route("/auth/fragment", methods=["POST"])
+def auth_fragment():
+    """The browser hands over tokens that arrived in the URL fragment.
+    Validated server-side with get_user(); nothing is trusted from the body
+    except that it names a token Supabase will vouch for."""
+    from auth_supabase import user_from_access_token
+    data = request.get_json(silent=True) or {}
+    purpose = data.get("purpose", "login")
+    if _rate_limited(f"fragment:{_client_ip()}", max_hits=10, window_seconds=600):
+        return jsonify({"ok": False, "error": "Too many attempts. Please request a new link in a few minutes."}), 429
+    supa_user = user_from_access_token(str(data.get("access_token", ""))[:4096])
+    if not supa_user:
+        return jsonify({"ok": False, "error": "That link is invalid or has expired. Please request a new one."}), 400
+    resp = _begin_password_reset(supa_user) if purpose == "reset" else _finish_magic_login(supa_user)
+    return jsonify({"ok": True, "redirect": resp.headers.get("Location", url_for("dashboard"))})
+
+
 @app.route("/auth/callback")
 def auth_callback():
-    """Receive the Supabase magic-link callback. Exchange the code for a
-    session, find or attach the internal user record, and log them in."""
-    from auth_supabase import exchange_code_for_session, find_or_link_internal_user
+    """Receive the Supabase magic-link callback, in any of its three shapes,
+    find or attach the internal user record, and log them in."""
+    from auth_supabase import find_or_link_internal_user
 
-    code = request.args.get("code", "")
-    if not code:
-        return render_template("login.html",
-                               error="Sign-in link is missing or expired. Please request a new one."), 400
-
-    supa_user = exchange_code_for_session(code)
+    supa_user = _supabase_user_from_query()
     if not supa_user:
+        if _link_carried_nothing():
+            return render_template("auth_fragment.html", purpose="login")
         return render_template("login.html",
                                error="Sign-in link is invalid or expired. Please request a new one."), 400
 
@@ -1361,19 +1420,14 @@ def auth_reset_callback():
     a session to prove the email owner clicked the link, stash the verified
     Supabase uid, and show the set-new-password form (session-based, no token
     in the URL)."""
-    from auth_supabase import exchange_code_for_session
-    code = request.args.get("code", "")
-    if not code:
-        return render_template("forgot_password.html", sent=False, via="email",
-                               error="This reset link is missing or expired. Please request a new one."), 400
-    supa_user = exchange_code_for_session(code)
+    supa_user = _supabase_user_from_query()
     if not supa_user:
+        if _link_carried_nothing():
+            return render_template("auth_fragment.html", purpose="reset")
         return render_template("forgot_password.html", sent=False, via="email",
                                error="This reset link is invalid or expired. Please request a new one."), 400
     # Proof-of-ownership established. Hold it briefly to authorize the next POST.
-    session["reset_supabase_uid"] = supa_user["id"]
-    session["reset_email"] = supa_user["email"]
-    return redirect(url_for("reset_password_session"))
+    return _begin_password_reset(supa_user)
 
 
 @app.route("/reset-password", methods=["GET", "POST"])
@@ -1772,10 +1826,12 @@ def invite():
         whatsapp_ok = False
 
     # Store invite result in session flash instead of URL params
+    from sms import message_channel
+    channel_name = "text message" if message_channel() == "sms" else "WhatsApp"
     if whatsapp_ok:
-        session["invite_status"] = f"Invite sent to {phone} via WhatsApp."
+        session["invite_status"] = f"Invite queued to {phone} by {channel_name}. If they do not see it in a few minutes, share this link directly: {signup_url}"
     else:
-        session["invite_status"] = f"WhatsApp failed. Share this link manually with {phone}: {signup_url}"
+        session["invite_status"] = f"The {channel_name} to {phone} could not be sent. Share this link with them directly: {signup_url}"
     session["invite_link"] = signup_url
 
     return redirect(url_for("dashboard"))
@@ -2114,12 +2170,27 @@ def save_trip():
     except (TypeError, ValueError):
         buffer_minutes = cfg.get("buffer_minutes", 10)
 
-    if not arrival_date or not arrival_time:
-        session["settings_error"] = "Date and arrival time are required — settings were not saved."
+    # Every value below is read back by strptime or ZoneInfo on every
+    # dashboard load, so a bad one used to take the whole group down.
+    if not _valid_iso_date(arrival_date):
+        session["settings_error"] = "The trip date has to be a real date (YYYY-MM-DD). Settings were not saved."
+        return redirect(url_for("dashboard"))
+    if not _valid_hhmm(arrival_time):
+        session["settings_error"] = "Arrive-by time has to look like 16:30. Settings were not saved."
+        return redirect(url_for("dashboard"))
+    if not _valid_hhmm(return_time, required=False):
+        session["settings_error"] = "Return time has to look like 18:00, or be left empty. Settings were not saved."
         return redirect(url_for("dashboard"))
     if not destination_address:
-        session["settings_error"] = "Destination address is required — settings were not saved."
+        session["settings_error"] = "Destination address is required. Settings were not saved."
         return redirect(url_for("dashboard"))
+    timezone_val = request.form.get("timezone", "").strip()
+    if timezone_val:
+        try:
+            ZoneInfo(timezone_val)
+        except Exception:
+            session["settings_error"] = "That time zone is not recognised. Settings were not saved."
+            return redirect(url_for("dashboard"))
 
     # Persist defaults to config
     cfg.update({
@@ -2136,7 +2207,6 @@ def save_trip():
     })
     if group_name:
         cfg["group_name"] = group_name
-    timezone_val = request.form.get("timezone", "").strip()
     if timezone_val:
         cfg["timezone"] = timezone_val
 
@@ -3590,7 +3660,7 @@ def invite_resend(token):
     except Exception as e:
         logger.error("Invite resend failed for %s: %s", invite.get("phone"), e)
         session["admin_flash_error"] = (
-            f"Couldn't send via WhatsApp. Share this link directly: {signup_url}"
+            f"The message could not be sent. Share this link directly: {signup_url}"
         )
     return redirect(url_for("admin_users"))
 

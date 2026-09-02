@@ -16,7 +16,7 @@ The contract:
 import logging
 from typing import Optional
 
-from supabase_client import get_anon_client, get_service_client, is_configured
+from supabase_client import get_anon_client, get_service_client, is_configured, new_anon_client
 from auth import _load_users, _save_users, create_user as _create_internal_user, get_user_by_email
 
 logger = logging.getLogger(__name__)
@@ -79,8 +79,64 @@ def send_password_reset_email(email: str, redirect_to: str) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+def _user_dict(user) -> Optional[dict]:
+    if user is None:
+        return None
+    uid = getattr(user, "id", None) or (user.get("id") if isinstance(user, dict) else None)
+    email = getattr(user, "email", None) or (user.get("email") if isinstance(user, dict) else "")
+    if not uid:
+        return None
+    return {"id": uid, "email": (email or "").lower()}
+
+
+# How a Supabase email link reaches this server, in order of preference:
+#
+# 1. token_hash. Set the Supabase email templates (Auth > Email Templates)
+#    to link to `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery`
+#    (and `type=magiclink` for the magic-link template). The server calls
+#    verify_otp with the hash. No per-process state, works from any device,
+#    survives redeploys. This is the documented server-side flow.
+# 2. code (PKCE). Only produced when the client sent a code_challenge. The
+#    installed supabase-auth does not do that for email OTP or recovery, and
+#    the verifier it would need lived in process memory, which is why resets
+#    failed at random across two workers.
+# 3. Nothing at all in the query string. The default templates redirect with
+#    the tokens in the URL fragment, which browsers never send to servers.
+#    auth_fragment.html reads the fragment in the browser and posts the
+#    access token to /auth/fragment, which validates it with get_user().
+_OTP_TYPES = {"magiclink", "recovery", "signup", "invite", "email", "email_change"}
+
+
+def verify_token_hash(token_hash: str, otp_type: str) -> Optional[dict]:
+    """Verify a `token_hash` from an email link and return the user."""
+    if not token_hash or not is_configured():
+        return None
+    otp_type = otp_type if otp_type in _OTP_TYPES else "magiclink"
+    try:
+        client = new_anon_client()
+        resp = client.auth.verify_otp({"token_hash": token_hash, "type": otp_type})
+        return _user_dict(getattr(resp, "user", None))
+    except Exception as e:
+        logger.error("verify_otp(%s) failed: %s", otp_type, e)
+        return None
+
+
+def user_from_access_token(access_token: str) -> Optional[dict]:
+    """Validate an access token handed over from the URL fragment and return
+    the user it belongs to. Supabase checks the signature and expiry."""
+    if not access_token or not is_configured():
+        return None
+    try:
+        client = new_anon_client()
+        resp = client.auth.get_user(access_token)
+        return _user_dict(getattr(resp, "user", None))
+    except Exception as e:
+        logger.error("get_user(access_token) failed: %s", e)
+        return None
+
+
 def exchange_code_for_session(code: str) -> Optional[dict]:
-    """Exchange a magic-link callback `code` for a Supabase session.
+    """Exchange a PKCE callback `code` for a Supabase session.
     Returns the Supabase user dict (with id, email) on success, or None.
     """
     if not code:
@@ -88,7 +144,7 @@ def exchange_code_for_session(code: str) -> Optional[dict]:
     if not is_configured():
         return None
     try:
-        client = get_anon_client()
+        client = new_anon_client()
         resp = client.auth.exchange_code_for_session({"auth_code": code})
         # supabase-py returns an AuthResponse; .user is the User object.
         user = resp.user if hasattr(resp, "user") else None

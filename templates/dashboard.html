@@ -649,6 +649,16 @@
     .manage-hint { font-size: 12px; font-weight: 400; color: rgba(255,255,255,0.45); margin-right: auto; }
     @media (max-width: 640px) { .manage-hint { display: none; } details.manage > summary { border-radius: 20px; } }
 
+    #toast-host { position: fixed; left: 12px; right: 12px; bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 300; display: grid; gap: 8px; pointer-events: none; }
+    .toast { pointer-events: auto; margin: 0 auto; max-width: 560px; width: 100%; box-sizing: border-box;
+             padding: 14px 16px; border-radius: 14px; font-size: 14px; line-height: 1.45; font-weight: 500;
+             background: #1A1714; color: #FAF9F5; box-shadow: 0 8px 28px rgba(0,0,0,0.28); border-left: 4px solid rgba(255,255,255,0.35); }
+    .toast.good { border-left-color: #3EC9E8; }
+    .toast.warn { border-left-color: #ffb24d; }
+    .toast.bad  { border-left-color: #FF6B8A; }
+    .toast.out { opacity: 0; transition: opacity 0.35s; }
+    @media (min-width: 641px) { #toast-host { bottom: 24px; } }
+
     .attend-row {
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       padding: 10px 0 2px; border-top: 1px solid rgba(255,255,255,0.07);
@@ -2160,19 +2170,47 @@
     document.getElementById("late-minutes").value = "";
   }
 
+  // One place for every confirmation. A toast reads what happened; it never
+  // says "sent to everyone" when the server says some phones failed.
+  function toast(text, kind) {
+    let host = document.getElementById("toast-host");
+    if (!host) {
+      host = document.createElement("div"); host.id = "toast-host"; host.setAttribute("role", "status"); host.setAttribute("aria-live", "polite");
+      document.body.appendChild(host);
+    }
+    const el = document.createElement("div");
+    el.className = "toast " + (kind || "");
+    el.textContent = text;
+    host.appendChild(el);
+    setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 400); }, kind === "bad" ? 9000 : 5500);
+  }
+
+  function deliveryText(verb, data) {
+    const sent = data.sent || 0, failed = data.failed || 0;
+    if (sent && !failed) return `${verb} to ${sent} phone${sent === 1 ? "" : "s"}.`;
+    if (sent && failed) return `${verb} to ${sent} phone${sent === 1 ? "" : "s"}. ${failed} could not be reached. Check the numbers under Manage carpool.`;
+    if (!sent && failed) return `Nothing was sent: ${failed} phone${failed === 1 ? "" : "s"} could not be reached. Messaging may not be set up yet.`;
+    return `${verb}, but there was nobody to tell.`;
+  }
+
   async function sendRunningLate() {
     const minutes = document.getElementById("late-minutes").value;
-    const res = await fetch("/running-late", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({minutes}),
-    });
+    let res, data = {};
+    try {
+      res = await fetch("/running-late", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({minutes}),
+      });
+      data = await res.json().catch(() => ({}));
+    } catch (e) {
+      toast("No connection. Check your signal and try again.", "bad"); return;
+    }
     closeLateModal();
-    if (res.ok) {
-      alert("Running late alert sent to all pickup families!");
+    if (res.ok && data.ok) {
+      toast(deliveryText("Running-late alert sent", data), data.failed ? "warn" : "good");
     } else {
-      const data = await res.json().catch(() => ({}));
-      alert(data.error || "Could not send the alert.");
+      toast(data.error || "Could not send the alert.", "bad");
     }
   }
 
@@ -2184,12 +2222,12 @@
       const res = await fetch("/send-route", { method: "POST", headers: {"Content-Type": "application/json"}, body: "{}" });
       const data = await res.json();
       if (data.ok) {
-        alert(`✅ Route sent to ${data.driver} covering ${data.pickups} pickup(s).`);
+        toast(`Route sent to ${data.driver}, covering ${data.pickups} pickup${data.pickups === 1 ? "" : "s"}.`, "good");
       } else {
-        alert(`❌ ${data.error}`);
+        toast(data.error || "Could not send the route.", "bad");
       }
     } catch (e) {
-      alert("Something went wrong sending the route.");
+      toast("No connection. Check your signal and try again.", "bad");
     }
     btn.textContent = "🗺 Send Route to Driver";
     btn.disabled = false;
@@ -2204,11 +2242,11 @@
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(data.error || "Could not send the arrival confirmation.");
+      toast(data.error || "Could not send the arrival confirmation.", "bad");
     } else if (data.already) {
-      alert("Today's arrival was already recorded — no duplicate messages sent.");
+      toast("This arrival was already recorded. No duplicate messages were sent.", "warn");
     } else {
-      alert("Arrival confirmation sent!");
+      toast(deliveryText("Arrival confirmation sent", data), data.failed ? "warn" : "good");
     }
   }
 
