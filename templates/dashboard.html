@@ -659,6 +659,22 @@
     .toast.out { opacity: 0; transition: opacity 0.35s; }
     @media (min-width: 641px) { #toast-host { bottom: 24px; } }
 
+    /* Schedule list: one card per one-off trip or per series */
+    .sched-card { flex-direction: column; align-items: stretch; gap: 0; }
+    .sched-card:hover { transform: none; }
+    .sched-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+    .sched-title { font-size: 16px; font-weight: 700; color: #FAF9F5; }
+    .sched-repeat { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.5); margin-left: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .sched-pattern { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 3px; line-height: 1.45; }
+    .sched-date { padding: 12px 0 4px; border-top: 1px solid rgba(255,255,255,0.08); margin-top: 10px; }
+    .sched-date-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    .sched-date-dow { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.7); flex: 1; }
+    .sched-leg { display: flex; align-items: center; padding: 8px 0; }
+    .sched-more { margin-top: 12px; min-height: 44px; width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,0.14);
+                  background: rgba(255,255,255,0.05); color: #FAF9F5; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .sched-more:focus-visible { outline: 2px solid #FAF9F5; outline-offset: 2px; }
+    .btn-remove { min-width: 44px; min-height: 44px; }
+
     .attend-row {
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       padding: 10px 0 2px; border-top: 1px solid rgba(255,255,255,0.07);
@@ -1482,6 +1498,21 @@
     renderUpcoming();
   }
 
+  // Your family's attendance for one trip date. Drivers do not mark absent
+  // here; a driver who is out needs the swap flow, not an empty car.
+  function attendRowFor(t) {
+    if (!MY_FAMILY_ID) return "";
+    const hasReturn = !!t.return_time;
+    const driving = t.driver_family_id === MY_FAMILY_ID || (hasReturn && t.return_driver_family_id === MY_FAMILY_ID);
+    if (driving) return `<div class="attend-row"><span class="attend-label">You are driving this one.</span></div>`;
+    const absent = isAbsent(t.date, MY_FAMILY_ID);
+    return `<div class="attend-row">
+        <span class="attend-label">${absent ? "Your kids are marked out." : "Your kids are coming."}</span>
+        <button type="button" class="attend-btn ${absent ? "out" : ""}" aria-pressed="${absent}"
+          onclick="toggleAbsentFor('${t.date}', MY_FAMILY_ID, this)">${absent ? "Not coming" : "Coming"}</button>
+      </div>`;
+  }
+
   function legCard(t, leg) {
     const isOutbound = leg === "outbound";
     const driverFid = isOutbound ? t.driver_family_id : t.return_driver_family_id;
@@ -1538,57 +1569,75 @@
       return;
     }
 
-    list.innerHTML = upcoming.map(t => {
-      const [year, mon, day] = t.date.split("-");
-      const monthName = MONTHS[parseInt(mon)-1];
-      const seriesBadge = t.series_id ? `<span style="font-size:11px;background:#ede9fe;color:#7c3aed;border-radius:10px;padding:2px 7px;margin-left:6px">🔁</span>` : '';
-      const removeBtn = IS_ADMIN ? `<button class="btn-remove" onclick="removeTrip('${t.id}','${t.series_id||''}')" title="Delete trip">&#x2715;</button>` : '';
-      const gcalBtn = t.gcal_url ? `<a class="btn-gcal" href="${t.gcal_url}" target="_blank">+ Google Cal</a>` : '';
-      const hasReturn = !!t.return_time;
-
-      const gcalReturnBtn = t.gcal_url_return ? `<a class="btn-gcal" href="${t.gcal_url_return}" target="_blank">+ Google Cal</a>` : '';
-
-      // Your family's attendance for this date. Drivers do not mark absent
-      // here; a driver who is out needs the swap flow, not an empty car.
-      let attendRow = "";
-      if (MY_FAMILY_ID) {
-        const driving = t.driver_family_id === MY_FAMILY_ID || (hasReturn && t.return_driver_family_id === MY_FAMILY_ID);
-        if (driving) {
-          attendRow = `<div class="attend-row"><span class="attend-label">You are driving this one.</span></div>`;
-        } else {
-          const absent = isAbsent(t.date, MY_FAMILY_ID);
-          attendRow = `<div class="attend-row">
-              <span class="attend-label">${absent ? "Your kids are marked out." : "Your kids are coming."}</span>
-              <button type="button" class="attend-btn ${absent ? "out" : ""}" aria-pressed="${absent}"
-                onclick="toggleAbsentFor('${t.date}', MY_FAMILY_ID, this)">${absent ? "Not coming" : "Coming"}</button>
-            </div>`;
+    // Group recurring trips by series so a term of practices is one card with
+    // its next three dates, not fourteen identical cards. One-off trips stay
+    // as their own cards. Order follows the earliest upcoming date.
+    const groups = [];
+    const bySeries = new Map();
+    for (const t of upcoming) {
+      if (t.series_id) {
+        if (!bySeries.has(t.series_id)) {
+          const g = {series_id: t.series_id, trips: []};
+          bySeries.set(t.series_id, g); groups.push(g);
         }
+        bySeries.get(t.series_id).trips.push(t);
+      } else {
+        groups.push({series_id: null, trips: [t]});
       }
+    }
 
+    const removeBtnFor = (t) => IS_ADMIN
+      ? `<button class="btn-remove" onclick="removeTrip('${t.id}','${t.series_id||''}')" aria-label="Delete trip">&#x2715;</button>` : '';
+
+    const dateRow = (t) => {
+      const [year, mon, day] = t.date.split("-");
+      const d = new Date(parseInt(year), parseInt(mon) - 1, parseInt(day));
+      const hasReturn = !!t.return_time;
       return `
-        <div class="upcoming-item" style="flex-direction:column;align-items:stretch;gap:0">
-          <!-- Date + destination header -->
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-            <div style="display:flex;align-items:baseline;gap:10px">
-              <div class="upcoming-date" style="margin:0">
-                <div class="day">${parseInt(day)}</div>
-                <div class="month">${monthName}</div>
-              </div>
-              <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.9)">${esc(t.destination_name || "")}${seriesBadge}</div>
+        <div class="sched-date" id="trip-${t.id}">
+          <div class="sched-date-head">
+            <div class="upcoming-date" style="margin:0">
+              <div class="day">${parseInt(day)}</div>
+              <div class="month">${MONTHS[parseInt(mon)-1].slice(0,3)}</div>
             </div>
-            ${removeBtn}
+            <div class="sched-date-dow">${DAYS[d.getDay()]}</div>
+            ${removeBtnFor(t)}
           </div>
-          <!-- Outbound row -->
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid rgba(255,255,255,0.07)">
-            ${legCard(t, "outbound")}
-            ${gcalBtn}
+          <div class="sched-leg">${legCard(t, "outbound")}</div>
+          ${hasReturn ? `<div class="sched-leg">${legCard(t, "return")}</div>` : ""}
+          ${attendRowFor(t)}
+        </div>`;
+    };
+
+    list.innerHTML = groups.map(g => {
+      const first = g.trips[0];
+      if (!g.series_id) {
+        return `<div class="upcoming-item sched-card">
+            <div class="sched-title">${esc(first.destination_name || "")}</div>
+            ${dateRow(first)}
+          </div>`;
+      }
+      // Series card: pattern line, then the next three dates, rest folded.
+      const dows = [...new Set(g.trips.map(t => { const [y,m,d] = t.date.split("-"); return new Date(+y, +m-1, +d).getDay(); }))].sort();
+      const dowText = dows.map(i => DAYS[i]).join(", ");
+      const last = g.trips[g.trips.length - 1];
+      const [ly, lm, ld] = last.date.split("-");
+      const shown = g.trips.slice(0, 3), rest = g.trips.slice(3);
+      const restId = `series-rest-${g.series_id}`;
+      const seriesRemove = IS_ADMIN
+        ? `<button class="btn-remove" onclick="removeTrip('${first.id}','${g.series_id}')" aria-label="Delete series">&#x2715;</button>` : '';
+      return `<div class="upcoming-item sched-card">
+          <div class="sched-title-row">
+            <div>
+              <div class="sched-title">${esc(first.destination_name || "")} <span class="sched-repeat">repeats</span></div>
+              <div class="sched-pattern">${dowText} at ${fmtTime(first.arrival_time)}${first.return_time ? `, back ${fmtTime(first.return_time)}` : ""} until ${MONTHS[+lm-1].slice(0,3)} ${+ld}. ${g.trips.length} trip${g.trips.length === 1 ? "" : "s"} left.</div>
+            </div>
+            ${seriesRemove}
           </div>
-          <!-- Return row -->
-          ${hasReturn ? `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid rgba(255,255,255,0.07)">
-            ${legCard(t, "return")}
-            ${gcalReturnBtn}
-          </div>` : ""}
-          ${attendRow}
+          ${shown.map(dateRow).join("")}
+          ${rest.length ? `<div id="${restId}" hidden>${rest.map(dateRow).join("")}</div>
+            <button type="button" class="sched-more" aria-expanded="false" aria-controls="${restId}"
+              onclick="const r=document.getElementById('${restId}'); r.hidden=!r.hidden; this.setAttribute('aria-expanded', String(!r.hidden)); this.textContent = r.hidden ? 'Show ${rest.length} more' : 'Show fewer';">Show ${rest.length} more</button>` : ""}
         </div>`;
     }).join("");
   }

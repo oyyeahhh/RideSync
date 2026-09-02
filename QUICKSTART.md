@@ -104,6 +104,19 @@ Open `http://localhost:3000/about` in your browser. The marketing page with the 
 
 ---
 
+## Step 3b — Run the tests (2 min)
+
+```bash
+pip install pytest
+python -m pytest -q
+```
+
+Every GET route is hit as nobody and as an admin and must not 500, and the
+core flow (create group, invite, sign up, add trips, attendance, settings) is
+exercised against a throwaway data directory. CI runs the same suite on every
+push. Work on a branch and open a pull request; do not practise on `main`,
+because a push to `main` deploys to production.
+
 ## Step 4 — Make a tiny verifiable change (3 min)
 
 We're going to edit a string nobody will mind being briefly different. Open `templates/about.html` and find the footer:
