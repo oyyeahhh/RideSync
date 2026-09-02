@@ -5,6 +5,21 @@ solid within three, structured so that opening it to a second carpool later
 is additive work rather than a rewrite. Companion to REPAIR_PLAN.md (what is
 broken today). Revised 2 September 2026.
 
+## Status, 2 September 2026
+
+Week one is built and sits on `claude/repair-blockers-2026-09-02`, nine
+commits ahead of `main`, not yet pushed or deployed. All five days landed:
+phone layout (overflow 0 on every page), role-aware dashboard, attendance on
+any date, message fan-out to every parent in a household, honest delivery
+counts, Trip Settings validation, email links that work in all three shapes
+Supabase produces, collapsed schedule, pinned requirements, a 56-test suite
+and CI. Still needed from Orly before parents are invited: push the branch
+and merge, set `OWNER_EMAILS` on Railway, submit the Twilio registration, and
+in the Supabase dashboard point the Magic Link and Reset Password email
+templates at `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=magiclink`
+and `...&type=recovery` (the fragment fallback works without this, but the
+token_hash flow is the reliable one).
+
 ## Decisions
 
 - **SMS on the Twilio number Orly already owns.** Registration starts on day
