@@ -12,3 +12,4 @@ individual_ics/
 *.json
 !package.json
 local_data/
+mobile_shots/
