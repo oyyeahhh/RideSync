@@ -12,6 +12,7 @@ import re
 import uuid
 from datetime import date, datetime, timedelta, timezone as dt_timezone
 from functools import wraps
+from typing import Optional
 from pathlib import Path
 from urllib.parse import quote, quote_plus
 from zoneinfo import ZoneInfo
@@ -19,7 +20,7 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    jsonify, Response, session, flash, send_file,
+    jsonify, Response, session, flash, send_file, abort,
 )
 from flask_session import Session
 from twilio.request_validator import RequestValidator
@@ -30,7 +31,7 @@ from config import (
     get_group_name, get_assignment_mode, set_assignment_mode,
 )
 from storage import DATA_DIR, CODE_DIR, group_dir, migrate_legacy_data, atomic_write_json, read_json
-from families import get_family, get_destination, get_all_family_ids, add_family, update_family
+from families import get_family, get_destination, get_all_family_ids, add_family, update_family, family_phones
 from rotation import _load as _load_rotation, add_to_rotation, set_driver as _set_driver, advance as advance_rotation, set_index as _set_rotation_index
 from trips import get_stats, load_trips, record_trip
 from schedule import (
@@ -50,7 +51,7 @@ from auth import (
 )
 from groups import create_group as _create_group, get_group, list_groups, get_or_create_display_token, regenerate_display_token, find_group_by_display_token
 from sms import send_sms, send_route_sms, SANDBOX_NUMBER, SANDBOX_KEYWORD
-from absences import toggle_absent, get_absences
+from absences import toggle_absent, get_absences, get_all_absences
 from route_cache import load as load_route_cache, save as save_route_cache
 from routing import compute_optimal_route, build_maps_url
 from geocode import geocode_address
@@ -231,8 +232,21 @@ _startup_check()
 app = Flask(__name__)
 _secret = os.environ.get("SECRET_KEY", "")
 # Refuse to start in production without a real SECRET_KEY.
-# Treat "Railway-like" (DATA_DIR set + not the code dir) as production.
-_is_prod = bool(os.environ.get("DATA_DIR")) and str(DATA_DIR) != str(CODE_DIR)
+# Production is decided by the environment, not by where the data happens to
+# live. Keying this off DATA_DIR meant a local .env turned on Secure cookies
+# (breaking every local login) and removing the Railway volume silently turned
+# the hardening off.
+_on_railway = bool(os.environ.get("RAILWAY_ENVIRONMENT")
+                   or os.environ.get("RAILWAY_PROJECT_ID")
+                   or os.environ.get("RAILWAY_SERVICE_NAME"))
+_env_name = os.environ.get("FLASK_ENV", "").strip().lower()
+if _on_railway or _env_name in ("production", "prod"):
+    _is_prod = True
+elif _env_name in ("development", "dev", "local") or os.environ.get("FLASK_TESTING") == "1":
+    _is_prod = False
+else:
+    _is_prod = bool(os.environ.get("DATA_DIR")) and str(DATA_DIR) != str(CODE_DIR)
+logger.info("Running in %s mode", "production" if _is_prod else "development")
 if not _secret:
     if _is_prod:
         raise RuntimeError(
@@ -307,7 +321,7 @@ def _server_error(e):
         return jsonify({"ok": False, "error": "Server error"}), 500
     return ("<h2>Something went wrong</h2>"
             "<p>The error has been logged. "
-            "<a href='/dashboard'>Back to dashboard</a></p>"), 500
+            "<a href='/'>Back to dashboard</a></p>"), 500
 
 
 @app.errorhandler(413)
@@ -446,10 +460,12 @@ def _rate_limited(key: str, max_hits: int, window_seconds: int) -> bool:
 
 
 def _client_ip() -> str:
-    """Best-effort IP behind Railway's proxy."""
-    fwd = request.headers.get("X-Forwarded-For", "")
-    if fwd:
-        return fwd.split(",")[0].strip()
+    """Client IP behind Railway's proxy.
+
+    ProxyFix already rewrites remote_addr from the trusted rightmost
+    X-Forwarded-For entry. Reading the leftmost entry ourselves let a caller
+    spoof a fresh IP per request and walk straight past the login limiter.
+    """
     return request.remote_addr or "unknown"
 
 
@@ -511,6 +527,32 @@ def _next_trip_info(group_id: str) -> dict:
 
 # ── Utility ───────────────────────────────────────────────────────────────────
 
+_HHMM_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def _valid_hhmm(value, required: bool = True) -> bool:
+    """True when value is a 24-hour HH:MM string.
+
+    An empty value passes only when required is False. Times reach us from
+    <input type="time">, which submits "" when the field is cleared, and a
+    stored "" later crashes every strptime that touches the trip.
+    """
+    if not isinstance(value, str) or not value:
+        return not required
+    return bool(_HHMM_RE.match(value))
+
+
+def _valid_iso_date(value) -> bool:
+    """True when value is a real YYYY-MM-DD calendar date."""
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
 def gcal_url(trip: dict, group_id: str) -> str:
     """Build a Google Calendar 'add event' URL for the outbound leg."""
     tz = ZoneInfo(load_config(group_id).get("timezone", "America/New_York"))
@@ -571,7 +613,6 @@ def gcal_url_return(trip: dict, group_id: str) -> str:
 
 # ── Auth routes ───────────────────────────────────────────────────────────────
 
-@csrf.exempt
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if session.get("user_id"):
@@ -693,19 +734,77 @@ def auth_magic_link_send():
                            magic_sent=True)
 
 
+def _supabase_user_from_query() -> Optional[dict]:
+    """Resolve the user behind an email link from whatever the link carried.
+    See auth_supabase for the three shapes a Supabase link can take."""
+    from auth_supabase import exchange_code_for_session, verify_token_hash
+    token_hash = request.args.get("token_hash", "").strip()
+    if token_hash:
+        return verify_token_hash(token_hash, request.args.get("type", "magiclink").strip())
+    code = request.args.get("code", "").strip()
+    if code:
+        return exchange_code_for_session(code)
+    return None
+
+
+def _link_carried_nothing() -> bool:
+    """True when the query string has neither token_hash nor code nor an
+    error: the tokens are probably sitting in the URL fragment."""
+    return not any(request.args.get(k) for k in ("token_hash", "code", "error", "error_description"))
+
+
+def _finish_magic_login(supa_user: dict):
+    """Second half of the magic-link flow, shared by the query-string and
+    fragment paths. Returns a redirect response."""
+    from auth_supabase import find_or_link_internal_user
+    internal = find_or_link_internal_user(supa_user["id"], supa_user["email"])
+    if not internal:
+        session["pending_supabase_uid"] = supa_user["id"]
+        session["pending_email"] = supa_user["email"]
+        return redirect(url_for("create_group_route"))
+    session.clear()
+    session["user_id"] = internal["id"]
+    session["group_id"] = internal.get("group_id", "")
+    session.permanent = True
+    logger.info("Magic-link login OK for user_id=%s", internal["id"])
+    return redirect(url_for("dashboard"))
+
+
+def _begin_password_reset(supa_user: dict):
+    """Second half of the recovery flow: remember who proved ownership, then
+    send them to the new-password form."""
+    session["reset_supabase_uid"] = supa_user["id"]
+    session["reset_email"] = supa_user["email"]
+    return redirect(url_for("reset_password_session"))
+
+
+@app.route("/auth/fragment", methods=["POST"])
+def auth_fragment():
+    """The browser hands over tokens that arrived in the URL fragment.
+    Validated server-side with get_user(); nothing is trusted from the body
+    except that it names a token Supabase will vouch for."""
+    from auth_supabase import user_from_access_token
+    data = request.get_json(silent=True) or {}
+    purpose = data.get("purpose", "login")
+    if _rate_limited(f"fragment:{_client_ip()}", max_hits=10, window_seconds=600):
+        return jsonify({"ok": False, "error": "Too many attempts. Please request a new link in a few minutes."}), 429
+    supa_user = user_from_access_token(str(data.get("access_token", ""))[:4096])
+    if not supa_user:
+        return jsonify({"ok": False, "error": "That link is invalid or has expired. Please request a new one."}), 400
+    resp = _begin_password_reset(supa_user) if purpose == "reset" else _finish_magic_login(supa_user)
+    return jsonify({"ok": True, "redirect": resp.headers.get("Location", url_for("dashboard"))})
+
+
 @app.route("/auth/callback")
 def auth_callback():
-    """Receive the Supabase magic-link callback. Exchange the code for a
-    session, find or attach the internal user record, and log them in."""
-    from auth_supabase import exchange_code_for_session, find_or_link_internal_user
+    """Receive the Supabase magic-link callback, in any of its three shapes,
+    find or attach the internal user record, and log them in."""
+    from auth_supabase import find_or_link_internal_user
 
-    code = request.args.get("code", "")
-    if not code:
-        return render_template("login.html",
-                               error="Sign-in link is missing or expired. Please request a new one."), 400
-
-    supa_user = exchange_code_for_session(code)
+    supa_user = _supabase_user_from_query()
     if not supa_user:
+        if _link_carried_nothing():
+            return render_template("auth_fragment.html", purpose="login")
         return render_template("login.html",
                                error="Sign-in link is invalid or expired. Please request a new one."), 400
 
@@ -768,6 +867,16 @@ def emergency_login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.route("/privacy")
+def privacy():
+    """Plain-language privacy and messaging notice. Linked from every consent
+    checkbox and from the About footer. Carrier registration needs a public
+    page like this to exist."""
+    return render_template("privacy.html",
+                           contact_email=os.environ.get("CONTACT_EMAIL", "orlyn8@gmail.com"),
+                           updated="2 September 2026")
 
 
 @app.route("/about")
@@ -1087,16 +1196,10 @@ def drive_late(token):
     if minutes:
         msg += f" (~{minutes} min)"
     msg += ". Hang tight!"
-    for fid in get_all_family_ids(group_id):
-        if fid == driver_fid or fid in absences:
-            continue
-        try:
-            family = get_family(fid, group_id)
-            if family.guardians:
-                send_sms(to_phone=family.guardians[0].phone, message=msg)
-        except Exception as e:
-            logger.error("Drive-late SMS failed for family %s: %s", fid, e)
-    return jsonify({"ok": True})
+    targets = [fid for fid in get_all_family_ids(group_id)
+               if fid != driver_fid and fid not in absences]
+    sent, failed = notify_families(targets, group_id, msg)
+    return jsonify({"ok": True, "sent": sent, "failed": failed})
 
 
 @csrf.exempt
@@ -1219,21 +1322,37 @@ Supabase link: {unlinked_line}
 </pre>"""
 
 
-@app.route("/health/smtp-test")
-def smtp_test():
-    """Temporary diagnostic: attempt a Supabase password-reset email and return
-    the raw result. Remove after SMTP is confirmed working."""
-    from auth_supabase import send_password_reset_email
-    email = request.args.get("email", "").strip().lower()
-    if not email:
-        return "<pre>Usage: /health/smtp-test?email=you@example.com</pre>", 400
-    redirect_url = url_for("auth_reset_callback", _external=True)
-    result = send_password_reset_email(email, redirect_url)
-    return f"<pre>Email: {email[:3]}***\nRedirect: {redirect_url}\nResult: {result}</pre>"
+def _owner_emails() -> set[str]:
+    """Platform-owner allowlist from OWNER_EMAILS (comma separated).
+
+    Anyone can create a group and become its admin, so admin_required alone
+    cannot gate anything that reaches across groups.
+    """
+    raw = os.environ.get("OWNER_EMAILS", "")
+    return {e.strip().lower() for e in raw.split(",") if e.strip()}
+
+
+def _is_owner() -> bool:
+    user = current_user() or {}
+    email = (user.get("email") or "").strip().lower()
+    return bool(email) and email in _owner_emails()
+
+
+def owner_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not _is_owner():
+            logger.warning("Owner-only route %s refused for user_id=%s",
+                           request.path, session.get("user_id"))
+            abort(404)
+        return f(*args, **kwargs)
+    return decorated
 
 
 @app.route("/admin/backup")
+@login_required
 @admin_required
+@owner_required
 def admin_backup():
     """Download every JSON data file as a timestamped tar.gz — the one-click
     'my data survives anything' button. Covers users, groups, families,
@@ -1311,19 +1430,14 @@ def auth_reset_callback():
     a session to prove the email owner clicked the link, stash the verified
     Supabase uid, and show the set-new-password form (session-based, no token
     in the URL)."""
-    from auth_supabase import exchange_code_for_session
-    code = request.args.get("code", "")
-    if not code:
-        return render_template("forgot_password.html", sent=False, via="email",
-                               error="This reset link is missing or expired. Please request a new one."), 400
-    supa_user = exchange_code_for_session(code)
+    supa_user = _supabase_user_from_query()
     if not supa_user:
+        if _link_carried_nothing():
+            return render_template("auth_fragment.html", purpose="reset")
         return render_template("forgot_password.html", sent=False, via="email",
                                error="This reset link is invalid or expired. Please request a new one."), 400
     # Proof-of-ownership established. Hold it briefly to authorize the next POST.
-    session["reset_supabase_uid"] = supa_user["id"]
-    session["reset_email"] = supa_user["email"]
-    return redirect(url_for("reset_password_session"))
+    return _begin_password_reset(supa_user)
 
 
 @app.route("/reset-password", methods=["GET", "POST"])
@@ -1428,7 +1542,10 @@ def create_group_route():
         if digits:
             form["phone"] = f"+1{digits}" if len(digits) == 10 else f"+{digits}"
 
-        if not form["group_name"]:
+        form["sms_consent"] = request.form.get("sms_consent", "") == "yes"
+        if not form["sms_consent"]:
+            error = "Please tick the box agreeing to receive carpool texts. That is how the app reaches you."
+        elif not form["group_name"]:
             error = "Please name your carpool group."
         elif not form["name"]:
             error = "Please enter your name."
@@ -1603,11 +1720,16 @@ def signup():
             "family_name": request.form.get("family_name", "").strip(),
             "child_name": request.form.get("child_name", "").strip(),
             "address": request.form.get("address", "").strip(),
+            "sms_consent": request.form.get("sms_consent", "") == "yes",
         }
         password = request.form.get("password", "").strip()
         invite_group_id = invite.get("group_id", "")
 
-        if not form["name"]:
+        # Carriers require an explicit opt-in before any text is sent, and the
+        # registration asks for proof of how it was collected. This is it.
+        if not form["sms_consent"]:
+            error = "Please tick the box agreeing to receive carpool texts. That is how the app reaches you."
+        elif not form["name"]:
             error = "Please enter your name."
         elif not form["family_name"]:
             error = "Please enter your family name."
@@ -1722,10 +1844,12 @@ def invite():
         whatsapp_ok = False
 
     # Store invite result in session flash instead of URL params
+    from sms import message_channel
+    channel_name = "text message" if message_channel() == "sms" else "WhatsApp"
     if whatsapp_ok:
-        session["invite_status"] = f"Invite sent to {phone} via WhatsApp."
+        session["invite_status"] = f"Invite queued to {phone} by {channel_name}. If they do not see it in a few minutes, share this link directly: {signup_url}"
     else:
-        session["invite_status"] = f"WhatsApp failed. Share this link manually with {phone}: {signup_url}"
+        session["invite_status"] = f"The {channel_name} to {phone} could not be sent. Share this link with them directly: {signup_url}"
     session["invite_link"] = signup_url
 
     return redirect(url_for("dashboard"))
@@ -1880,8 +2004,21 @@ def dashboard():
 
     schedule = load_schedule(group_id)
     for trip in schedule:
-        trip["gcal_url"] = gcal_url(trip, group_id)
-        trip["gcal_url_return"] = gcal_url_return(trip, group_id)
+        # One trip with a malformed date or time must not 500 the dashboard for
+        # the whole group. Degrade to a missing calendar link instead.
+        try:
+            trip["gcal_url"] = gcal_url(trip, group_id)
+        except Exception:
+            logger.warning("Bad calendar data on trip %s in group %s",
+                           trip.get("id"), group_id)
+            trip["gcal_url"] = ""
+        try:
+            trip["gcal_url_return"] = gcal_url_return(trip, group_id)
+        except Exception:
+            trip["gcal_url_return"] = ""
+        # drive_token authorizes the login-free driver endpoints. It must not
+        # ride along into the browser for every group member.
+        trip.pop("drive_token", None)
 
     families = [{"id": fid, "name": get_family(fid, group_id).name} for fid in get_all_family_ids(group_id)]
     raw_karma = {k["family_id"]: k for k in get_karma(group_id)}
@@ -1959,7 +2096,28 @@ def dashboard():
             "id": fid,
             "name": family.name,
             "absent": fid in absences,
+            "mine": bool(user.get("family_id")) and fid == user.get("family_id"),
         })
+
+    # Who is looking decides what the page offers. A parent who is not driving
+    # used to see four driver buttons that all failed with "forbidden".
+    is_admin = user.get("role") == "admin"
+    is_driver = bool(user.get("family_id")) and user.get("family_id") == active_driver_id
+    can_act = is_admin or is_driver
+
+    # The attendance card used to be called "Today's Trip" while showing the
+    # next trip, so "not coming" on a Tuesday quietly changed next week.
+    try:
+        _td = date.fromisoformat(trip_date)
+        _today = date.fromisoformat(_today_iso(group_id))
+        if _td == _today:
+            trip_date_label = "Today's trip"
+        elif _td == _today + timedelta(days=1):
+            trip_date_label = "Tomorrow's trip"
+        else:
+            trip_date_label = f"{_td.strftime('%A')}'s trip, {_td.strftime('%b')} {_td.day}"
+    except ValueError:
+        trip_date_label = "Next trip"
 
     invite_status = session.pop("invite_status", None)
     invite_link = session.pop("invite_link", None)
@@ -1992,7 +2150,12 @@ def dashboard():
         settings_error=settings_error,
         pickup_families=pickup_families,
         next_driver_id=next_driver_id,
+        active_driver_id=active_driver_id,
+        is_driver=is_driver,
+        can_act=can_act,
         trip_date=trip_date,
+        trip_date_label=trip_date_label,
+        absences_by_date=get_all_absences(group_id),
         live_location=get_location(group_id),
         maps_api_key=os.environ.get("GOOGLE_MAPS_API_KEY", ""),
         assignment_mode=get_assignment_mode(group_id),
@@ -2025,12 +2188,27 @@ def save_trip():
     except (TypeError, ValueError):
         buffer_minutes = cfg.get("buffer_minutes", 10)
 
-    if not arrival_date or not arrival_time:
-        session["settings_error"] = "Date and arrival time are required — settings were not saved."
+    # Every value below is read back by strptime or ZoneInfo on every
+    # dashboard load, so a bad one used to take the whole group down.
+    if not _valid_iso_date(arrival_date):
+        session["settings_error"] = "The trip date has to be a real date (YYYY-MM-DD). Settings were not saved."
+        return redirect(url_for("dashboard"))
+    if not _valid_hhmm(arrival_time):
+        session["settings_error"] = "Arrive-by time has to look like 16:30. Settings were not saved."
+        return redirect(url_for("dashboard"))
+    if not _valid_hhmm(return_time, required=False):
+        session["settings_error"] = "Return time has to look like 18:00, or be left empty. Settings were not saved."
         return redirect(url_for("dashboard"))
     if not destination_address:
-        session["settings_error"] = "Destination address is required — settings were not saved."
+        session["settings_error"] = "Destination address is required. Settings were not saved."
         return redirect(url_for("dashboard"))
+    timezone_val = request.form.get("timezone", "").strip()
+    if timezone_val:
+        try:
+            ZoneInfo(timezone_val)
+        except Exception:
+            session["settings_error"] = "That time zone is not recognised. Settings were not saved."
+            return redirect(url_for("dashboard"))
 
     # Persist defaults to config
     cfg.update({
@@ -2047,7 +2225,6 @@ def save_trip():
     })
     if group_name:
         cfg["group_name"] = group_name
-    timezone_val = request.form.get("timezone", "").strip()
     if timezone_val:
         cfg["timezone"] = timezone_val
 
@@ -2177,7 +2354,15 @@ def _rotation_pairs_from(start_index: int, group_id: str) -> list[tuple[str, str
 @admin_required
 def schedule_add():
     group_id = gid()
-    data = request.json
+    data = request.get_json(silent=True) or {}
+    if not _valid_iso_date(data.get("date", "")):
+        return jsonify({"ok": False, "error": "Trip date is required, as YYYY-MM-DD."}), 400
+    if not data.get("destination_name") or not data.get("destination_address"):
+        return jsonify({"ok": False, "error": "Destination name and address are both required."}), 400
+    if not _valid_hhmm(data.get("arrival_time", "")):
+        return jsonify({"ok": False, "error": "Arrive-by time is required and must look like 16:30."}), 400
+    if not _valid_hhmm(data.get("return_time", ""), required=False):
+        return jsonify({"ok": False, "error": "Return time must look like 18:00, or be left empty."}), 400
     driver_fid = data.get("driver_family_id", "")
     driver_name = data.get("driver_name", "")
 
@@ -2212,7 +2397,11 @@ def schedule_add():
 @admin_required
 def schedule_update(trip_id):
     group_id = gid()
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
+    if not _valid_hhmm(data.get("arrival_time", "")):
+        return jsonify({"ok": False, "error": "Arrive-by time is required and must look like 16:30."}), 400
+    if not _valid_hhmm(data.get("return_time", ""), required=False):
+        return jsonify({"ok": False, "error": "Return time must look like 18:00, or be left empty."}), 400
     driverEl_id = data.get("driver_family_id", "")
     rdEl_id = data.get("return_driver_family_id", "")
     trip = update_trip(
@@ -2233,18 +2422,39 @@ def schedule_update(trip_id):
     return jsonify(trip)
 
 
-def _notify_all_families(group_id: str, message: str) -> int:
-    """Send a message to every family in the group (first guardian's phone).
-    Returns how many sends succeeded."""
-    sent = 0
-    for fid in get_all_family_ids(group_id):
+def notify_family(family_id: str, group_id: str, message: str) -> tuple[int, int]:
+    """Send one message to every phone attached to a family.
+    Returns (sent, failed). Never raises: a dead number for one parent must
+    not stop the other parent, or the next family, from hearing."""
+    sent = failed = 0
+    phones = family_phones(family_id, group_id)
+    if not phones:
+        logger.warning("No phone on file for family %s in %s", family_id, group_id)
+        return 0, 1
+    for phone in phones:
         try:
-            fam = get_family(fid, group_id)
-            if fam.guardians and fam.guardians[0].phone:
-                send_sms(to_phone=fam.guardians[0].phone, message=message)
-                sent += 1
+            send_sms(to_phone=phone, message=message)
+            sent += 1
         except Exception as e:
-            logger.error("Cancellation notice failed for family %s: %s", fid, e)
+            failed += 1
+            logger.error("Message to family %s (%s***) failed: %s", family_id, phone[:6], e)
+    return sent, failed
+
+
+def notify_families(family_ids, group_id: str, message: str) -> tuple[int, int]:
+    """Fan a message out to several families. Returns (sent, failed) totals."""
+    sent = failed = 0
+    for fid in family_ids:
+        s, f = notify_family(fid, group_id, message)
+        sent += s
+        failed += f
+    return sent, failed
+
+
+def _notify_all_families(group_id: str, message: str) -> int:
+    """Send a message to every family in the group. Returns how many phones
+    were reached."""
+    sent, _failed = notify_families(get_all_family_ids(group_id), group_id, message)
     return sent
 
 
@@ -2334,7 +2544,25 @@ def schedule_claim(trip_id, leg):
 @admin_required
 def schedule_add_recurring():
     group_id = gid()
-    data = request.json
+    data = request.get_json(silent=True) or {}
+    # A recurring series writes dozens of trips at once, so a malformed time
+    # here used to poison the whole schedule in a single request.
+    if not _valid_iso_date(data.get("start_date", "")) or not _valid_iso_date(data.get("end_date", "")):
+        return jsonify({"ok": False, "error": "Start and end dates are required, as YYYY-MM-DD."}), 400
+    if data["end_date"] < data["start_date"]:
+        return jsonify({"ok": False, "error": "The end date cannot come before the start date."}), 400
+    if not data.get("destination_name") or not data.get("destination_address"):
+        return jsonify({"ok": False, "error": "Destination name and address are both required."}), 400
+    if not _valid_hhmm(data.get("arrival_time", "")):
+        return jsonify({"ok": False, "error": "Arrive-by time is required and must look like 16:30."}), 400
+    if not _valid_hhmm(data.get("return_time", ""), required=False):
+        return jsonify({"ok": False, "error": "Return time must look like 18:00, or be left empty."}), 400
+    try:
+        weekdays = [int(d) for d in data.get("weekdays", [])]
+    except (TypeError, ValueError):
+        weekdays = []
+    if not weekdays or any(d < 0 or d > 6 for d in weekdays):
+        return jsonify({"ok": False, "error": "Pick at least one weekday for the series."}), 400
     driver_fid = data.get("driver_family_id", "")
     driver_name = data.get("driver_name", "")
     auto_mode = get_assignment_mode(group_id) == "auto"
@@ -2415,14 +2643,20 @@ def schedule_add_recurring():
 @login_required
 def toggle_absent_route():
     group_id = gid()
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     family_id = data.get("family_id")
     user = current_user()
     if user.get("role") != "admin" and user.get("family_id") != family_id:
-        return jsonify({"error": "forbidden"}), 403
-    trip_date = _next_trip_info(group_id)["date"]   # fix #2
+        return jsonify({"error": "You can only change attendance for your own family."}), 403
+    if family_id not in get_all_family_ids(group_id):
+        return jsonify({"error": "That family is not in this carpool."}), 404
+    # Any date, not only the next trip. "We're out Thursday" has to work on a
+    # Tuesday when Tuesday's trip is the next one.
+    trip_date = data.get("date") or _next_trip_info(group_id)["date"]
+    if not _valid_iso_date(trip_date):
+        return jsonify({"error": "Date must be YYYY-MM-DD."}), 400
     now_absent = toggle_absent(trip_date, family_id, group_id)
-    return jsonify({"absent": now_absent})
+    return jsonify({"ok": True, "absent": now_absent, "date": trip_date, "family_id": family_id})
 
 
 @app.route("/running-late", methods=["POST"])
@@ -2447,18 +2681,10 @@ def running_late():
         msg += f" (~{minutes} min)"
     msg += ". Hang tight!"
 
-    for fid in get_all_family_ids(group_id):
-        if fid == driver_id or fid in absences:
-            continue
-        try:
-            family = get_family(fid, group_id)
-            if not family.guardians:
-                continue
-            send_sms(to_phone=family.guardians[0].phone, message=msg)
-        except Exception as e:
-            logger.error("Failed to send running-late SMS to family %s: %s", fid, e)
-
-    return jsonify({"ok": True})
+    targets = [fid for fid in get_all_family_ids(group_id)
+               if fid != driver_id and fid not in absences]
+    sent, failed = notify_families(targets, group_id, msg)
+    return jsonify({"ok": True, "sent": sent, "failed": failed})
 
 
 @app.route("/arrived", methods=["POST"])
@@ -2496,20 +2722,21 @@ def _process_arrival(group_id: str, info: dict) -> dict:
                for t in load_trips(group_id)):
             return {"ok": True, "already": True}
 
+    # Claim the trip before doing any slow work. Twilio sends take seconds, and
+    # a second tap in that window used to pass the check above, texting every
+    # family twice and skipping a driver in the rotation.
+    if info.get("trip"):
+        try:
+            update_trip(info["trip"]["id"], group_id, rotation_advanced=True)
+        except Exception as e:
+            logger.error("Failed to claim trip %s for arrival: %s",
+                         info["trip"].get("id"), e)
+
     msg = f"✅ Kids have arrived safely at {dest_name}! Thanks {driver_name}!"
 
-    pickup_ids = []
-    for fid in get_all_family_ids(group_id):
-        if fid == driver_id or fid in absences:
-            continue
-        try:
-            family = get_family(fid, group_id)
-            if not family.guardians:          # fix #5
-                continue
-            pickup_ids.append(fid)
-            send_sms(to_phone=family.guardians[0].phone, message=msg)
-        except Exception as e:
-            logger.error("Failed to send arrival SMS to family %s: %s", fid, e)
+    pickup_ids = [fid for fid in get_all_family_ids(group_id)
+                  if fid != driver_id and fid not in absences]
+    sent, failed = notify_families(pickup_ids, group_id, msg)
 
     # Advance rotation after trip completes, skipping anyone marked absent.
     try:
@@ -2519,13 +2746,6 @@ def _process_arrival(group_id: str, info: dict) -> dict:
         advance_rotation(group_id)
     except Exception as e:
         logger.error("Failed to advance rotation: %s", e)
-
-    # Mark today's trip(s) as rotation_advanced so the nightly cron skips it.
-    if info.get("trip"):
-        try:
-            update_trip(info["trip"]["id"], group_id, rotation_advanced=True)
-        except Exception as e:
-            logger.error("Failed to mark trip rotation_advanced: %s", e)
 
     # Pull real miles/minutes from the route cache if it covers this trip.
     miles = 0.0
@@ -2561,7 +2781,7 @@ def _process_arrival(group_id: str, info: dict) -> dict:
     except Exception as e:
         logger.error("Failed to record trip history: %s", e)
 
-    return {"ok": True}
+    return {"ok": True, "sent": sent, "failed": failed, "families": len(pickup_ids)}
 
 
 @app.route("/send-route", methods=["POST"])
@@ -3458,7 +3678,7 @@ def invite_resend(token):
     except Exception as e:
         logger.error("Invite resend failed for %s: %s", invite.get("phone"), e)
         session["admin_flash_error"] = (
-            f"Couldn't send via WhatsApp. Share this link directly: {signup_url}"
+            f"The message could not be sent. Share this link directly: {signup_url}"
         )
     return redirect(url_for("admin_users"))
 
@@ -3586,6 +3806,12 @@ def admin_system():
     from groups import _load_groups
     users = _load_users()
     groups = _load_groups()
+    # A group admin sees only their own group. The OWNER_EMAILS allowlist keeps
+    # the platform-wide view for whoever runs the deployment.
+    if not _is_owner():
+        my_gid = gid()
+        users = [u for u in users if u.get("group_id") == my_gid]
+        groups = [g for g in groups if g.get("id") == my_gid]
     # Volume / storage info
     data_dir_env = os.environ.get("DATA_DIR", "NOT SET")
     is_ephemeral = str(DATA_DIR) == str(CODE_DIR)

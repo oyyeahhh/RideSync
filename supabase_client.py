@@ -51,6 +51,19 @@ def get_anon_client() -> "Client":
     return _anon_client
 
 
+def new_anon_client() -> "Client":
+    """A fresh anon client for a single auth exchange.
+
+    verify_otp / exchange_code_for_session save the resulting session onto
+    the client they run on. On the shared singleton, in a threaded server,
+    that means one parent's session can sit on the object while another
+    parent's request uses it. Auth exchanges are rare, so build a throwaway.
+    """
+    if create_client is None:
+        raise RuntimeError("supabase-py not installed")
+    return create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_ANON_KEY"])
+
+
 def get_service_client() -> "Client":
     """The 'service_role' client — bypasses Row-Level Security entirely.
     Use ONLY in server-side admin contexts (cron jobs, migrations, admin

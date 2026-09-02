@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Privacy and messaging notice · CarpoolSync</title>
+  <style>
+    body { margin: 0; background: #FAF9F5; color: #1A1714; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.6; }
+    main { max-width: 40rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+    h1 { font-size: 1.6rem; margin: 0 0 0.25rem; }
+    h2 { font-size: 1.1rem; margin: 2rem 0 0.4rem; }
+    p, li { font-size: 1rem; }
+    .meta { color: #6E6862; font-size: 0.9rem; margin: 0 0 1.5rem; }
+    a { color: #1A1714; }
+    .back { display: inline-block; margin-bottom: 1.5rem; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+<main>
+  <a class="back" href="/about">CarpoolSync</a>
+  <h1>Privacy and messaging notice</h1>
+  <p class="meta">Last updated {{ updated }}. Questions: <a href="mailto:{{ contact_email }}">{{ contact_email }}</a></p>
+
+  <p>CarpoolSync is a small tool a group of parents uses to organise who drives their children to a shared activity. This page says what it stores, what it sends, and how to get out.</p>
+
+  <h2>What the app stores</h2>
+  <ul>
+    <li>Your name, email address and mobile number, so you can sign in and receive messages.</li>
+    <li>Your home address, so the app can plan a pickup route for the driver.</li>
+    <li>Your children's first names, so the driver knows who to collect.</li>
+    <li>Which trips your family is or is not attending, who drove, and when the car arrived.</li>
+    <li>While a driver has chosen to share it, the driver's live location, shown to the families in the carpool and on the carpool's bulletin screen. Sharing stops when the driver ends it.</li>
+  </ul>
+
+  <h2>Who can see it</h2>
+  <p>Only the families in your carpool and the carpool's admin. Nothing is sold or shared for advertising. The app runs on Railway, stores data with Supabase, sends texts through Twilio and uses Google Maps for addresses and routes; each of those companies processes the data needed to do that job.</p>
+
+  <h2>Text messages</h2>
+  <p>When you tick the box at signup you agree to receive text messages from CarpoolSync about your carpool: who is driving, running-late and arrival alerts, and schedule changes. Message frequency varies with your carpool's schedule. Message and data rates may apply. Reply <strong>STOP</strong> at any time to stop receiving texts, or <strong>HELP</strong> for help. Stopping texts does not delete your account, but the app will no longer be able to reach you.</p>
+
+  <h2>Getting out</h2>
+  <p>Ask your carpool admin to remove your family, or email <a href="mailto:{{ contact_email }}">{{ contact_email }}</a> and your account, family record and children's names will be deleted.</p>
+</main>
+</body>
+</html>

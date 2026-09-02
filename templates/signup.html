@@ -251,6 +251,10 @@
       header { padding: 20px 24px; }
       .card { padding: 28px 24px; }
     }
+      @media (max-width: 640px) { .site-logo { height: 96px !important; } }
+      .consent { display: flex; gap: 12px; align-items: flex-start; margin: 4px 0 18px; font-size: 13px; line-height: 1.5; color: #5c574d; cursor: pointer; }
+    .consent input { width: 20px; height: 20px; margin: 2px 0 0; flex-shrink: 0; accent-color: #1A1714; }
+    .consent a { color: inherit; text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -340,6 +344,11 @@
         <label>Home Address</label>
         <input type="text" name="address" value="{{ form.address or '' }}" placeholder="123 Main St, Teaneck, NJ" required>
       </div>
+
+      <label class="consent">
+        <input type="checkbox" name="sms_consent" value="yes" required {% if form.sms_consent %}checked{% endif %}>
+        <span>Text me about this carpool at the number above: who is driving, running-late and arrival alerts, and schedule changes. Message frequency varies. Message and data rates may apply. Reply STOP to stop, HELP for help. See the <a href="/privacy" target="_blank">privacy notice</a>.</span>
+      </label>
 
       <button type="submit" class="btn-submit">Create Account</button>
     </form>

@@ -221,8 +221,15 @@
           body: JSON.stringify({ minutes: (minutes || '').trim() }),
         });
         const data = await res.json();
-        alert(res.ok && data.ok ? 'Everyone has been told you\'re running late.' : (data.error || 'Could not send.'));
-      } catch (e) { alert('No connection — try again.'); }
+        if (res.ok && data.ok) {
+          const sent = data.sent || 0, failed = data.failed || 0;
+          alert(sent && !failed ? `Running-late alert sent to ${sent} phone${sent === 1 ? '' : 's'}.`
+              : sent ? `Sent to ${sent}. ${failed} could not be reached.`
+              : `Nothing was sent: ${failed} phone${failed === 1 ? '' : 's'} could not be reached.`);
+        } else {
+          alert(data.error || 'Could not send.');
+        }
+      } catch (e) { alert('No connection. Check your signal and try again.'); }
       btn.disabled = false;
     }
 

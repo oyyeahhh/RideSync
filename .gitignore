@@ -11,3 +11,5 @@ individual_ics/
 # Data files — managed at runtime, not in git
 *.json
 !package.json
+local_data/
+mobile_shots/

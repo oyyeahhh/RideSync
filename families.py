@@ -4,6 +4,7 @@ All public functions take group_id as a parameter.
 """
 
 import json
+import re
 import uuid
 from pathlib import Path
 
@@ -65,9 +66,41 @@ def get_all_family_ids(group_id: str) -> list[str]:
     return [f["id"] for f in _load_families_json(group_id)]
 
 
+def _clean_phone(p: str) -> str:
+    return (p or "").removeprefix("whatsapp:").strip()
+
+
+def family_phones(family_id: str, group_id: str) -> list[str]:
+    """Every phone that should hear what this family hears: the number on the
+    family record plus the number of every account in the group linked to the
+    family. A second parent used to get a login and never a message. Deduped,
+    order preserved, empties dropped."""
+    seen: list[str] = []
+    for f in _load_families_json(group_id):
+        if f["id"] == family_id:
+            p = _clean_phone(f.get("phone", ""))
+            if p and p not in seen:
+                seen.append(p)
+            break
+    try:
+        from auth import _load_users
+        for u in _load_users():
+            if u.get("group_id") == group_id and u.get("family_id") == family_id:
+                p = _clean_phone(u.get("phone", ""))
+                if p and p not in seen:
+                    seen.append(p)
+    except Exception:
+        pass
+    return seen
+
+
 def add_family(name: str, address: str, phone: str, children: list[str], group_id: str) -> dict:
     """Create a new family entry, persist it, and return the dict."""
-    slug = name.lower().split()[-1] if name else "family"
+    raw_slug = name.lower().split()[-1] if name else "family"
+    # Ids are emitted into inline JS and HTML attributes. An apostrophe (O'Brien)
+    # used to produce fam_o&#39;brien_1a2b, which is a syntax error in every
+    # handler that received it.
+    slug = re.sub(r"[^a-z0-9]", "", raw_slug) or "family"
     family_id = f"fam_{slug}_{uuid.uuid4().hex[:4]}"
     entry = {
         "id": family_id,

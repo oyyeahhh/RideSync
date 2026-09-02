@@ -123,10 +123,14 @@
       margin: 20px auto 0;
       padding: 0 20px 40px;
       display: grid;
+      /* minmax(0, 1fr): without it the single grid column grows to the widest
+         card's intrinsic width, and every card on a phone became 607px wide. */
+      grid-template-columns: minmax(0, 1fr);
       gap: 16px;
     }
 
     .card {
+      min-width: 0;
       background: rgba(42, 39, 35, 0.93);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
@@ -448,7 +452,9 @@
 
     .cal-grid {
       display: grid;
-      grid-template-columns: repeat(7, 1fr);
+      /* minmax(0, 1fr): a bare 1fr has an auto minimum, so a nowrap chip made
+         the column grow and pushed the whole card past the phone's edge. */
+      grid-template-columns: repeat(7, minmax(0, 1fr));
       gap: 4px;
     }
 
@@ -499,6 +505,8 @@
       display: flex;
       align-items: center;
       gap: 3px;
+      min-width: 0;
+      max-width: 100%;
     }
     .cal-trip-dot.return-dot {
       background: linear-gradient(135deg, var(--cyan) 0%, #2db8d8 100%);
@@ -623,7 +631,72 @@
 
     .btn-remove:hover { background: rgba(255,80,80,0.2); color: #fca5a5; }
 
+    /* Admin tools live behind one disclosure so a parent's page is short and
+       an admin's page opens on what everyone needs first. */
+    details.manage { display: grid; gap: 16px; }
+    details.manage > summary {
+      list-style: none; cursor: pointer;
+      display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+      padding: 16px 20px; min-height: 44px;
+      background: rgba(42, 39, 35, 0.93); color: #FAF9F5;
+      border: 1px solid rgba(255,255,255,0.07); border-radius: 28px;
+      font-size: 15px; font-weight: 600;
+    }
+    details.manage > summary::-webkit-details-marker { display: none; }
+    details.manage > summary::after { content: "Show"; font-size: 12px; font-weight: 600; color: var(--coral); }
+    details.manage[open] > summary::after { content: "Hide"; }
+    details.manage > summary:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+    .manage-hint { font-size: 12px; font-weight: 400; color: rgba(255,255,255,0.45); margin-right: auto; }
+    @media (max-width: 640px) { .manage-hint { display: none; } details.manage > summary { border-radius: 20px; } }
+
+    #toast-host { position: fixed; left: 12px; right: 12px; bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 300; display: grid; gap: 8px; pointer-events: none; }
+    .toast { pointer-events: auto; margin: 0 auto; max-width: 560px; width: 100%; box-sizing: border-box;
+             padding: 14px 16px; border-radius: 14px; font-size: 14px; line-height: 1.45; font-weight: 500;
+             background: #1A1714; color: #FAF9F5; box-shadow: 0 8px 28px rgba(0,0,0,0.28); border-left: 4px solid rgba(255,255,255,0.35); }
+    .toast.good { border-left-color: #3EC9E8; }
+    .toast.warn { border-left-color: #ffb24d; }
+    .toast.bad  { border-left-color: #FF6B8A; }
+    .toast.out { opacity: 0; transition: opacity 0.35s; }
+    @media (min-width: 641px) { #toast-host { bottom: 24px; } }
+
+    /* Schedule list: one card per one-off trip or per series */
+    .sched-card { flex-direction: column; align-items: stretch; gap: 0; }
+    .sched-card:hover { transform: none; }
+    .sched-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+    .sched-title { font-size: 16px; font-weight: 700; color: #FAF9F5; }
+    .sched-repeat { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.5); margin-left: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .sched-pattern { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 3px; line-height: 1.45; }
+    .sched-date { padding: 12px 0 4px; border-top: 1px solid rgba(255,255,255,0.08); margin-top: 10px; }
+    .sched-date-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    .sched-date-dow { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.7); flex: 1; }
+    .sched-leg { display: flex; align-items: center; padding: 8px 0; }
+    .sched-more { margin-top: 12px; min-height: 44px; width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,0.14);
+                  background: rgba(255,255,255,0.05); color: #FAF9F5; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .sched-more:focus-visible { outline: 2px solid #FAF9F5; outline-offset: 2px; }
+    .btn-remove { min-width: 44px; min-height: 44px; }
+
+    .attend-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 10px 0 2px; border-top: 1px solid rgba(255,255,255,0.07);
+    }
+    .attend-label { font-size: 13px; color: rgba(255,255,255,0.6); }
+    .attend-btn {
+      min-height: 44px; padding: 8px 16px; border-radius: 22px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border: 1px solid rgba(62,201,232,0.35);
+      background: rgba(62,201,232,0.12); color: #3EC9E8;
+    }
+    .attend-btn.out { border-color: rgba(255,107,138,0.35); background: rgba(255,107,138,0.15); color: #FF6B8A; }
+    .attend-btn:disabled { opacity: 0.6; cursor: wait; }
+    .attend-btn:focus-visible { outline: 2px solid #FAF9F5; outline-offset: 2px; }
+
+    .brand { text-align: center; padding: 24px 20px 8px; }
+    .brand-logo { height: 260px; width: auto; display: inline-block; }
+
     @media (max-width: 640px) {
+      /* Brand: a phone screen is 844px tall; the logo does not get 290 of them. */
+      .brand { padding: 12px 16px 4px; }
+      .brand-logo { height: 64px; }
+
       /* Header */
       .header-wrap { padding: 0 10px; top: 10px; }
       header { padding: 10px 14px; }
@@ -636,12 +709,18 @@
       .card { padding: 18px 16px; }
       .card-label { margin-bottom: 14px; }
 
-      /* Calendar */
-      .cal-grid { gap: 2px; }
-      .cal-day { min-height: 76px; padding: 4px 5px; }
-      .cal-day-num { font-size: 11px; margin-bottom: 2px; }
-      .cal-day-name { font-size: 9px; padding: 2px 0 6px; }
-      .cal-trip-dot { font-size: 9px; padding: 1px 3px; }
+      /* Schedule header: label and buttons on one row, month nav on its own. */
+      .cal-header { flex-wrap: wrap; gap: 10px; }
+      .cal-header > div:last-child { flex-wrap: wrap; width: 100%; justify-content: space-between; row-gap: 8px; }
+      .cal-nav { margin-left: auto; }
+
+      /* Calendar: chips become colour bars; the list below carries the names. */
+      .cal-grid { gap: 3px; }
+      .cal-day { min-height: 52px; padding: 4px 5px; border-radius: 8px; }
+      .cal-day-num { font-size: 12px; margin-bottom: 3px; }
+      .cal-day-name { font-size: 10px; padding: 2px 0 6px; letter-spacing: 0.02em; }
+      .cal-trip-dot { height: 6px; padding: 0; border-radius: 3px; margin-top: 3px; }
+      .cal-trip-dot span { display: none; }
 
       /* Forms */
       .form-grid { grid-template-columns: 1fr !important; }
@@ -707,8 +786,8 @@
 </head>
 <body>
 
-<div style="text-align:center;padding:24px 20px 8px;">
-  <img src="/static/carpoolsynclogo.png" alt="CarpoolSync" style="height:260px;width:auto;display:inline-block;">
+<div class="brand">
+  <img src="/static/carpoolsynclogo.png" alt="CarpoolSync" class="brand-logo" width="347" height="260">
 </div>
 <div class="header-wrap">
 <header>
@@ -757,26 +836,37 @@
 
   <!-- 2. TODAY'S TRIP ACTIONS -->
   <div class="card" id="today-card">
-    <div class="card-label">Today's Trip</div>
+    <div class="card-label">{{ trip_date_label }}</div>
     <div style="display:flex;flex-direction:column;gap:12px;">
       <div>
         <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);margin-bottom:8px;letter-spacing:0.04em;">WHO'S COMING?</div>
         <div style="display:flex;flex-direction:column;gap:8px;" id="family-list">
           {% for fam in pickup_families %}
           <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:{% if fam.absent %}rgba(255,107,138,0.10){% else %}rgba(255,255,255,0.06){% endif %};" id="fam-row-{{ fam.id }}">
-            <span style="font-size:14px;font-weight:500;color:#FAF9F5;">{{ fam.name }}</span>
-            <button onclick="toggleAbsent('{{ fam.id }}')" id="absent-btn-{{ fam.id }}"
-              style="font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;border:1px solid;cursor:pointer;transition:all 0.15s;
+            <span style="font-size:15px;font-weight:500;color:#FAF9F5;">{{ fam.name }}{% if fam.mine %} <span style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.45);margin-left:6px;">you</span>{% endif %}</span>
+            {% if fam.mine or current_user.role == 'admin' %}
+            <button onclick="toggleAbsent('{{ fam.id }}')" id="absent-btn-{{ fam.id }}" aria-pressed="{{ 'true' if fam.absent else 'false' }}"
+              style="font-size:13px;font-weight:600;min-height:44px;padding:8px 16px;border-radius:22px;border:1px solid;cursor:pointer;transition:all 0.15s;
                 {% if fam.absent %}background:rgba(255,107,138,0.15);color:#FF6B8A;border-color:rgba(255,107,138,0.35);{% else %}background:rgba(62,201,232,0.12);color:#3EC9E8;border-color:rgba(62,201,232,0.35);{% endif %}">
-              {% if fam.absent %}Not Coming{% else %}Coming ✓{% endif %}
+              {% if fam.absent %}Not coming{% else %}Coming{% endif %}
             </button>
+            {% else %}
+            <span id="absent-btn-{{ fam.id }}" style="font-size:13px;font-weight:600;padding:8px 4px;{% if fam.absent %}color:#FF6B8A;{% else %}color:rgba(255,255,255,0.55);{% endif %}">
+              {% if fam.absent %}Not coming{% else %}Coming{% endif %}
+            </span>
+            {% endif %}
           </div>
           {% endfor %}
         </div>
       </div>
+      {% if not can_act %}
+      <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:14px;font-size:14px;color:rgba(255,255,255,0.6);line-height:1.5;">
+        {{ next_trip.driver }} is driving. You will hear from them if they are running late, and again when the kids arrive.
+      </div>
+      {% else %}
       <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-          <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);letter-spacing:0.04em;">DRIVER ACTIONS</div>
+          <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.4);letter-spacing:0.04em;">{% if is_driver and current_user.role != 'admin' %}YOU ARE DRIVING{% else %}DRIVER ACTIONS{% endif %}</div>
           {% if current_user.role == 'admin' or (current_user.family_id and current_user.family_id == next_driver_id) %}
           <button onclick="sendRoute()" id="send-route-btn" style="padding:6px 14px;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.15);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
             {% if current_user.role == 'admin' %}🗺 Send Route to Driver{% else %}🗺 Send My Route{% endif %}
@@ -812,6 +902,7 @@
           📍 Live location is being shared on the <a href="{{ kid_bulletin_url or ('/bulletin/' + group_id) }}" target="_blank" style="color:var(--coral);">Kids Bulletin</a>
         </div>
       </div>
+      {% endif %}
     </div>
   </div>
 
@@ -840,7 +931,7 @@
   </div>
 
   <!-- 4. DRIVING ROTATION -->
-  <div class="card">
+  <div class="card" id="rotation-card">
     <div class="card-label">Driving Rotation</div>
     <div class="rotation-list">
       {% for item in rotation %}
@@ -855,6 +946,11 @@
 
   <!-- 5. LIVE DRIVER MAP (admin, only when active) -->
   {% if current_user.role == "admin" %}
+  <details class="manage" id="manage">
+    <summary>
+      <span>Manage carpool</span>
+      <span class="manage-hint">Drivers, invites, trip settings, users</span>
+    </summary>
   <div class="card" id="dashboard-tracking-card" style="{% if not live_location.active %}display:none;{% endif %}">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <div class="card-label" style="margin-bottom:0;">Driver Location</div>
@@ -1099,9 +1195,11 @@
       </div>
     </div>
   </div>
+  </details>
   {% endif %}
 
   <!-- 9. STATS -->
+  {% if stats %}
   <div class="card">
     <div class="card-label">Stats</div>
     {% if stats %}
@@ -1127,7 +1225,10 @@
     {% endif %}
   </div>
 
+  {% endif %}
+
   <!-- 10. KARMA -->
+  {% if history %}
   <div class="card">
     <div class="card-label">Karma</div>
     <div class="karma-grid" id="karma-grid">
@@ -1151,7 +1252,10 @@
     </div>
   </div>
 
+  {% endif %}
+
   <!-- 11. TRIP HISTORY -->
+  {% if history %}
   <div class="card">
     <div class="card-label">Trip History</div>
     {% if history %}
@@ -1172,6 +1276,7 @@
     <p class="empty">No trips recorded yet.</p>
     {% endif %}
   </div>
+  {% endif %}
 
   <!-- Kid Bulletin Display URL Modal -->
   <div id="display-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center;">
@@ -1287,7 +1392,9 @@
 </script>
 <script>
   const IS_ADMIN = {{ 'true' if current_user.role == 'admin' else 'false' }};
-  const MY_FAMILY_ID = "{{ current_user.family_id or '' }}";
+  const MY_FAMILY_ID = {{ (current_user.family_id or '') | tojson }};
+  const TRIP_DATE = {{ trip_date | tojson }};
+  const ABSENCES = {{ absences_by_date | tojson }};
   const NEXT_DRIVER_ID = "{{ next_driver_id or '' }}";
   let ASSIGNMENT_MODE = "{{ assignment_mode }}";
   // tojson escapes <, >, & — |safe with a raw json.dumps let a family or
@@ -1391,6 +1498,21 @@
     renderUpcoming();
   }
 
+  // Your family's attendance for one trip date. Drivers do not mark absent
+  // here; a driver who is out needs the swap flow, not an empty car.
+  function attendRowFor(t) {
+    if (!MY_FAMILY_ID) return "";
+    const hasReturn = !!t.return_time;
+    const driving = t.driver_family_id === MY_FAMILY_ID || (hasReturn && t.return_driver_family_id === MY_FAMILY_ID);
+    if (driving) return `<div class="attend-row"><span class="attend-label">You are driving this one.</span></div>`;
+    const absent = isAbsent(t.date, MY_FAMILY_ID);
+    return `<div class="attend-row">
+        <span class="attend-label">${absent ? "Your kids are marked out." : "Your kids are coming."}</span>
+        <button type="button" class="attend-btn ${absent ? "out" : ""}" aria-pressed="${absent}"
+          onclick="toggleAbsentFor('${t.date}', MY_FAMILY_ID, this)">${absent ? "Not coming" : "Coming"}</button>
+      </div>`;
+  }
+
   function legCard(t, leg) {
     const isOutbound = leg === "outbound";
     const driverFid = isOutbound ? t.driver_family_id : t.return_driver_family_id;
@@ -1447,39 +1569,75 @@
       return;
     }
 
-    list.innerHTML = upcoming.map(t => {
+    // Group recurring trips by series so a term of practices is one card with
+    // its next three dates, not fourteen identical cards. One-off trips stay
+    // as their own cards. Order follows the earliest upcoming date.
+    const groups = [];
+    const bySeries = new Map();
+    for (const t of upcoming) {
+      if (t.series_id) {
+        if (!bySeries.has(t.series_id)) {
+          const g = {series_id: t.series_id, trips: []};
+          bySeries.set(t.series_id, g); groups.push(g);
+        }
+        bySeries.get(t.series_id).trips.push(t);
+      } else {
+        groups.push({series_id: null, trips: [t]});
+      }
+    }
+
+    const removeBtnFor = (t) => IS_ADMIN
+      ? `<button class="btn-remove" onclick="removeTrip('${t.id}','${t.series_id||''}')" aria-label="Delete trip">&#x2715;</button>` : '';
+
+    const dateRow = (t) => {
       const [year, mon, day] = t.date.split("-");
-      const monthName = MONTHS[parseInt(mon)-1];
-      const seriesBadge = t.series_id ? `<span style="font-size:11px;background:#ede9fe;color:#7c3aed;border-radius:10px;padding:2px 7px;margin-left:6px">🔁</span>` : '';
-      const removeBtn = IS_ADMIN ? `<button class="btn-remove" onclick="removeTrip('${t.id}','${t.series_id||''}')" title="Delete trip">&#x2715;</button>` : '';
-      const gcalBtn = t.gcal_url ? `<a class="btn-gcal" href="${t.gcal_url}" target="_blank">+ Google Cal</a>` : '';
+      const d = new Date(parseInt(year), parseInt(mon) - 1, parseInt(day));
       const hasReturn = !!t.return_time;
-
-      const gcalReturnBtn = t.gcal_url_return ? `<a class="btn-gcal" href="${t.gcal_url_return}" target="_blank">+ Google Cal</a>` : '';
-
       return `
-        <div class="upcoming-item" style="flex-direction:column;align-items:stretch;gap:0">
-          <!-- Date + destination header -->
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-            <div style="display:flex;align-items:baseline;gap:10px">
-              <div class="upcoming-date" style="margin:0">
-                <div class="day">${parseInt(day)}</div>
-                <div class="month">${monthName}</div>
-              </div>
-              <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.9)">${esc(t.destination_name || "")}${seriesBadge}</div>
+        <div class="sched-date" id="trip-${t.id}">
+          <div class="sched-date-head">
+            <div class="upcoming-date" style="margin:0">
+              <div class="day">${parseInt(day)}</div>
+              <div class="month">${MONTHS[parseInt(mon)-1].slice(0,3)}</div>
             </div>
-            ${removeBtn}
+            <div class="sched-date-dow">${DAYS[d.getDay()]}</div>
+            ${removeBtnFor(t)}
           </div>
-          <!-- Outbound row -->
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid rgba(255,255,255,0.07)">
-            ${legCard(t, "outbound")}
-            ${gcalBtn}
+          <div class="sched-leg">${legCard(t, "outbound")}</div>
+          ${hasReturn ? `<div class="sched-leg">${legCard(t, "return")}</div>` : ""}
+          ${attendRowFor(t)}
+        </div>`;
+    };
+
+    list.innerHTML = groups.map(g => {
+      const first = g.trips[0];
+      if (!g.series_id) {
+        return `<div class="upcoming-item sched-card">
+            <div class="sched-title">${esc(first.destination_name || "")}</div>
+            ${dateRow(first)}
+          </div>`;
+      }
+      // Series card: pattern line, then the next three dates, rest folded.
+      const dows = [...new Set(g.trips.map(t => { const [y,m,d] = t.date.split("-"); return new Date(+y, +m-1, +d).getDay(); }))].sort();
+      const dowText = dows.map(i => DAYS[i]).join(", ");
+      const last = g.trips[g.trips.length - 1];
+      const [ly, lm, ld] = last.date.split("-");
+      const shown = g.trips.slice(0, 3), rest = g.trips.slice(3);
+      const restId = `series-rest-${g.series_id}`;
+      const seriesRemove = IS_ADMIN
+        ? `<button class="btn-remove" onclick="removeTrip('${first.id}','${g.series_id}')" aria-label="Delete series">&#x2715;</button>` : '';
+      return `<div class="upcoming-item sched-card">
+          <div class="sched-title-row">
+            <div>
+              <div class="sched-title">${esc(first.destination_name || "")} <span class="sched-repeat">repeats</span></div>
+              <div class="sched-pattern">${dowText} at ${fmtTime(first.arrival_time)}${first.return_time ? `, back ${fmtTime(first.return_time)}` : ""} until ${MONTHS[+lm-1].slice(0,3)} ${+ld}. ${g.trips.length} trip${g.trips.length === 1 ? "" : "s"} left.</div>
+            </div>
+            ${seriesRemove}
           </div>
-          <!-- Return row -->
-          ${hasReturn ? `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid rgba(255,255,255,0.07)">
-            ${legCard(t, "return")}
-            ${gcalReturnBtn}
-          </div>` : ""}
+          ${shown.map(dateRow).join("")}
+          ${rest.length ? `<div id="${restId}" hidden>${rest.map(dateRow).join("")}</div>
+            <button type="button" class="sched-more" aria-expanded="false" aria-controls="${restId}"
+              onclick="const r=document.getElementById('${restId}'); r.hidden=!r.hidden; this.setAttribute('aria-expanded', String(!r.hidden)); this.textContent = r.hidden ? 'Show ${rest.length} more' : 'Show fewer';">Show ${rest.length} more</button>` : ""}
         </div>`;
     }).join("");
   }
@@ -1605,7 +1763,8 @@
 
   // Live preview updates
   document.querySelectorAll("#m-weekdays input").forEach(cb => cb.addEventListener("change", updateRepeatPreview));
-  document.getElementById("m-end-date").addEventListener("change", updateRepeatPreview);
+  const endDateEl = document.getElementById("m-end-date");
+  if (endDateEl) endDateEl.addEventListener("change", updateRepeatPreview);
 
   function getWeekdayIndex(jsDay) {
     // JS: Sun=0,Mon=1…Sat=6  →  Python: Mon=0…Sun=6
@@ -1893,17 +2052,69 @@
 
   // ── Today's Trip actions ──────────────────────────────────────────────────
 
+  function isAbsent(date, familyId) {
+    return (ABSENCES[date] || []).includes(familyId);
+  }
+
+  function setAbsent(date, familyId, absent) {
+    const list = ABSENCES[date] || (ABSENCES[date] = []);
+    const i = list.indexOf(familyId);
+    if (absent && i < 0) list.push(familyId);
+    if (!absent && i >= 0) list.splice(i, 1);
+  }
+
+  // Attendance for any trip date. Used by the per-trip toggles in the list.
+  async function toggleAbsentFor(date, familyId, btn) {
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetch("/toggle-absent", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({family_id: familyId, date: date}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.absent !== "boolean") {
+        alert(data.error || "Could not update attendance.");
+        return null;
+      }
+      setAbsent(date, familyId, data.absent);
+      renderUpcoming();
+      if (date === TRIP_DATE) paintTodayRow(familyId, data.absent);
+      return data.absent;
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function paintTodayRow(familyId, absent) {
+    const btn = document.getElementById(`absent-btn-${familyId}`);
+    const row = document.getElementById(`fam-row-${familyId}`);
+    if (!btn) return;
+    if (absent) {
+      btn.textContent = "Not coming";
+      btn.style.cssText = btn.style.cssText.replace(/background:[^;]+;color:[^;]+;border-color:[^;]+/, "background:rgba(255,107,138,0.15);color:#FF6B8A;border-color:rgba(255,107,138,0.35)");
+      if (row) row.style.background = "rgba(255,107,138,0.10)";
+    } else {
+      btn.textContent = "Coming";
+      btn.style.cssText = btn.style.cssText.replace(/background:[^;]+;color:[^;]+;border-color:[^;]+/, "background:rgba(62,201,232,0.12);color:#3EC9E8;border-color:rgba(62,201,232,0.35)");
+      if (row) row.style.background = "rgba(255,255,255,0.06)";
+    }
+    btn.setAttribute("aria-pressed", absent ? "true" : "false");
+  }
+
   async function toggleAbsent(familyId) {
     const res = await fetch("/toggle-absent", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({family_id: familyId}),
+      body: JSON.stringify({family_id: familyId, date: TRIP_DATE}),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || typeof data.absent !== "boolean") {
       alert(data.error || "Could not update attendance.");
       return;
     }
+    setAbsent(TRIP_DATE, familyId, data.absent);
+    renderUpcoming();
     const btn = document.getElementById(`absent-btn-${familyId}`);
     const row = document.getElementById(`fam-row-${familyId}`);
     if (data.absent) {
@@ -2008,19 +2219,47 @@
     document.getElementById("late-minutes").value = "";
   }
 
+  // One place for every confirmation. A toast reads what happened; it never
+  // says "sent to everyone" when the server says some phones failed.
+  function toast(text, kind) {
+    let host = document.getElementById("toast-host");
+    if (!host) {
+      host = document.createElement("div"); host.id = "toast-host"; host.setAttribute("role", "status"); host.setAttribute("aria-live", "polite");
+      document.body.appendChild(host);
+    }
+    const el = document.createElement("div");
+    el.className = "toast " + (kind || "");
+    el.textContent = text;
+    host.appendChild(el);
+    setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 400); }, kind === "bad" ? 9000 : 5500);
+  }
+
+  function deliveryText(verb, data) {
+    const sent = data.sent || 0, failed = data.failed || 0;
+    if (sent && !failed) return `${verb} to ${sent} phone${sent === 1 ? "" : "s"}.`;
+    if (sent && failed) return `${verb} to ${sent} phone${sent === 1 ? "" : "s"}. ${failed} could not be reached. Check the numbers under Manage carpool.`;
+    if (!sent && failed) return `Nothing was sent: ${failed} phone${failed === 1 ? "" : "s"} could not be reached. Messaging may not be set up yet.`;
+    return `${verb}, but there was nobody to tell.`;
+  }
+
   async function sendRunningLate() {
     const minutes = document.getElementById("late-minutes").value;
-    const res = await fetch("/running-late", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({minutes}),
-    });
+    let res, data = {};
+    try {
+      res = await fetch("/running-late", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({minutes}),
+      });
+      data = await res.json().catch(() => ({}));
+    } catch (e) {
+      toast("No connection. Check your signal and try again.", "bad"); return;
+    }
     closeLateModal();
-    if (res.ok) {
-      alert("Running late alert sent to all pickup families!");
+    if (res.ok && data.ok) {
+      toast(deliveryText("Running-late alert sent", data), data.failed ? "warn" : "good");
     } else {
-      const data = await res.json().catch(() => ({}));
-      alert(data.error || "Could not send the alert.");
+      toast(data.error || "Could not send the alert.", "bad");
     }
   }
 
@@ -2032,12 +2271,12 @@
       const res = await fetch("/send-route", { method: "POST", headers: {"Content-Type": "application/json"}, body: "{}" });
       const data = await res.json();
       if (data.ok) {
-        alert(`✅ Route sent to ${data.driver} covering ${data.pickups} pickup(s).`);
+        toast(`Route sent to ${data.driver}, covering ${data.pickups} pickup${data.pickups === 1 ? "" : "s"}.`, "good");
       } else {
-        alert(`❌ ${data.error}`);
+        toast(data.error || "Could not send the route.", "bad");
       }
     } catch (e) {
-      alert("Something went wrong sending the route.");
+      toast("No connection. Check your signal and try again.", "bad");
     }
     btn.textContent = "🗺 Send Route to Driver";
     btn.disabled = false;
@@ -2052,11 +2291,11 @@
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(data.error || "Could not send the arrival confirmation.");
+      toast(data.error || "Could not send the arrival confirmation.", "bad");
     } else if (data.already) {
-      alert("Today's arrival was already recorded — no duplicate messages sent.");
+      toast("This arrival was already recorded. No duplicate messages were sent.", "warn");
     } else {
-      alert("Arrival confirmation sent!");
+      toast(deliveryText("Arrival confirmation sent", data), data.failed ? "warn" : "good");
     }
   }
 
@@ -2145,7 +2384,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     Schedule
   </a>
-  <a href="#" onclick="document.getElementById('upcoming-list').scrollIntoView({behavior:'smooth'});return false;">
+  <a href="#" onclick="document.getElementById('rotation-card').scrollIntoView({behavior:'smooth'});return false;">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
     Rotation
   </a>

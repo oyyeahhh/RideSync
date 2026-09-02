@@ -12,8 +12,18 @@ import shutil
 import tempfile
 from pathlib import Path
 
+# storage is imported before portal calls load_dotenv(), so read .env here or
+# DATA_DIR from a .env file is silently ignored and data lands in the repo.
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _load_dotenv()
+except Exception:
+    pass
+
 CODE_DIR = Path(__file__).parent
-DATA_DIR = Path(os.environ.get("DATA_DIR", str(CODE_DIR)))
+_data_dir_env = os.environ.get("DATA_DIR", "").strip()
+DATA_DIR = (Path(_data_dir_env).expanduser().resolve()
+            if _data_dir_env else CODE_DIR)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # Locks live alongside data so flock works on the same filesystem.
