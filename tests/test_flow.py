@@ -99,3 +99,34 @@ def test_running_late_reports_counts(admin):
     assert r.status_code == 200
     data = r.get_json()
     assert set(("ok", "sent", "failed")) <= set(data)
+
+
+def test_health_does_not_claim_persistence_without_a_volume(client, tmp_path):
+    """/health must not say data survives redeploys when DATA_DIR is just a
+    directory on the container filesystem.
+
+    This is the bug that hid a month of signed-out parents: the old check
+    compared DATA_DIR to the code directory, and any other path counted as
+    "PERSISTENT". Production ran DATA_DIR=/data with no volume mounted there,
+    so /health reported persistence while every deploy wiped the directory.
+    The test fixture's DATA_DIR is a temp dir and never a mount point, so the
+    honest answer here is always EPHEMERAL.
+    """
+    body = client.get("/health").get_data(as_text=True)
+    assert "EPHEMERAL" in body, body
+    assert "no volume" in body.lower(), body
+    assert "will survive redeploys" not in body, body
+
+
+def test_storage_persistence_detects_a_mount_point(monkeypatch):
+    """The probe reports PERSISTENT only when the kernel says it is a mount."""
+    import portal
+    monkeypatch.setattr(portal.os.path, "ismount", lambda p: True)
+    status, note = portal._storage_persistence()
+    assert status.startswith("✅"), status
+    assert "survive" in note.lower(), note
+
+    monkeypatch.setattr(portal.os.path, "ismount", lambda p: False)
+    status, note = portal._storage_persistence()
+    assert "EPHEMERAL" in status, status
+    assert "no volume" in note.lower(), note
