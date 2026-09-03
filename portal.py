@@ -155,12 +155,19 @@ def _startup_check() -> None:
     except Exception as e:
         logger.error("DATA_DIR writable: NO — %s", e)
 
-    # Warn if falling back to code directory (ephemeral on Railway)
+    # A directory persists on Railway only when a volume is mounted at it.
+    # A path that merely differs from the code directory is still on the
+    # container filesystem, so ask the kernel rather than comparing paths.
     if str(DATA_DIR) == str(CODE_DIR):
-        logger.warning("⚠️  DATA_DIR is the CODE directory — data will be lost on redeploy!")
-        logger.warning("⚠️  Set DATA_DIR=/data and mount a Railway volume at /data.")
+        logger.warning("⚠️  DATA_DIR is the CODE directory — data is lost on every redeploy.")
+        logger.warning("⚠️  Set DATA_DIR and mount a Railway volume at that path.")
+    elif os.path.ismount(DATA_DIR):
+        logger.info("✅ A volume is mounted at DATA_DIR — data survives redeploys.")
     else:
-        logger.info("✅ DATA_DIR is separate from code dir — data should persist.")
+        logger.warning("⚠️  NO VOLUME is mounted at DATA_DIR (%s) — it is on the", DATA_DIR)
+        logger.warning("⚠️  container filesystem and is wiped on every redeploy.")
+        logger.warning("⚠️  Sessions live here, so deploys sign every parent out.")
+        logger.warning("⚠️  Fix: Railway > the web service > attach a volume at %s", DATA_DIR)
 
     logger.info("=" * 60)
 
@@ -394,6 +401,36 @@ def _rate_limited(key: str, max_hits: int, window_seconds: int) -> bool:
                 if not _rate_state[k]:
                     del _rate_state[k]
         return False
+
+
+def _storage_persistence() -> tuple[str, str]:
+    """Is DATA_DIR actually backed by something that survives a redeploy?
+
+    Returns (short_status, explanation).
+
+    On Railway a directory persists only when a volume is mounted at it.
+    A path that merely differs from the code directory is still on the
+    container's overlay filesystem and is wiped on every deploy, so the
+    old DATA_DIR != CODE_DIR comparison could not tell these apart.
+    os.path.ismount() asks the kernel, which can.
+    """
+    if str(DATA_DIR) == str(CODE_DIR):
+        return ("⚠️  EPHEMERAL (code directory)",
+                "DATA_DIR is the code directory. Anything written here is "
+                "lost on redeploy. Set DATA_DIR and mount a volume there.")
+    try:
+        mounted = os.path.ismount(DATA_DIR)
+    except OSError:
+        mounted = False
+    if mounted:
+        return ("✅ PERSISTENT (volume mounted)",
+                "A volume is mounted at DATA_DIR. Files written here survive "
+                "redeploys.")
+    return ("⚠️  EPHEMERAL (no volume mounted)",
+            "DATA_DIR is set but NO VOLUME is mounted there, so it lives on "
+            "the container filesystem and is wiped on every redeploy. Server-"
+            "side sessions live here, which is why deploys sign everyone out. "
+            "Fix: Railway > the web service > attach a volume at this path.")
 
 
 def _client_ip() -> str:
@@ -1146,7 +1183,6 @@ def admin_display_url_regenerate():
 @app.route("/health")
 def health():
     data_dir_env = os.environ.get("DATA_DIR", "NOT SET")
-    is_ephemeral = str(DATA_DIR) == str(CODE_DIR)
     try:
         test = DATA_DIR / ".write_test"
         test.write_text("ok")
@@ -1156,7 +1192,7 @@ def health():
         writable = False
     from groups import list_groups
     groups = list_groups()
-    status = "⚠️ EPHEMERAL" if is_ephemeral else "✅ PERSISTENT"
+    status, persistence_note = _storage_persistence()
 
     # Supabase migration status
     from supabase_client import health_check as _supa_health
@@ -1217,8 +1253,7 @@ Auth users   : {auth_users_line}
 Identity     : {identity_line}
 Supabase link: {unlinked_line}
 
-{"⚠️  WARNING: DATA_DIR is the code directory." if is_ephemeral else "✅  Data will survive redeploys."}
-{"Set DATA_DIR=/data and mount a Railway volume at /data." if is_ephemeral else ""}
+{persistence_note}
 </pre>"""
 
 
@@ -3714,7 +3749,8 @@ def admin_system():
         groups = [g for g in groups if g.get("id") == my_gid]
     # Volume / storage info
     data_dir_env = os.environ.get("DATA_DIR", "NOT SET")
-    is_ephemeral = str(DATA_DIR) == str(CODE_DIR)
+    storage_status, storage_note = _storage_persistence()
+    is_ephemeral = not storage_status.startswith("✅")
     try:
         test = DATA_DIR / ".write_test"
         test.write_text("ok")
@@ -3743,6 +3779,8 @@ def admin_system():
         data_dir=str(DATA_DIR),
         data_dir_env=data_dir_env,
         is_ephemeral=is_ephemeral,
+        storage_status=storage_status,
+        storage_note=storage_note,
         writable=writable,
     )
 

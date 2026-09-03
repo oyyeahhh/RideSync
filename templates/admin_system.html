@@ -64,6 +64,11 @@
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       word-break: break-all;
     }
+    .stat-note {
+      font-size: 12px; line-height: 1.5; color: var(--soft);
+      margin-top: 8px; font-weight: 400;
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+    }
     .stat-value.ok { color: var(--green); }
     .stat-value.warn { color: var(--red); }
 
@@ -152,8 +157,9 @@
         <div class="stat">
           <div class="stat-label">Persistent?</div>
           <div class="stat-value {{ 'warn' if is_ephemeral else 'ok' }}">
-            {{ '⚠️ EPHEMERAL' if is_ephemeral else '✅ PERSISTENT' }}
+            {{ storage_status }}
           </div>
+          {% if is_ephemeral %}<div class="stat-note">{{ storage_note }}</div>{% endif %}
         </div>
         <div class="stat">
           <div class="stat-label">Writable?</div>
