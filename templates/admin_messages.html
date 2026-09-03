@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Messages — CarpoolSync</title>
+  <style>
+    :root {
+      --paper: #FAF9F5; --card: #FFFFFF; --ink: #1A1714; --soft: #6E6862;
+      --line: #EAE8E3; --green: #4B7F52; --red: #B4443C; --amber: #A8752E;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--paper); color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    .wrap { max-width: 60rem; margin: 0 auto; padding: 24px 18px 64px; }
+    .back { display: inline-block; font-size: 14px; color: var(--soft); text-decoration: none; margin-bottom: 18px; }
+    .back:hover { color: var(--ink); }
+    h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+    .lede { color: var(--soft); font-size: 15px; margin: 0 0 24px; }
+
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+    @media (min-width: 34rem) { .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+    .stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+    .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--soft); margin-bottom: 6px; }
+    .stat-value { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+    .stat-value.ok { color: var(--green); }
+    .stat-value.bad { color: var(--red); }
+    .stat-value.wait { color: var(--amber); }
+
+    .notice { border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; font-size: 14px; border: 1px solid; }
+    .notice.warn { background: #FDF6EC; border-color: #F0E0C4; color: #6B4E1E; }
+    .notice.good { background: #F1F7F1; border-color: #D8E7D9; color: #2F5734; }
+    .notice ul { margin: 8px 0 0; padding-left: 20px; }
+    .notice li { margin-bottom: 4px; }
+
+    .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    th { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--soft); }
+    tr:last-child td { border-bottom: none; }
+    .num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+    .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .pill.ok { background: #EAF3EB; color: var(--green); }
+    .pill.bad { background: #FBEDEC; color: var(--red); }
+    .pill.wait { background: #FBF3E6; color: var(--amber); }
+    .err { color: var(--red); font-size: 12px; }
+    .empty { padding: 32px 16px; text-align: center; color: var(--soft); font-size: 15px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/admin/users">← Back to Manage Users</a>
+  <h1>Messages</h1>
+  <p class="lede">
+    What the app sent and whether the carrier confirmed it arrived.
+    {% if scoped_to_group %}Your carpool only.{% else %}Every carpool.{% endif %}
+  </p>
+
+  {% if messaging.ready %}
+  <div class="notice good">
+    Messaging is configured for <strong>{{ messaging.channel }}</strong>, and delivery reports are being recorded.
+  </div>
+  {% else %}
+  <div class="notice warn">
+    Messaging is set to <strong>{{ messaging.channel }}</strong>, but something is not ready:
+    <ul>
+      {% for problem in messaging.problems %}<li>{{ problem }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Recorded</div>
+      <div class="stat-value">{{ stats.total }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Delivered</div>
+      <div class="stat-value ok">{{ stats.delivered }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Failed</div>
+      <div class="stat-value {{ 'bad' if stats.failed else '' }}">{{ stats.failed }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">In flight</div>
+      <div class="stat-value {{ 'wait' if stats.in_flight else '' }}">{{ stats.in_flight }}</div>
+    </div>
+  </div>
+
+  <div class="table-scroll">
+    {% if rows %}
+    <table>
+      <thead>
+        <tr>
+          <th>Sent</th><th>To</th><th>What</th><th>Channel</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="num">{{ r.created_at[:16] | replace('T', ' ') }}</td>
+          <td class="num">{{ r.to }}</td>
+          <td>{{ r.kind or '—' }}</td>
+          <td>{{ r.channel }}</td>
+          <td>
+            {% set s = (r.status or '') | lower %}
+            {% if s in ['delivered', 'read'] %}
+              <span class="pill ok">{{ r.status }}</span>
+            {% elif s in ['failed', 'undelivered', 'send_error', 'opted_out'] %}
+              <span class="pill bad">{{ r.status }}</span>
+              {% if r.error %}<div class="err">{{ r.error }}</div>{% endif %}
+            {% else %}
+              <span class="pill wait">{{ r.status }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">
+      Nothing sent yet. Once the app messages a parent, every attempt shows up here with its delivery status.
+    </div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

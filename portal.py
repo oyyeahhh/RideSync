@@ -387,7 +387,8 @@ def _drive_url(token: str) -> str:
     try:
         return url_for("drive_view", token=token, _external=True)
     except RuntimeError:
-        base = os.environ.get("APP_BASE_URL", "https://carpoolsync.up.railway.app").rstrip("/")
+        from sms import app_base_url
+        base = app_base_url()
         return f"{base}/drive/{token}"
 
 
@@ -821,6 +822,77 @@ def auth_callback():
     return redirect(url_for("dashboard"))
 
 
+@app.route("/twilio/status", methods=["POST"])
+@csrf.exempt
+def twilio_status():
+    """Delivery-status callback from Twilio.
+
+    Twilio accepting a message only means it was queued. The carrier reports
+    the real outcome here, minutes later, and without this the app treats
+    "queued" as "delivered" forever. That is how a month of undelivered
+    sandbox messages could look like success.
+
+    The request is authenticated by the X-Twilio-Signature header, computed
+    from the full URL and the sorted POST body using the account auth token.
+    This endpoint is public and unauthenticated otherwise, so an unverified
+    request must never be allowed to write to the log.
+    """
+    from twilio.request_validator import RequestValidator
+    from message_log import update_status
+
+    token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    if not token:
+        logger.error("Twilio status callback received but no auth token is set")
+        return "", 403
+
+    # url_for(_external=True) reflects the proxied https origin thanks to
+    # ProxyFix, which is what Twilio signed against.
+    signature = request.headers.get("X-Twilio-Signature", "")
+    validator = RequestValidator(token)
+    if not validator.validate(request.url, request.form.to_dict(), signature):
+        logger.warning("Rejected Twilio status callback with a bad signature "
+                       "from %s", _client_ip())
+        return "", 403
+
+    sid = request.form.get("MessageSid", "") or request.form.get("SmsSid", "")
+    status = (request.form.get("MessageStatus", "")
+              or request.form.get("SmsStatus", "")).strip().lower()
+    error = request.form.get("ErrorCode", "").strip()
+
+    if not sid:
+        return "", 400
+
+    known = update_status(sid, status, f"Twilio {error}" if error else "")
+    if status in ("undelivered", "failed"):
+        logger.warning("Message %s %s (Twilio error %s)", sid, status,
+                       error or "none")
+    elif not known:
+        logger.info("Status callback for unknown message %s (%s)", sid, status)
+    # Twilio retries on non-2xx, so acknowledge even an unrecognised SID.
+    return "", 204
+
+
+@app.route("/admin/messages")
+@login_required
+@admin_required
+def admin_messages():
+    """What the app actually sent, and whether it arrived.
+
+    Scoped to the admin's own group unless they are on the OWNER_EMAILS
+    allowlist, matching how /admin/system and /admin/users already behave.
+    """
+    from message_log import recent, summary
+    from sms import config_status
+
+    group_id = "" if _is_owner() else gid()
+    rows = recent(limit=200, group_id=group_id)
+    return render_template("admin_messages.html",
+                           rows=rows,
+                           stats=summary(group_id=group_id),
+                           messaging=config_status(),
+                           scoped_to_group=bool(group_id))
+
+
 @app.route("/logout")
 def logout():
     session.clear()
@@ -1227,6 +1299,14 @@ def health():
     else:
         supa_line = f"⚠️  CONFIGURED but connection failed: {supa.get('error', 'unknown')}"
 
+    from sms import config_status as _msg_config
+    _msg = _msg_config()
+    if _msg["ready"]:
+        messaging_line = f"✅ {_msg['channel']}, delivery reports on"
+    else:
+        messaging_line = (f"⚠️  {_msg['channel']} — "
+                          + "; ".join(_msg["problems"]))
+
     auth_mode = ("🔐 Supabase Auth (USE_SUPABASE_AUTH=1)"
                  if os.environ.get("USE_SUPABASE_AUTH", "").strip() == "1"
                  else "🗝  Legacy bcrypt")
@@ -1269,6 +1349,7 @@ Groups       : {len(groups)} ({', '.join(g['id'] for g in groups) or 'none'})
 
 Supabase     : {supa_line}
 Schema       : {schema_line}
+Messaging    : {messaging_line}
 Auth mode    : {auth_mode}
 Auth users   : {auth_users_line}
 Identity     : {identity_line}

@@ -93,7 +93,7 @@ class _FileLock:
 # Root-level files listed in _GLOBAL_PG_FILES are also routed to Postgres under
 # the reserved group_id "_global" so they survive volume resets.
 
-_GLOBAL_PG_FILES = {"invites.json", "resets.json"}
+_GLOBAL_PG_FILES = {"invites.json", "resets.json", "message_log.json"}
 
 
 def _group_file_key(path: Path):
