@@ -437,7 +437,7 @@
       <h2>Pending invites</h2>
       <p>
         {{ pending_invites | length }} invited {{ 'person hasn' if pending_invites | length == 1 else 'people haven' }}&rsquo;t signed up yet.
-        Re-send the WhatsApp, or copy the link and share it another way.
+        Re-send the {{ channel }}, or copy the link and share it another way.
       </p>
       {% for inv in pending_invites %}
       <div class="cleanup-group-row">

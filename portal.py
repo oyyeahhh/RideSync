@@ -302,6 +302,27 @@ if _CSRFError is not None:
         return redirect(target)
 
 
+@app.context_processor
+def inject_message_channel():
+    """Give every template the name of the channel messages actually go out
+    on, so copy follows MESSAGE_CHANNEL instead of contradicting it.
+
+    channel        "text message" / "WhatsApp"      — for a sentence
+    channel_short  "text" / "WhatsApp message"      — for a short label
+    on_whatsapp    True only while the WhatsApp sandbox is in use, which is
+                   what the join-keyword instructions depend on
+    """
+    from sms import uses_whatsapp as _uses_whatsapp
+    on_whatsapp = _uses_whatsapp()
+    return {
+        "channel": "WhatsApp" if on_whatsapp else "text message",
+        "channel_short": "WhatsApp message" if on_whatsapp else "text",
+        "on_whatsapp": on_whatsapp,
+        "sandbox_number": os.environ.get("TWILIO_SANDBOX_NUMBER", ""),
+        "sandbox_keyword": os.environ.get("TWILIO_SANDBOX_KEYWORD", ""),
+    }
+
+
 @app.template_filter("fmt_time")
 def fmt_time(t: str) -> str:
     """Convert '17:00' → '5:00 PM'."""

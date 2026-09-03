@@ -273,6 +273,7 @@
       <span>{{ phone }}</span>
     </div>
 
+    {% if on_whatsapp %}
     <div class="whatsapp-notice">
       <div class="whatsapp-notice-header">
         <div class="wa-icon">💬</div>
@@ -305,6 +306,7 @@
         </li>
       </ol>
     </div>
+    {% endif %}
 
     {% if error %}
     <div class="error-banner">{{ error }}</div>
