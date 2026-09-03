@@ -115,6 +115,30 @@ def add_family(name: str, address: str, phone: str, children: list[str], group_i
     return entry
 
 
+def restore_family(family_id: str, group_id: str, *, name: str, address: str = "",
+                   phone: str = "", children: list[str] | None = None) -> dict:
+    """Write a family record under an id that is given, not generated.
+
+    add_family() mints a fresh id, which is wrong for a repair: the user
+    record, rotation order, trip history and karma all reference the old id, so
+    a new one would leave every one of them pointing at nothing. This restores
+    the record in place so those references reconnect.
+
+    Idempotent — an existing record with this id is replaced, not duplicated.
+    """
+    entry = {
+        "id": family_id,
+        "name": name or "Family",
+        "address": address or "",
+        "phone": phone or "",
+        "children": children or [],
+    }
+    data = [f for f in _load_families_json(group_id) if f.get("id") != family_id]
+    data.append(entry)
+    _save_families_json(data, group_id)
+    return entry
+
+
 def get_family(family_id: str, group_id: str) -> Family:
     """Look up a family by ID within the given group."""
     for d in _load_families_json(group_id):

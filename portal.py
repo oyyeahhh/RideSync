@@ -364,6 +364,49 @@ def current_user() -> dict | None:
     return get_user_by_id(uid)
 
 
+def _family_for_user(user: dict, group_id: str):
+    """The user's own family, rebuilt from their account if the record is gone.
+
+    A family record used to be a per-group file on the Railway volume while the
+    user record was a Postgres row. The volume was never actually mounted (a
+    trailing space in the mount path), so for accounts created before
+    USE_SUPABASE_DB was switched on, the family file was wiped on the next
+    deploy while the user row survived. That leaves a parent whose account
+    points at a family that does not exist: claiming a ride fails, and the
+    profile page cannot fix it because update_family() only updates what is
+    already there.
+
+    Everything needed to rebuild is on the user record, so rebuild it rather
+    than stranding them. Returns None only when the account has no family_id
+    at all, which is a different problem.
+    """
+    family_id = (user or {}).get("family_id") or ""
+    if not family_id or not group_id:
+        return None
+    try:
+        return get_family(family_id, group_id)
+    except ValueError:
+        pass
+
+    from families import restore_family
+    surname = (user.get("name") or "").split()[-1] if user.get("name") else ""
+    child = (user.get("child_name") or "").strip()
+    restore_family(
+        family_id, group_id,
+        name=surname or user.get("name") or "Family",
+        address=user.get("address", "") or "",
+        phone=user.get("phone", "") or "",
+        children=[child] if child else [],
+    )
+    logger.warning("Rebuilt missing family %s in group %s from user %s",
+                   family_id, group_id, user.get("id"))
+    try:
+        return get_family(family_id, group_id)
+    except ValueError:
+        logger.error("Rebuilt family %s but still cannot read it back", family_id)
+        return None
+
+
 def gid() -> str | None:
     """Return the current user's group_id from the session."""
     return session.get("group_id")
@@ -387,7 +430,8 @@ def _drive_url(token: str) -> str:
     try:
         return url_for("drive_view", token=token, _external=True)
     except RuntimeError:
-        base = os.environ.get("APP_BASE_URL", "https://carpoolsync.up.railway.app").rstrip("/")
+        from sms import app_base_url
+        base = app_base_url()
         return f"{base}/drive/{token}"
 
 
@@ -821,6 +865,77 @@ def auth_callback():
     return redirect(url_for("dashboard"))
 
 
+@app.route("/twilio/status", methods=["POST"])
+@csrf.exempt
+def twilio_status():
+    """Delivery-status callback from Twilio.
+
+    Twilio accepting a message only means it was queued. The carrier reports
+    the real outcome here, minutes later, and without this the app treats
+    "queued" as "delivered" forever. That is how a month of undelivered
+    sandbox messages could look like success.
+
+    The request is authenticated by the X-Twilio-Signature header, computed
+    from the full URL and the sorted POST body using the account auth token.
+    This endpoint is public and unauthenticated otherwise, so an unverified
+    request must never be allowed to write to the log.
+    """
+    from twilio.request_validator import RequestValidator
+    from message_log import update_status
+
+    token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    if not token:
+        logger.error("Twilio status callback received but no auth token is set")
+        return "", 403
+
+    # url_for(_external=True) reflects the proxied https origin thanks to
+    # ProxyFix, which is what Twilio signed against.
+    signature = request.headers.get("X-Twilio-Signature", "")
+    validator = RequestValidator(token)
+    if not validator.validate(request.url, request.form.to_dict(), signature):
+        logger.warning("Rejected Twilio status callback with a bad signature "
+                       "from %s", _client_ip())
+        return "", 403
+
+    sid = request.form.get("MessageSid", "") or request.form.get("SmsSid", "")
+    status = (request.form.get("MessageStatus", "")
+              or request.form.get("SmsStatus", "")).strip().lower()
+    error = request.form.get("ErrorCode", "").strip()
+
+    if not sid:
+        return "", 400
+
+    known = update_status(sid, status, f"Twilio {error}" if error else "")
+    if status in ("undelivered", "failed"):
+        logger.warning("Message %s %s (Twilio error %s)", sid, status,
+                       error or "none")
+    elif not known:
+        logger.info("Status callback for unknown message %s (%s)", sid, status)
+    # Twilio retries on non-2xx, so acknowledge even an unrecognised SID.
+    return "", 204
+
+
+@app.route("/admin/messages")
+@login_required
+@admin_required
+def admin_messages():
+    """What the app actually sent, and whether it arrived.
+
+    Scoped to the admin's own group unless they are on the OWNER_EMAILS
+    allowlist, matching how /admin/system and /admin/users already behave.
+    """
+    from message_log import recent, summary
+    from sms import config_status
+
+    group_id = "" if _is_owner() else gid()
+    rows = recent(limit=200, group_id=group_id)
+    return render_template("admin_messages.html",
+                           rows=rows,
+                           stats=summary(group_id=group_id),
+                           messaging=config_status(),
+                           scoped_to_group=bool(group_id))
+
+
 @app.route("/logout")
 def logout():
     session.clear()
@@ -1227,6 +1342,14 @@ def health():
     else:
         supa_line = f"⚠️  CONFIGURED but connection failed: {supa.get('error', 'unknown')}"
 
+    from sms import config_status as _msg_config
+    _msg = _msg_config()
+    if _msg["ready"]:
+        messaging_line = f"✅ {_msg['channel']}, delivery reports on"
+    else:
+        messaging_line = (f"⚠️  {_msg['channel']} — "
+                          + "; ".join(_msg["problems"]))
+
     auth_mode = ("🔐 Supabase Auth (USE_SUPABASE_AUTH=1)"
                  if os.environ.get("USE_SUPABASE_AUTH", "").strip() == "1"
                  else "🗝  Legacy bcrypt")
@@ -1269,6 +1392,7 @@ Groups       : {len(groups)} ({', '.join(g['id'] for g in groups) or 'none'})
 
 Supabase     : {supa_line}
 Schema       : {schema_line}
+Messaging    : {messaging_line}
 Auth mode    : {auth_mode}
 Auth users   : {auth_users_line}
 Identity     : {identity_line}
@@ -1825,12 +1949,9 @@ def profile():
         return redirect(url_for("login"))
 
     family_id = user.get("family_id", "")
-    family = None
-    if family_id:
-        try:
-            family = get_family(family_id, group_id)
-        except ValueError:
-            family = None
+    # Rebuilds the record if it went missing, so the form shows real values and
+    # a save has something to write to.
+    family = _family_for_user(user, group_id)
 
     error = None
     saved = session.pop("profile_saved", False)
@@ -1911,6 +2032,10 @@ def dashboard():
             session["group_id"] = group_id
         else:
             return redirect(url_for("create_group_route"))
+
+    # Heal a missing family record before anything reads it, so a parent never
+    # meets the error at all. Cheap: one lookup that only writes on a miss.
+    _family_for_user(user, group_id)
 
     cfg = load_config(group_id)
     trip_time = arrival_time(group_id)
@@ -2483,10 +2608,10 @@ def schedule_claim(trip_id, leg):
     family_id = user.get("family_id")
     if not family_id:
         return jsonify({"error": "no family linked to your account"}), 400
-    try:
-        family = get_family(family_id, group_id)
-    except ValueError:
-        return jsonify({"error": "your family record no longer exists — ask your admin"}), 400
+    family = _family_for_user(user, group_id)
+    if family is None:
+        return jsonify({"error": "your family record could not be rebuilt — "
+                                 "ask your admin"}), 400
     trip = claim_trip(trip_id, leg, family_id, family.name, group_id)
     if not trip:
         return jsonify({"error": "trip not found"}), 404
