@@ -131,69 +131,6 @@ def _bootstrap_legacy_group() -> None:
 _bootstrap_legacy_group()
 
 
-def _emergency_password_reset() -> None:
-    """
-    Emergency recovery path: if both EMERGENCY_RESET_EMAIL and
-    EMERGENCY_RESET_PASSWORD are set as Railway env vars, reset that user's
-    password on app startup and log the action. Then DELETE the env vars and
-    redeploy.
-
-    Now also lists ALL users in the system (with masked emails) so we can
-    see exactly what's stored — useful when "I can't log in" turns out to
-    be an email typo / wrong account.
-    """
-    target_email = os.environ.get("EMERGENCY_RESET_EMAIL", "").strip().lower()
-    new_password = os.environ.get("EMERGENCY_RESET_PASSWORD", "")
-    if not target_email and not new_password:
-        return  # no env vars set → silent skip
-
-    try:
-        from auth import _load_users, get_user_by_email, update_password, verify_password
-        all_users = _load_users()
-
-        # Always log a redacted summary of what's in the user file.
-        print(f"[EMERGENCY RESET] {len(all_users)} user(s) in users.json:")
-        for u in all_users:
-            em = u.get("email", "")
-            masked = (em[:3] + "***" + em[em.find("@"):]) if "@" in em else em
-            print(f"   - id={u.get('id', '?')} email={masked} "
-                  f"name={u.get('name', '')!r} group={u.get('group_id', '')}")
-
-        if not target_email or not new_password:
-            print("[EMERGENCY RESET] Missing email or password env var. Skipping reset.")
-            return
-        if len(new_password) < 8:
-            print("[EMERGENCY RESET] Password too short (need 8+ chars). Skipping.")
-            return
-
-        user = get_user_by_email(target_email)
-        if not user:
-            print(f"[EMERGENCY RESET] ❌ No user with email {target_email!r}.")
-            print(f"[EMERGENCY RESET]    Compare to the list above — possibly a typo or wrong case.")
-            return
-
-        update_password(user["id"], new_password)
-
-        # Verify the new password actually works (catches save-vs-read inconsistencies).
-        reloaded = get_user_by_email(target_email)
-        ok = reloaded and verify_password(new_password, reloaded.get("password_hash", ""))
-        if ok:
-            print(f"[EMERGENCY RESET] ✅ Password reset and verified for {target_email}.")
-            print(f"[EMERGENCY RESET]    user_id={user['id']}  group_id={user.get('group_id', '')}")
-        else:
-            print(f"[EMERGENCY RESET] ⚠️  Password reset but VERIFICATION FAILED. Possible disk/save issue.")
-
-        print("[EMERGENCY RESET] IMPORTANT: remove EMERGENCY_RESET_EMAIL and "
-              "EMERGENCY_RESET_PASSWORD from Railway env vars and redeploy.")
-    except Exception as e:
-        import traceback
-        print(f"[EMERGENCY RESET] Failed: {e}")
-        traceback.print_exc()
-
-
-_emergency_password_reset()
-
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
@@ -823,43 +760,6 @@ def auth_callback():
     session["group_id"] = internal.get("group_id", "")
     session.permanent = True
     logger.info("Magic-link login OK for user_id=%s", internal["id"])
-    return redirect(url_for("dashboard"))
-
-
-@app.route("/emergency-login")
-def emergency_login():
-    """
-    Recovery: if EMERGENCY_LOGIN_TOKEN is set in Railway env vars, anyone who
-    visits /emergency-login?token=<that-value> gets logged in as the user whose
-    email matches EMERGENCY_RESET_EMAIL (or the first user in the system if
-    that's not set). Skips bcrypt entirely — pure session bypass.
-
-    Use ONLY when normal login is broken. Delete the env var right after.
-    """
-    import hmac as _hmac
-    expected = os.environ.get("EMERGENCY_LOGIN_TOKEN", "")
-    if not expected:
-        return "Emergency login is disabled. Set EMERGENCY_LOGIN_TOKEN in Railway.", 403
-    if not _hmac.compare_digest(request.args.get("token", ""), expected):
-        logger.warning("Emergency login: bad token from %s", _client_ip())
-        return "Bad token.", 403
-
-    from auth import _load_users, get_user_by_email
-    target_email = os.environ.get("EMERGENCY_RESET_EMAIL", "").strip().lower()
-    user = get_user_by_email(target_email) if target_email else None
-    if not user:
-        users = _load_users()
-        if not users:
-            return ("No users exist on this app yet. "
-                    "Go to <a href='/create-group'>/create-group</a> to make an account."), 200
-        user = users[0]  # fall back to first user
-
-    session.clear()
-    session["user_id"] = user["id"]
-    session["group_id"] = user.get("group_id", "")
-    session.permanent = True
-    logger.warning("EMERGENCY LOGIN granted: user_id=%s email=%s",
-                   user["id"], user.get("email", "")[:3] + "***")
     return redirect(url_for("dashboard"))
 
 

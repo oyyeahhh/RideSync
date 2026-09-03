@@ -120,8 +120,6 @@ SUPABASE_SERVICE_ROLE_KEY = sb_secret_...    (secret!)
 
 **Not set (would enable features if added):**
 - `USE_SUPABASE_AUTH=1` → flips login to Supabase Auth (the next big step Orly is doing)
-- `EMERGENCY_LOGIN_TOKEN=...` → enables `/emergency-login?token=...` bypass
-- `EMERGENCY_RESET_EMAIL`, `EMERGENCY_RESET_PASSWORD` → resets a user's password on next boot
 
 ## 5. The active migration: Supabase
 
@@ -232,8 +230,10 @@ We rebuilt login several times this past week. The user has been frustrated. Her
 8. **Built but dormant**: Full Supabase Auth migration (Phase 1c) behind `USE_SUPABASE_AUTH=1` flag. Enabling it should kill the entire bug class.
 
 **Recovery routes that exist** (see `AUTH_RECOVERY.md` for usage):
-- `/emergency-login?token=<EMERGENCY_LOGIN_TOKEN-env-var>` — bypasses bcrypt, sets session directly
-- `EMERGENCY_RESET_EMAIL + EMERGENCY_RESET_PASSWORD` env vars → resets password on next boot, logs `[EMERGENCY RESET]` diagnostics
+- Password recovery is the Supabase email flow only. The two emergency
+  bypasses that used to live here were removed on 3 September 2026; see
+  AUTH_RECOVERY.md. Reset directly in Supabase → Authentication → Users
+  if you are ever locked out.
 - `/health` shows storage + Supabase status
 - `/admin/system` shows every user across every group
 
