@@ -364,6 +364,49 @@ def current_user() -> dict | None:
     return get_user_by_id(uid)
 
 
+def _family_for_user(user: dict, group_id: str):
+    """The user's own family, rebuilt from their account if the record is gone.
+
+    A family record used to be a per-group file on the Railway volume while the
+    user record was a Postgres row. The volume was never actually mounted (a
+    trailing space in the mount path), so for accounts created before
+    USE_SUPABASE_DB was switched on, the family file was wiped on the next
+    deploy while the user row survived. That leaves a parent whose account
+    points at a family that does not exist: claiming a ride fails, and the
+    profile page cannot fix it because update_family() only updates what is
+    already there.
+
+    Everything needed to rebuild is on the user record, so rebuild it rather
+    than stranding them. Returns None only when the account has no family_id
+    at all, which is a different problem.
+    """
+    family_id = (user or {}).get("family_id") or ""
+    if not family_id or not group_id:
+        return None
+    try:
+        return get_family(family_id, group_id)
+    except ValueError:
+        pass
+
+    from families import restore_family
+    surname = (user.get("name") or "").split()[-1] if user.get("name") else ""
+    child = (user.get("child_name") or "").strip()
+    restore_family(
+        family_id, group_id,
+        name=surname or user.get("name") or "Family",
+        address=user.get("address", "") or "",
+        phone=user.get("phone", "") or "",
+        children=[child] if child else [],
+    )
+    logger.warning("Rebuilt missing family %s in group %s from user %s",
+                   family_id, group_id, user.get("id"))
+    try:
+        return get_family(family_id, group_id)
+    except ValueError:
+        logger.error("Rebuilt family %s but still cannot read it back", family_id)
+        return None
+
+
 def gid() -> str | None:
     """Return the current user's group_id from the session."""
     return session.get("group_id")
@@ -1906,12 +1949,9 @@ def profile():
         return redirect(url_for("login"))
 
     family_id = user.get("family_id", "")
-    family = None
-    if family_id:
-        try:
-            family = get_family(family_id, group_id)
-        except ValueError:
-            family = None
+    # Rebuilds the record if it went missing, so the form shows real values and
+    # a save has something to write to.
+    family = _family_for_user(user, group_id)
 
     error = None
     saved = session.pop("profile_saved", False)
@@ -1992,6 +2032,10 @@ def dashboard():
             session["group_id"] = group_id
         else:
             return redirect(url_for("create_group_route"))
+
+    # Heal a missing family record before anything reads it, so a parent never
+    # meets the error at all. Cheap: one lookup that only writes on a miss.
+    _family_for_user(user, group_id)
 
     cfg = load_config(group_id)
     trip_time = arrival_time(group_id)
@@ -2564,10 +2608,10 @@ def schedule_claim(trip_id, leg):
     family_id = user.get("family_id")
     if not family_id:
         return jsonify({"error": "no family linked to your account"}), 400
-    try:
-        family = get_family(family_id, group_id)
-    except ValueError:
-        return jsonify({"error": "your family record no longer exists — ask your admin"}), 400
+    family = _family_for_user(user, group_id)
+    if family is None:
+        return jsonify({"error": "your family record could not be rebuilt — "
+                                 "ask your admin"}), 400
     trip = claim_trip(trip_id, leg, family_id, family.name, group_id)
     if not trip:
         return jsonify({"error": "trip not found"}), 404
