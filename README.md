@@ -19,7 +19,7 @@ If you're a new contributor (or a fresh Claude session) picking this up, read th
 |---|---|
 | **[PROJECT_HANDOFF.md](PROJECT_HANDOFF.md)** | Full project context: tech stack, every feature, the auth/login history, design system, how the owner works |
 | **[QUICKSTART.md](QUICKSTART.md)** | 30-min hands-on verification: clone → run locally → push a trivial change → revert. Ends with a 7-question orientation quiz. |
-| **[AUTH_RECOVERY.md](AUTH_RECOVERY.md)** | Keep for emergencies — every "I'm locked out" escape hatch (emergency-login, env-var reset, etc.) |
+| **[AUTH_RECOVERY.md](AUTH_RECOVERY.md)** | Keep for emergencies — every "I'm locked out" path, and why the old bypass routes were removed |
 
 ---
 

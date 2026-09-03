@@ -3,7 +3,7 @@
 If you can't log in, work down this list. Each section is independent.
 
 ## 0. First, what app are you on?
-- Production: `https://carpoolsync.up.railway.app`
+- Production: `https://carpoolsync.com` (the old `carpoolsync.up.railway.app` still answers, but the domain is canonical)
 - Make sure you're typing your email **exactly** (lowercase). Email comparison is case-insensitive server-side but typos still bite.
 
 ---
@@ -14,52 +14,44 @@ On `/login`, click the 👁 icon next to the password field while typing. **9 ti
 
 ---
 
-## 2. Sign yourself in via the emergency bypass
+## 2. Email yourself a sign-in link
 
-There's a permanent bypass route. **Only you can enable it** (you need Railway env-var access).
+On `/login`, click **Email me a sign-in link instead**. Supabase mails a
+one-time link that signs you in without a password. This is the normal
+recovery path and it works: the email templates link to
+`{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=magiclink`, which the
+`/auth/callback` route verifies server-side.
 
-### Set up (one-time, takes 30 seconds)
-
-In Railway → Variables, add:
-```
-EMERGENCY_LOGIN_TOKEN = letmein-<some-random-string-only-you-know>
-EMERGENCY_RESET_EMAIL = orlyn8@gmail.com   # or whichever account you want to log in as
-```
-
-Save. Wait ~60s for Railway to redeploy.
-
-### Use it
-
-Visit:
-```
-https://carpoolsync.up.railway.app/emergency-login?token=letmein-<your-random-string>
-```
-
-You'll be logged in as `EMERGENCY_RESET_EMAIL`. No password checked, just sets the session.
-
-### After you're in
-
-1. Go to `/admin/users` → **Reset Password** for your row → set a password you'll remember
-2. **Delete `EMERGENCY_LOGIN_TOKEN`** from Railway env vars. (Otherwise anyone who guesses the token can sign in.)
-3. Leave `EMERGENCY_RESET_EMAIL` set (or unset it — either's fine).
+If the link opens the app but leaves you on the login page, check
+**Supabase → Authentication → URL Configuration**: Site URL must be
+`https://carpoolsync.com` and the redirect allow list must include
+`https://carpoolsync.com/**`. A link whose redirect target is not on the
+allow list is silently dropped.
 
 ---
 
-## 3. Reset your password from the deploy log
+## 3. Reset your password
 
-There's a startup hook that resets a user's password to a known value if you set these env vars:
+On `/login`, click **Forgot password?**. Same mechanism as above with
+`type=recovery`, landing on `/auth/reset-callback`, which puts you on the
+choose-a-new-password screen.
 
-```
-EMERGENCY_RESET_EMAIL    = orlyn8@gmail.com
-EMERGENCY_RESET_PASSWORD = something-simple-and-alphanumeric
-```
+### The emergency bypasses are gone
 
-After Railway redeploys, look at **Deploy Logs** for lines starting with `[EMERGENCY RESET]`:
-- `✅ Password reset and verified` → log in with that password
-- `❌ No user with email ...` → the account doesn't exist (check spelling vs. the user list it prints right above)
-- `⚠️ VERIFICATION FAILED` → the save didn't stick; volume issue
+Earlier versions of this app had two recovery hatches: an
+`/emergency-login?token=...` route that set a session with no password
+check, and a boot-time hook that reset a named user's password from
+`EMERGENCY_RESET_EMAIL` / `EMERGENCY_RESET_PASSWORD` env vars and printed
+every user's masked email to the deploy log.
 
-**Delete both env vars after** so future redeploys don't keep resetting.
+**Both were removed on 3 September 2026, and the env vars deleted from
+Railway.** They existed only because the real reset flow was broken in
+August; it works now. Anyone who could add a Railway variable could use
+them to sign in as the owner, which is too much standing risk for a hatch
+that is no longer needed. Do not add them back. If you are ever locked out
+with the email flow also broken, reset the password directly in
+**Supabase → Authentication → Users**, which is audited and does not
+require shipping a bypass.
 
 ---
 
@@ -88,7 +80,7 @@ cat /data/users.json | jq   # see all users
 
 If nothing else works:
 
-1. `/emergency-login` to get in (see Section 2)
+1. Email yourself a sign-in link to get in (see Section 2)
 2. From `/admin/users`, delete every leftover account
 3. Log out
 4. Visit `/create-group` and start fresh
@@ -208,8 +200,7 @@ Now magic-link and password-reset emails go out without rate limits (3,000/month
 | "The CSRF tokens do not match" | Stale browser cookie | Hard-refresh (`Cmd+Shift+R`), or open in Incognito |
 | "Too many login attempts" | Hit rate limit | Wait 5–10 min |
 | "Sign-in link is invalid or expired" | Magic link is >1hr old | Request a new one |
-| "Bad token" on `/emergency-login` | Wrong `EMERGENCY_LOGIN_TOKEN` value | Re-check Railway env var |
-| `[EMERGENCY RESET] 0 user(s) in users.json` | Account doesn't exist (volume issue or dedupe wiped) | Section 5 (fresh signup) |
+| Sign-in link opens the app but you stay logged out | Redirect target not on the Supabase allow list | Section 2 |
 
 ---
 

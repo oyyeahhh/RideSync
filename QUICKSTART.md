@@ -222,10 +222,10 @@ Order of operations, fastest to slowest:
    ```
    Railway will redeploy with the working version in ~60s.
 
-2. **Emergency login** (in case you broke auth):
-   - Railway → Variables → set `EMERGENCY_LOGIN_TOKEN=letmein1234`
-   - Visit `https://carpoolsync.up.railway.app/emergency-login?token=letmein1234`
-   - **Delete the env var after** you're in
+2. **Locked out** (in case you broke auth):
+   - Use **Email me a sign-in link instead** on /login
+   - If that also fails, reset the password in Supabase → Authentication →
+     Users. There is no bypass route any more; see AUTH_RECOVERY.md.
 
 3. **See `AUTH_RECOVERY.md`** for every other recovery path.
 
@@ -250,7 +250,7 @@ Before you reply to Orly with anything substantive, confirm you can answer these
 - [ ] Where do data files live on the Railway volume?
 - [ ] What does `USE_SUPABASE_AUTH=1` switch on?
 - [ ] What's the difference between `auth.py` and `auth_supabase.py`?
-- [ ] What does `/emergency-login` do?
+- [ ] How does password recovery work, and why is there no bypass route?
 - [ ] What's the Twilio sandbox join keyword?
 - [ ] What's the tagline?
 
