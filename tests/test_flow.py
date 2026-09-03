@@ -130,3 +130,48 @@ def test_storage_persistence_detects_a_mount_point(monkeypatch):
     status, note = portal._storage_persistence()
     assert "EPHEMERAL" in status, status
     assert "no volume" in note.lower(), note
+
+
+def test_login_copy_follows_the_message_channel(client, monkeypatch):
+    """A parent on SMS must not be told to check WhatsApp.
+
+    MESSAGE_CHANNEL decides where messages actually go. Before this, the
+    templates said WhatsApp regardless, so flipping the flag would have told
+    every parent to open an app the app no longer uses.
+    """
+    monkeypatch.setenv("MESSAGE_CHANNEL", "sms")
+    body = client.get("/login").get_data(as_text=True)
+    assert "WhatsApp" not in body, "login page still mentions WhatsApp on SMS"
+    assert "texted you" in body, body[-1500:]
+
+    monkeypatch.setenv("MESSAGE_CHANNEL", "whatsapp")
+    body = client.get("/login").get_data(as_text=True)
+    assert "WhatsApp" in body, "login page should say WhatsApp while on WhatsApp"
+
+
+def test_forgot_password_copy_follows_the_message_channel(client, monkeypatch):
+    monkeypatch.setenv("MESSAGE_CHANNEL", "sms")
+    body = client.get("/forgot-password").get_data(as_text=True)
+    assert "WhatsApp" not in body, "forgot-password still mentions WhatsApp on SMS"
+
+
+def test_channel_context_processor(monkeypatch):
+    """The one place the channel name is decided."""
+    import portal
+    with portal.app.test_request_context("/"):
+        monkeypatch.setenv("MESSAGE_CHANNEL", "sms")
+        ctx = portal.inject_message_channel()
+        assert ctx["channel"] == "text message"
+        assert ctx["on_whatsapp"] is False
+
+        monkeypatch.setenv("MESSAGE_CHANNEL", "whatsapp")
+        ctx = portal.inject_message_channel()
+        assert ctx["channel"] == "WhatsApp"
+        assert ctx["on_whatsapp"] is True
+
+        # An unset or bogus value must not silently become SMS and start
+        # sending bare numbers through the WhatsApp sandbox.
+        monkeypatch.delenv("MESSAGE_CHANNEL", raising=False)
+        assert portal.inject_message_channel()["on_whatsapp"] is True
+        monkeypatch.setenv("MESSAGE_CHANNEL", "carrier-pigeon")
+        assert portal.inject_message_channel()["on_whatsapp"] is True

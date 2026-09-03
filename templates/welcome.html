@@ -171,7 +171,7 @@
     <div class="next-steps">
       <h2>Quick start</h2>
       <ul>
-        <li><span class="num">1</span><span><strong>Invite the other families</strong> — they get a WhatsApp link to join. (Tell them to text &ldquo;join material-burn&rdquo; to <strong>+1 415 523 8886</strong> first so WhatsApp works.)</span></li>
+        <li><span class="num">1</span><span><strong>Invite the other families</strong> — they get a {{ channel }} with a link to join.{% if on_whatsapp %} (Tell them to send{% if sandbox_keyword %} &ldquo;join {{ sandbox_keyword }}&rdquo;{% else %} the join keyword{% endif %}{% if sandbox_number %} to <strong>{{ sandbox_number }}</strong>{% endif %} on WhatsApp first, or the messages won&rsquo;t reach them.){% endif %}</span></li>
         <li><span class="num">2</span><span><strong>Set your destination &amp; arrival time</strong> in Trip Settings.</span></li>
         <li><span class="num">3</span><span><strong>Add a recurring schedule</strong> so the rotation auto-assigns drivers.</span></li>
         <li><span class="num">4</span><span><strong>Grab the Kid Bulletin URL</strong> for your kitchen iPad.</span></li>
@@ -179,7 +179,7 @@
     </div>
 
     <div style="background:#F4F2ED;border:1px solid #EAE8E3;border-radius:12px;padding:14px 18px;margin-bottom:24px;text-align:left;font-size:13px;color:#6E6862;line-height:1.55;">
-      <strong style="color:#1A1714;">💡 Locked out later?</strong> Use the <a href="/forgot-password" style="color:#D4784A;">Forgot password</a> link on the sign-in page — it sends a reset link via WhatsApp. {% if user_email %}<br>Your sign-in email: <strong style="color:#1A1714;font-family:ui-monospace,monospace;">{{ user_email }}</strong>{% endif %}
+      <strong style="color:#1A1714;">💡 Locked out later?</strong> Use the <a href="/forgot-password" style="color:#D4784A;">Forgot password</a> link on the sign-in page — it emails you a sign-in link. {% if user_email %}<br>Your sign-in email: <strong style="color:#1A1714;font-family:ui-monospace,monospace;">{{ user_email }}</strong>{% endif %}
     </div>
 
     <a href="/" class="btn">Take me to the dashboard →</a>
