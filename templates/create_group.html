@@ -3,250 +3,126 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Create Carpool — CarpoolSync</title>
+  <title>Start a carpool · CarpoolSync</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500;600&family=Tiempos+Text:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Changa+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='storybook.css') }}">
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: "Styrene A", ui-sans-serif, system-ui, sans-serif;
-      background: #FAF9F5;
-      color: #1A1714;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    header {
-      background: transparent;
-      padding: 32px 48px 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    header img.site-logo {
-      height: 100px;
-      width: auto;
-      display: block;
-    }
-
-    main {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 48px 24px;
-    }
-
-    .card {
-      background: #FFFFFF;
-      border-radius: 14px;
-      padding: 40px 44px;
-      border: 1px solid #EAE8E3;
-      width: 100%;
-      max-width: 420px;
-      box-shadow: 0 2px 16px rgba(0,0,0,0.06);
-    }
-
-    .card-heading {
-      font-family: "Tiempos Text", Georgia, serif;
-      font-size: 22px;
-      font-weight: 500;
-      color: #1A1714;
-      margin-bottom: 6px;
-    }
-
-    .card-sub {
-      font-size: 14px;
-      color: #8C8680;
-      margin-bottom: 28px;
-    }
-
-    .section-label {
-      font-size: 11px;
-      font-weight: 600;
-      color: #C0BAB4;
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      margin: 20px 0 12px;
-    }
-
-    .form-field {
-      margin-bottom: 14px;
-    }
-
-    .form-field label {
-      display: block;
-      font-size: 11px;
-      font-weight: 600;
-      color: #8C8680;
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      margin-bottom: 6px;
-    }
-
-    .form-field input {
-      width: 100%;
-      padding: 10px 13px;
-      border: 1px solid #EAE8E3;
-      border-radius: 7px;
-      font-size: 15px;
-      font-family: inherit;
-      background: #FDFCFA;
-      color: #1A1714;
-      outline: none;
-      transition: border-color 0.15s;
-    }
-
-    .form-field input:focus {
-      border-color: #D4784A;
-    }
-
-    .error-banner {
-      background: #FDF0EC;
-      border: 1px solid #E8B8A4;
-      border-radius: 7px;
-      padding: 10px 13px;
-      font-size: 14px;
-      color: #8B3A1E;
-      margin-bottom: 18px;
-    }
-
-    .notice-banner {
-      background: #F0F5F1;
-      border: 1px solid #B9D4C0;
-      border-radius: 7px;
-      padding: 10px 13px;
-      font-size: 14px;
-      color: #2E5E3F;
-      margin-bottom: 18px;
-    }
-
-    .btn-submit {
-      width: 100%;
-      background: linear-gradient(135deg, #D4784A 0%, #C4633A 100%);
-      color: #FAF9F5;
-      border: none;
-      padding: 13px 20px;
-      border-radius: 7px;
-      font-size: 15px;
-      font-weight: 500;
-      font-family: inherit;
-      cursor: pointer;
-      transition: opacity 0.15s;
-      margin-top: 10px;
-    }
-
-    .btn-submit:hover { opacity: 0.9; }
-
-    .footer-link {
-      text-align: center;
-      margin-top: 20px;
-      font-size: 14px;
-      color: #8C8680;
-    }
-
-    .footer-link a {
-      color: #D4784A;
-      text-decoration: none;
-    }
-
-    .footer-link a:hover { text-decoration: underline; }
-
-    .divider {
-      height: 1px;
-      background: #EAE8E3;
-      margin: 20px 0;
-    }
-
-    @media (max-width: 480px) {
-      header { padding: 20px 24px; }
-      .card { padding: 28px 24px; }
-    }
-      @media (max-width: 640px) { .site-logo { height: 96px !important; } }
-      .consent { display: flex; gap: 12px; align-items: flex-start; margin: 4px 0 18px; font-size: 13px; line-height: 1.5; color: #5c574d; cursor: pointer; }
-    .consent input { width: 20px; height: 20px; margin: 2px 0 0; flex-shrink: 0; accent-color: #1A1714; }
-    .consent a { color: inherit; text-decoration: underline; }
+    /* Nine fields, so the rim sits a little higher than on the sign-in page
+       and the scene takes less of the first screen. */
+    :root { --arc: 104px; --mascot-w: min(210px, 46vw); }
+    .sheet { max-width: 420px; }
+    h1 { margin-bottom: 6px; }
+    .lede { color: var(--color-cloud-white); font-size: 15px; margin-bottom: 18px; }
   </style>
 </head>
 <body>
 
 <header>
-  <img src="/static/carpoolsynclogo.png" alt="CarpoolSync" class="site-logo">
+  <a href="/"><img src="/static/carpoolsynclogo.png" alt="CarpoolSync"></a>
 </header>
 
+{% include "_sky.html" %}
+
 <main>
-  <div class="card">
-    <div class="card-heading">Start a new carpool</div>
-    <div class="card-sub">Set up your group in under a minute</div>
+  <div class="sheet">
+    <h1>Start a carpool</h1>
+    <p class="lede">Set your group up once. After that the rotation, the route and the reminders run themselves.</p>
 
     {% if error %}
-    <div class="error-banner">{{ error }}</div>
+    <div class="notice bad">{{ error }}</div>
     {% endif %}
 
     {% if notice %}
-    <div class="notice-banner">{{ notice }}</div>
+    <div class="notice">{{ notice }}</div>
     {% endif %}
 
     <form method="POST" action="/create-group">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="section-label">Your Group</div>
-      <div class="form-field">
-        <label>Group Name</label>
-        <input type="text" name="group_name" value="{{ form.get('group_name', '') }}" placeholder="e.g. Teaneck Sunday Carpool" required autofocus>
+
+      <div class="section">Your group</div>
+      <div class="field">
+        <label for="group-name">Group name</label>
+        <input type="text" id="group-name" name="group_name" value="{{ form.get('group_name', '') }}" placeholder="e.g. Teaneck Sunday Carpool" required autofocus>
       </div>
 
-      <div class="divider"></div>
-      <div class="section-label">Your Account</div>
+      <div class="section">Your account</div>
+      <div class="field">
+        <label for="your-name">Your name</label>
+        <input type="text" id="your-name" name="name" value="{{ form.get('name', '') }}" autocomplete="name" required>
+      </div>
+      <div class="field">
+        <label for="family-name">Family name</label>
+        <input type="text" id="family-name" name="family_name" value="{{ form.get('family_name', '') }}" placeholder="e.g. Nadler Family" required>
+      </div>
+      <div class="field">
+        <label for="signup-email">Email</label>
+        <input type="email" id="signup-email" name="email" value="{{ form.get('email', '') }}" autocomplete="email" required>
+      </div>
+      <div class="field">
+        <label for="signup-phone">Mobile phone</label>
+        <input type="tel" id="signup-phone" name="phone" value="{{ form.get('phone', '') }}" autocomplete="tel" placeholder="+1 201 555 0100" required>
+        <span class="hint">This is where carpool messages go.</span>
+      </div>
+      <div class="field">
+        <label for="signup-password">Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="signup-password" name="password" autocomplete="new-password" required minlength="8" placeholder="At least 8 characters">
+          <button type="button" onclick="togglePw()" id="pw-toggle" class="pw-eye" aria-label="Show password" title="Show or hide password">
+            <svg class="open" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M1.6 12S5.5 5.2 12 5.2 22.4 12 22.4 12 18.5 18.8 12 18.8 1.6 12 1.6 12z"/>
+              <circle cx="12" cy="12" r="3.2"/>
+            </svg>
+            <svg class="shut" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 5.5c2.3 3 5.3 4.6 9 4.6s6.7-1.6 9-4.6"/>
+              <path d="M12 10.1V14"/>
+              <path d="M6.4 8.9 4.3 12.2"/>
+              <path d="M17.6 8.9l2.1 3.3"/>
+            </svg>
+          </button>
+        </div>
+      </div>
 
-      <div class="form-field">
-        <label>Your Name</label>
-        <input type="text" name="name" value="{{ form.get('name', '') }}" autocomplete="name" required>
+      <div class="section">Your child</div>
+      <div class="field">
+        <label for="child-name">Child's name</label>
+        <input type="text" id="child-name" name="child_name" value="{{ form.get('child_name', '') }}" placeholder="e.g. Avigail">
       </div>
-      <div class="form-field">
-        <label>Family Name</label>
-        <input type="text" name="family_name" value="{{ form.get('family_name', '') }}" placeholder="e.g. Nadler Family" required>
-      </div>
-      <div class="form-field">
-        <label>Email</label>
-        <input type="email" name="email" value="{{ form.get('email', '') }}" autocomplete="email" required>
-      </div>
-      <div class="form-field">
-        <label>Mobile phone</label>
-        <input type="tel" name="phone" value="{{ form.get('phone', '') }}" autocomplete="tel" placeholder="+1 201 555 0100" required>
-      </div>
-      <div class="form-field">
-        <label>Password</label>
-        <input type="password" name="password" autocomplete="new-password" required minlength="8" placeholder="At least 8 characters">
+      <div class="field">
+        <label for="home-address">Home address</label>
+        <input type="text" id="home-address" name="address" value="{{ form.get('address', '') }}" placeholder="123 Main St, Teaneck, NJ" required>
+        <span class="hint">The pickup point. Only your own group sees it.</span>
       </div>
 
-      <div class="divider"></div>
-      <div class="section-label">Your Child</div>
-
-      <div class="form-field">
-        <label>Child's Name</label>
-        <input type="text" name="child_name" value="{{ form.get('child_name', '') }}" placeholder="e.g. Avigail">
-      </div>
-      <div class="form-field">
-        <label>Home Address</label>
-        <input type="text" name="address" value="{{ form.get('address', '') }}" placeholder="123 Main St, Teaneck, NJ" required>
-      </div>
-
-      <label class="consent">
+      {# The consent wording and the fact that this box starts empty are what
+         the carrier's toll-free verification is checked against. Do not
+         pre-check it, do not soften it, and keep the privacy link. #}
+      <label class="check plate">
         <input type="checkbox" name="sms_consent" value="yes" required {% if form.get('sms_consent') %}checked{% endif %}>
         <span>Text me about this carpool at the number above: who is driving, running-late and arrival alerts, and schedule changes. Message frequency varies. Message and data rates may apply. Reply STOP to stop, HELP for help. See the <a href="/privacy" target="_blank">privacy notice</a>.</span>
       </label>
 
-      <button type="submit" class="btn-submit">Create Carpool</button>
+      <button type="submit" class="btn btn-primary">Create carpool</button>
     </form>
 
-    <div class="footer-link">
-      Already have an account? <a href="/login">Sign in</a>
+    <div class="under">
+      <div class="aside">
+        Already have an account? <a class="sign-link" href="/login">Sign in</a>
+      </div>
     </div>
   </div>
 </main>
+
+<script>
+  function togglePw() {
+    const inp = document.getElementById('signup-password');
+    const btn = document.getElementById('pw-toggle');
+    const showing = inp.type === 'password';
+    inp.type = showing ? 'text' : 'password';
+    btn.classList.toggle('on', showing);
+    btn.setAttribute('aria-label', showing ? 'Hide password' : 'Show password');
+  }
+</script>
 
 </body>
 </html>

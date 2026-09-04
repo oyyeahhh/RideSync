@@ -1,0 +1,50 @@
+{# The About page's hero, as a band: clouds, the globe's rim, four canal
+   houses standing on the curve, and the mascot on the apex. Include it right
+   after <header>, and put the page's own content in <main>, which paints the
+   blue the rim runs into. A page can raise or lower the rim by setting --arc
+   (and --mascot-w) in its own <style> block. #}
+<div class="sky">
+  <svg class="cloud" style="top:6px; animation-duration:88s;" width="118" height="41" viewBox="0 0 150 52" aria-hidden="true"><ellipse cx="40" cy="36" rx="40" ry="16"/><ellipse cx="80" cy="26" rx="34" ry="20"/><ellipse cx="115" cy="38" rx="34" ry="14"/></svg>
+  <svg class="cloud" style="top:58px; animation-duration:124s; animation-delay:-62s;" width="86" height="30" viewBox="0 0 150 52" aria-hidden="true"><ellipse cx="40" cy="36" rx="40" ry="16"/><ellipse cx="80" cy="26" rx="34" ry="20"/><ellipse cx="115" cy="38" rx="34" ry="14"/></svg>
+
+  <div class="globe"></div>
+
+  <svg class="globe-house" style="--tilt:-27deg; --w:62px" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g stroke="#333333" stroke-width="3">
+      <rect x="12" y="40" width="66" height="80" fill="#c9c4bd"/>
+      <polygon points="6,40 45,12 84,40" fill="#ef3b2c"/>
+      <rect x="24" y="56" width="15" height="17" fill="#ffffff"/>
+      <rect x="51" y="56" width="15" height="17" fill="#ffffff"/>
+    </g>
+  </svg>
+  <svg class="globe-house" style="--tilt:-15deg; --w:78px" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g stroke="#333333" stroke-width="3">
+      <rect x="14" y="28" width="62" height="92" fill="#afa9a1"/>
+      <polygon points="8,28 45,2 82,28" fill="#ef3b2c"/>
+      <rect x="26" y="44" width="14" height="16" fill="#ffffff"/>
+      <rect x="50" y="44" width="14" height="16" fill="#ffffff"/>
+      <rect x="26" y="76" width="14" height="16" fill="#ffffff"/>
+      <rect x="50" y="76" width="14" height="16" fill="#ffffff"/>
+    </g>
+  </svg>
+  <svg class="globe-house" style="--tilt:16deg; --w:80px" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g stroke="#333333" stroke-width="3">
+      <rect x="10" y="35" width="70" height="85" fill="#c9c4bd"/>
+      <polygon points="5,35 45,5 85,35" fill="#ef3b2c"/>
+      <rect x="22" y="50" width="16" height="18" fill="#ffffff"/>
+      <rect x="52" y="50" width="16" height="18" fill="#ffffff"/>
+      <rect x="52" y="82" width="16" height="18" fill="#ffffff"/>
+      <rect x="22" y="88" width="16" height="32" fill="#ef3b2c"/>
+    </g>
+  </svg>
+  <svg class="globe-house" style="--tilt:28deg; --w:60px" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g stroke="#333333" stroke-width="3">
+      <rect x="12" y="40" width="66" height="80" fill="#afa9a1"/>
+      <polygon points="6,40 45,12 84,40" fill="#ef3b2c"/>
+      <rect x="24" y="56" width="15" height="17" fill="#ffffff"/>
+      <rect x="51" y="56" width="15" height="17" fill="#ffffff"/>
+    </g>
+  </svg>
+
+  <img class="mascot" src="/static/tesla.png" alt="">
+</div>

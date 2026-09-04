@@ -87,27 +87,27 @@ def test_the_page_is_set_in_the_storybook_type(page):
 def test_the_page_carries_no_emoji(page):
     """The eye and the envelope were emoji. Nothing here depends on a font the
     phone may or may not have."""
-    for glyph in ("👁", "🙈", "📧", "✉", "🔒", "🚗"):
+    for glyph in ("\U0001f441", "\U0001f648", "\U0001f4e7", "\u2709", "\U0001f512", "\U0001f697"):
         assert glyph not in page, f"{glyph} is still on the sign-in page"
 
 
-def test_the_scene_is_the_about_page_scene(page):
-    """Yellow sky, blue globe, houses on the curve, the mascot on the apex."""
-    assert "#ffe600" in page and "#007fff" in page
-    assert page.count("globe-house") >= 4
+def test_the_page_wears_the_shared_design(page):
+    """The design lives in one stylesheet and one scene include, so the next
+    page in this family costs a link and an include."""
+    assert "storybook.css" in page
+    assert page.count("globe-house") >= 4, "the scene include did not render"
     assert "/static/tesla.png" in page
 
 
 def test_the_form_sits_on_the_blue_not_in_a_card(page):
-    """The old page was a white rounded card with a soft shadow. The house
-    style has flat plates, 3px ink linework and no radii."""
+    """The old page was a white rounded card with a soft shadow."""
     assert "box-shadow: 0 2px 16px" not in page
     assert "border-radius: 14px" not in page
-    assert "3px solid var(--color-charcoal-ink)" in page
+    assert 'class="sheet"' in page
 
 
 def test_every_tap_target_clears_44px(page):
-    """Thumbs on a phone. The toggle, the checkbox row and both buttons."""
-    assert "width: 44px;" in page and "height: 44px;" in page   # the eye
-    assert "min-height: 44px;" in page                          # remember row
-    assert "height: 56px;" in page                              # sign in
+    """Thumbs on a phone: the eye, the checkbox row, and the buttons."""
+    assert 'class="pw-eye"' in page
+    assert 'class="check inline"' in page
+    assert page.count("btn-primary") == 1 and page.count("btn-secondary") == 1

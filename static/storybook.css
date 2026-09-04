@@ -1,0 +1,356 @@
+/* CarpoolSync, the About page's world, applied to the pages a parent signs
+   in and signs up on: yellow sky, azure globe, canal houses on the curve,
+   Changa One for display type and Arial for everything else.
+
+   The rules: flat plates, 3px ink linework, no cards, no radii, no shadows.
+   Depth is stacking order. Blue means the thing is happening now, coral is
+   places and architecture, and the yellow is the canvas, never a surface.
+
+   Pages using this file own their own <style> block for anything specific to
+   them, and set --arc and --mascot-w there if the default scene needs to sit
+   higher or lower. The scene markup itself is templates/_sky.html. */
+
+:root {
+  --color-signal-yellow: #ffe600;
+  --color-globe-azure:   #007fff;
+  --color-roof-coral:    #ef3b2c;
+  --color-charcoal-ink:  #333333;
+  --color-cloud-white:   #ffffff;
+  --font-changa-one: 'Changa One', Impact, 'Arial Narrow Bold', sans-serif;
+  --font-arial: Arial, Helvetica, ui-sans-serif, system-ui, sans-serif;
+  --radius-full: 1440px;
+
+  /* Globe geometry, lifted from about.html so the curve matches. --arc is
+     where the rim cuts the sky. The sky's height carries the arc plus the
+     depth at which the circle already spans the viewport, so the blue below
+     meets it edge to edge with no yellow left in the corners. */
+  --globe-d: max(150vw, 900px);
+  --arc: 122px;
+  --mascot-w: min(240px, 50vw);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--color-signal-yellow);
+  color: var(--color-charcoal-ink);
+  font-family: var(--font-arial);
+  font-size: 14px;
+  line-height: 1.43;
+  overflow-x: hidden;
+}
+
+body { min-height: 100vh; display: flex; flex-direction: column; }
+img { display: block; }
+
+/* ── The sky ─────────────────────────────────────────────────────────────── */
+
+header { padding: 14px 20px 6px; display: flex; justify-content: center; }
+header img { width: 112px; height: auto; }
+
+/* The sky clips the globe: only the rim shows here, and the blue below is
+   the ground's own background, so the page never scrolls past its content. */
+.sky {
+  position: relative;
+  overflow: hidden;
+  height: calc(var(--arc) + max(84px, 21vw));
+}
+
+.globe {
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  top: var(--arc);
+  transform: translateX(-50%);
+  width: var(--globe-d);
+  aspect-ratio: 1 / 1;
+  background: var(--color-globe-azure);
+  border-radius: var(--radius-full);
+}
+
+/* Houses stand on the rim: pinned to the globe's centre, rotated by --tilt,
+   then pushed out one radius. Depth is stacking, never shadow. */
+.globe-house {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: calc(var(--arc) + (var(--globe-d) / 2));
+  width: var(--w, 72px);
+  height: auto;
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -100%) rotate(var(--tilt))
+             translateY(calc(var(--globe-d) / -2));
+}
+
+.cloud {
+  position: absolute;
+  z-index: 2;
+  fill: var(--color-cloud-white);
+  animation: drift 60s linear infinite;
+}
+@keyframes drift {
+  from { transform: translateX(-30vw); }
+  to   { transform: translateX(130vw); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cloud { animation: none; }
+}
+
+/* The mascot rides the apex, flat, no shadow. */
+.mascot {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  top: var(--arc);
+  width: var(--mascot-w);
+  height: auto;
+  transform: translate(-50%, -86%) rotate(-3deg);
+}
+
+/* ── The ground: everything below the rim is blue ────────────────────────── */
+
+main {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  background: var(--color-globe-azure);
+  padding: 4px 24px 22px;
+}
+
+.sheet { width: 100%; max-width: 400px; margin: 0 auto; }
+
+h1 {
+  font-family: var(--font-changa-one);
+  font-weight: 400;
+  text-transform: uppercase;
+  font-size: clamp(34px, 10vw, 44px);
+  line-height: 0.9;
+  color: var(--color-cloud-white);
+  margin-bottom: 14px;
+}
+
+/* A section's name, sitting under a rule that spans the column. */
+.section {
+  font-family: var(--font-changa-one);
+  font-weight: 400;
+  text-transform: uppercase;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--color-cloud-white);
+  border-top: 3px solid var(--color-cloud-white);
+  padding-top: 10px;
+  margin: 22px 0 12px;
+}
+.section:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+
+/* ── Notices: a white plate, ink rule for good news, coral for bad ───────── */
+
+.notice {
+  background: var(--color-cloud-white);
+  border: 3px solid var(--color-charcoal-ink);
+  color: var(--color-charcoal-ink);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+.notice.bad { border-color: var(--color-roof-coral); }
+.notice .lead {
+  font-family: var(--font-changa-one);
+  font-weight: 400;
+  text-transform: uppercase;
+  font-size: 17px;
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* ── Fields ──────────────────────────────────────────────────────────────── */
+
+.field { margin-bottom: 12px; }
+.field label {
+  display: block;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-cloud-white);
+  margin-bottom: 6px;
+}
+.field input {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  background: var(--color-cloud-white);
+  border: 3px solid var(--color-charcoal-ink);
+  border-radius: 0;
+  font-family: var(--font-arial);
+  font-size: 16px;
+  color: var(--color-charcoal-ink);
+  outline: none;
+}
+.field input::placeholder { color: #8c8680; }
+.field input:focus { box-shadow: 0 0 0 4px var(--color-signal-yellow); }
+/* Chrome's autofill repaints the field. Hold the white and the ink. */
+.field input:-webkit-autofill,
+.field input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--color-charcoal-ink);
+  -webkit-box-shadow: 0 0 0 1000px var(--color-cloud-white) inset;
+}
+.field .hint {
+  display: block;
+  font-size: 13px;
+  color: var(--color-cloud-white);
+  margin-top: 5px;
+}
+
+/* The show-password eye, in a target a thumb can hit. */
+.pw-wrap { position: relative; }
+.pw-wrap input { padding-right: 52px; }
+.pw-eye {
+  position: absolute;
+  right: 3px;
+  top: 2px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
+.pw-eye svg { stroke: var(--color-charcoal-ink); }
+.pw-eye .shut { display: none; }
+.pw-eye.on .open { display: none; }
+.pw-eye.on .shut { display: block; }
+
+/* ── Checkboxes: a house window with an ink tick ─────────────────────────── */
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.check input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  margin: 0;
+  background: var(--color-cloud-white);
+  border: 3px solid var(--color-charcoal-ink);
+  border-radius: 0;
+  cursor: pointer;
+  position: relative;
+}
+.check input:checked::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: -3px;
+  width: 8px;
+  height: 14px;
+  border: solid var(--color-charcoal-ink);
+  border-width: 0 3px 3px 0;
+  transform: rotate(45deg);
+}
+.check input:focus-visible { box-shadow: 0 0 0 4px var(--color-signal-yellow); }
+
+/* On the blue, one line, thumb-height. */
+.check.inline {
+  align-items: center;
+  min-height: 44px;
+  margin: 2px 0 12px;
+  font-size: 15px;
+  color: var(--color-cloud-white);
+}
+
+/* Consent and other copy that has to be read: ink on a white plate. */
+.check.plate {
+  background: var(--color-cloud-white);
+  border: 3px solid var(--color-charcoal-ink);
+  color: var(--color-charcoal-ink);
+  padding: 14px;
+  margin: 4px 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.check.plate a { color: inherit; }
+
+/* ── Buttons are signage: flat plates, ink linework, display type ────────── */
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 56px;
+  font-family: var(--font-changa-one);
+  font-weight: 400;
+  text-transform: uppercase;
+  font-size: 24px;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  border-radius: 0;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn-primary {
+  background: var(--color-cloud-white);
+  color: var(--color-charcoal-ink);
+  border: 3px solid var(--color-charcoal-ink);
+}
+.btn-primary:hover { background: var(--color-signal-yellow); }
+.btn-secondary {
+  height: 52px;
+  font-size: 20px;
+  background: transparent;
+  color: var(--color-cloud-white);
+  border: 3px solid var(--color-cloud-white);
+}
+.btn-secondary:hover {
+  background: var(--color-cloud-white);
+  color: var(--color-globe-azure);
+}
+.btn:focus-visible { outline: 4px solid var(--color-signal-yellow); outline-offset: 2px; }
+
+.or {
+  display: block;
+  text-align: center;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-cloud-white);
+  margin: 16px 0 12px;
+}
+
+/* ── Signpost links: type and a border-bottom, nothing else ──────────────── */
+
+.sign-link {
+  font-family: var(--font-changa-one);
+  font-weight: 400;
+  text-transform: uppercase;
+  font-size: 17px;
+  line-height: 1.2;
+  text-decoration: none;
+  color: var(--color-cloud-white);
+  border-bottom: 3px solid var(--color-cloud-white);
+  padding-bottom: 2px;
+}
+.sign-link:hover {
+  color: var(--color-signal-yellow);
+  border-bottom-color: var(--color-signal-yellow);
+}
+
+.under {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+  text-align: center;
+}
+.under .aside { font-size: 14px; color: var(--color-cloud-white); }
+.under .aside .thin { display: block; font-size: 12px; margin-top: 8px; }
