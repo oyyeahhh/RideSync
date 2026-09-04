@@ -3,201 +3,134 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome to CarpoolSync 🎉</title>
+  <title>Your carpool is set up · CarpoolSync</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500;600&family=Tiempos+Text:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Changa+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='storybook.css') }}">
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: "Styrene A", ui-sans-serif, system-ui, sans-serif;
-      background: linear-gradient(160deg, #FFF7EE 0%, #FFE8D5 60%, #FFD3B5 100%);
-      color: #1A1714;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      overflow: hidden;
-    }
+    /* The one page in the flow that is allowed to be pleased with itself, so
+       the scene runs bigger than on the forms and the group's name carries
+       the top of the blue. */
+    :root { --arc: 150px; --mascot-w: min(300px, 62vw); }
+    .sheet { max-width: 460px; }
 
-    /* Floating confetti dots */
-    .confetti {
-      position: fixed;
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      opacity: 0.85;
-      animation: fall 6s linear infinite;
-      pointer-events: none;
-    }
-    @keyframes fall {
-      0%   { transform: translateY(-20vh) rotate(0deg);   opacity: 0; }
-      10%  { opacity: 0.85; }
-      90%  { opacity: 0.85; }
-      100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
-    }
-
-    .wrap {
-      text-align: center;
-      max-width: 640px;
-      position: relative;
-      z-index: 1;
-    }
-    .mascot {
-      width: clamp(240px, 50vw, 440px);
-      height: auto;
-      margin-bottom: 8px;
-      animation: drive-in 1.2s cubic-bezier(0.16,1,0.3,1) backwards, bobble 4s ease-in-out 1.2s infinite;
-    }
-    @keyframes drive-in {
-      from { transform: translateX(-110vw) rotate(-6deg); }
-      to   { transform: translateX(0) rotate(0); }
-    }
-    @keyframes bobble {
-      0%, 100% { transform: translateY(0) rotate(0); }
-      50%      { transform: translateY(-8px) rotate(1deg); }
-    }
-    .eyebrow {
-      font-size: 14px;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      color: #D4784A;
+    .group-name {
+      font-family: var(--font-changa-one);
+      font-weight: 400;
       text-transform: uppercase;
-      margin-bottom: 8px;
-      animation: fade 1s ease-out 0.8s backwards;
+      font-size: clamp(30px, 8.4vw, 40px);
+      line-height: 0.92;
+      color: var(--color-signal-yellow);
+      margin: 2px 0 12px;
+      transform: rotate(-2deg);
     }
-    h1 {
-      font-family: "Tiempos Text", Georgia, serif;
-      font-size: clamp(28px, 5.5vw, 42px);
-      font-weight: 500;
-      line-height: 1.15;
-      margin-bottom: 12px;
-      letter-spacing: -0.01em;
-      animation: fade 1s ease-out 1s backwards;
-    }
-    h1 em {
-      color: #D4784A;
-      font-style: italic;
-    }
-    p {
-      font-size: 16px;
-      color: #6E6862;
-      margin-bottom: 28px;
-      line-height: 1.6;
-      animation: fade 1s ease-out 1.2s backwards;
-    }
-    @keyframes fade {
-      from { opacity: 0; transform: translateY(8px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
+    .lede { color: var(--color-cloud-white); font-size: 15px; margin-bottom: 24px; }
 
-    .next-steps {
-      background: #FFFFFF;
-      border-radius: 18px;
-      padding: 22px 24px;
-      margin-bottom: 24px;
-      text-align: left;
-      box-shadow: 0 12px 36px rgba(0,0,0,0.06);
-      animation: fade 1s ease-out 1.4s backwards;
-    }
-    .next-steps h2 {
-      font-size: 14px;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: #8C8680;
-      margin-bottom: 12px;
-    }
-    .next-steps ul {
-      list-style: none;
-      padding: 0;
-    }
-    .next-steps li {
-      padding: 6px 0;
-      font-size: 15px;
-      color: #1A1714;
+    /* Steps as signage: the number does the work, the way the About page's
+       how-it-works numbers do. No circles, no tinted squares. */
+    .steps { list-style: none; margin: 0 0 24px; padding: 0; }
+    .steps li {
       display: flex;
       align-items: flex-start;
-      gap: 10px;
-    }
-    .next-steps li .num {
-      flex-shrink: 0;
-      width: 22px; height: 22px;
-      border-radius: 50%;
-      background: #FFE8D5;
-      color: #D4784A;
-      font-size: 12px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-top: 1px;
-    }
-    .btn {
-      display: inline-block;
-      padding: 14px 32px;
-      border-radius: 10px;
+      gap: 14px;
+      padding: 12px 0;
+      border-top: 3px solid var(--color-cloud-white);
+      color: var(--color-cloud-white);
       font-size: 15px;
-      font-weight: 500;
-      text-decoration: none;
-      font-family: inherit;
-      background: #1A1714;
-      color: #FAF9F5;
-      transition: transform 0.1s, background 0.15s, box-shadow 0.15s;
-      animation: fade 1s ease-out 1.6s backwards;
+      line-height: 1.45;
     }
-    .btn:hover {
-      background: #D4784A;
-      transform: translateY(-1px);
-      box-shadow: 0 8px 24px rgba(212,120,74,0.25);
+    .steps li:last-child { border-bottom: 3px solid var(--color-cloud-white); }
+    .steps .num {
+      font-family: var(--font-changa-one);
+      font-weight: 400;
+      font-size: 44px;
+      line-height: 0.74;
+      color: var(--color-signal-yellow);
+      flex-shrink: 0;
+      width: 40px;
+    }
+    .steps .what {
+      font-family: var(--font-changa-one);
+      font-weight: 400;
+      text-transform: uppercase;
+      font-size: 19px;
+      line-height: 1.05;
+      display: block;
+      margin-bottom: 3px;
+    }
+    .steps .aside { display: block; margin-top: 4px; }
+
+    .keys { font-size: 13px; line-height: 1.55; }
+    .keys a { color: inherit; }
+    .keys .addr {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 13px;
     }
   </style>
 </head>
 <body>
 
-  <!-- Confetti (procedurally placed via JS) -->
+<header>
+  <a href="/"><img src="/static/carpoolsynclogo.png" alt="CarpoolSync"></a>
+</header>
 
-  <div class="wrap">
-    <img src="/static/tesla.png" alt="" class="mascot">
-    <div class="eyebrow">🎉 Carpool created</div>
-    <h1>Welcome to <em>{{ group_name }}</em>!</h1>
-    <p>Your carpool group is ready to roll. Here&rsquo;s what to do next:</p>
+{% include "_sky.html" %}
+
+<main>
+  <div class="sheet">
+    <h1>You're all set</h1>
+    <div class="group-name">{{ group_name }}</div>
+    <p class="lede">The group is live. Four things left, and the first one is the only one that needs the other families.</p>
 
     {% if persistence_warning %}
-    <div style="background:#FDF0EC;border:1px solid #E8B8A4;border-radius:12px;padding:14px 18px;margin-bottom:18px;color:#8B3A1E;font-size:14px;text-align:left;">
-      ⚠️ <strong>Heads up:</strong> we had trouble verifying your password was saved correctly. You&rsquo;re logged in now, but please go to <strong>Manage Users</strong> from the dashboard and reset your password before logging out, just to be safe.
+    <div class="notice bad">
+      <span class="lead">Reset your password before you sign out</span>
+      We could not confirm your password saved correctly. You are signed in now, so open Manage Users from the dashboard and set it again while you are here.
     </div>
     {% endif %}
 
-    <div class="next-steps">
-      <h2>Quick start</h2>
-      <ul>
-        <li><span class="num">1</span><span><strong>Invite the other families</strong> — they get a {{ channel }} with a link to join.{% if on_whatsapp %} (Tell them to send{% if sandbox_keyword %} &ldquo;join {{ sandbox_keyword }}&rdquo;{% else %} the join keyword{% endif %}{% if sandbox_number %} to <strong>{{ sandbox_number }}</strong>{% endif %} on WhatsApp first, or the messages won&rsquo;t reach them.){% endif %}</span></li>
-        <li><span class="num">2</span><span><strong>Set your destination &amp; arrival time</strong> in Trip Settings.</span></li>
-        <li><span class="num">3</span><span><strong>Add a recurring schedule</strong> so the rotation auto-assigns drivers.</span></li>
-        <li><span class="num">4</span><span><strong>Grab the Kid Bulletin URL</strong> for your kitchen iPad.</span></li>
-      </ul>
-    </div>
+    <ol class="steps">
+      <li>
+        <span class="num">1</span>
+        <span>
+          <span class="what">Invite the other families</span>
+          They get a {{ channel }} with a link to join.
+          {% if on_whatsapp %}
+          <span class="aside">Tell them to send {% if sandbox_keyword %}"join {{ sandbox_keyword }}"{% else %}the join keyword{% endif %}{% if sandbox_number %} to {{ sandbox_number }}{% endif %} on WhatsApp first, or the messages will not reach them.</span>
+          {% endif %}
+        </span>
+      </li>
+      <li>
+        <span class="num">2</span>
+        <span>
+          <span class="what">Set the destination and arrival time</span>
+          In Trip Settings. The route is built backwards from when you need to be there.
+        </span>
+      </li>
+      <li>
+        <span class="num">3</span>
+        <span>
+          <span class="what">Add the recurring schedule</span>
+          Once it knows which days you run, the rotation assigns drivers on its own.
+        </span>
+      </li>
+      <li>
+        <span class="num">4</span>
+        <span>
+          <span class="what">Put the kid bulletin on a screen</span>
+          The dashboard has the URL. It shows today's driver and pickups, and no one needs an account to see it.
+        </span>
+      </li>
+    </ol>
 
-    <div style="background:#F4F2ED;border:1px solid #EAE8E3;border-radius:12px;padding:14px 18px;margin-bottom:24px;text-align:left;font-size:13px;color:#6E6862;line-height:1.55;">
-      <strong style="color:#1A1714;">💡 Locked out later?</strong> Use the <a href="/forgot-password" style="color:#D4784A;">Forgot password</a> link on the sign-in page — it emails you a sign-in link. {% if user_email %}<br>Your sign-in email: <strong style="color:#1A1714;font-family:ui-monospace,monospace;">{{ user_email }}</strong>{% endif %}
-    </div>
+    <a href="/" class="btn btn-primary">Go to the dashboard</a>
 
-    <a href="/" class="btn">Take me to the dashboard →</a>
+    <div class="notice keys" style="margin: 18px 0 0;">
+      <span class="lead">If you ever get locked out</span>
+      Use <a href="/forgot-password">Forgot password</a> on the sign-in page and it emails you a link.{% if user_email %} Your sign-in email is <span class="addr">{{ user_email }}</span>.{% endif %}
+    </div>
   </div>
+</main>
 
-  <script>
-    // Toss some confetti dots around
-    const colors = ['#FF6B8A','#3EC9E8','#FFC857','#D4784A','#6FCF7E'];
-    for (let i = 0; i < 24; i++) {
-      const c = document.createElement('div');
-      c.className = 'confetti';
-      c.style.left = Math.random() * 100 + 'vw';
-      c.style.background = colors[i % colors.length];
-      c.style.animationDelay = (Math.random() * 4) + 's';
-      c.style.animationDuration = (4 + Math.random() * 4) + 's';
-      c.style.width = c.style.height = (6 + Math.random() * 10) + 'px';
-      document.body.appendChild(c);
-    }
-  </script>
 </body>
 </html>
