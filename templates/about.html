@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CarpoolSync — Carpool, on autopilot</title>
-  <meta name="description" content="Stop coordinating. CarpoolSync auto-rotates the driver, optimizes the pickup route, and sends every reminder over WhatsApp. You just drive when it's your turn.">
+  <meta name="description" content="Stop coordinating. CarpoolSync auto-rotates the driver, optimizes the pickup route, and sends every reminder straight to your phone. You just drive when it's your turn.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Changa+One&display=swap" rel="stylesheet">
   <style>
@@ -109,10 +109,28 @@
       border-radius: var(--radius-full);
       width: max(150vw, 900px);
       aspect-ratio: 1 / 1;
+      top: var(--globe-top);
+    }
+
+    /* Houses standing on the globe's curve — the design doc's signature
+       "canal houses wrapping around a blue globe". Each house's bottom-center
+       is pinned to the globe's center, rotated by --tilt, then pushed out by
+       one radius: it lands on the rim, perpendicular to the surface. Depth
+       comes from layer stacking (houses over globe over sky), never shadows. */
+    .globe-house {
+      position: absolute;
+      left: 50vw;
+      top: calc(var(--globe-top) + (max(150vw, 900px) / 2));
+      width: var(--w, 90px);
+      height: auto;
+      transform-origin: 50% 100%;
+      transform: translate(-50%, -100%) rotate(var(--tilt))
+                 translateY(calc(max(150vw, 900px) / -2));
+      z-index: 1;
     }
 
     /* ── HERO ─────────────────────────────────────────────────────────────── */
-    .hero .globe { top: 52vh; }
+    .hero { --globe-top: 52vh; }
 
     .hero-copy {
       position: absolute;
@@ -266,8 +284,7 @@
     }
 
     /* ── FINAL CTA: the globe returns ────────────────────────────────────── */
-    .cta { min-height: 100vh; }
-    .cta .globe { top: 34vh; }
+    .cta { min-height: 100vh; --globe-top: 34vh; }
     .cta-copy {
       position: absolute;
       top: 42vh;
@@ -328,13 +345,71 @@
   <!-- the globe -->
   <div class="globe"></div>
 
+  <!-- canal houses standing on the globe's curve -->
+  <svg class="globe-house" style="--tilt:-20deg; --w:96px" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g stroke="#333333" stroke-width="3">
+      <rect x="10" y="35" width="70" height="85" fill="#c9c4bd"/>
+      <polygon points="5,35 45,5 85,35" fill="#ef3b2c"/>
+      <rect x="22" y="50" width="16" height="18" fill="#ffffff"/>
+      <rect x="52" y="50" width="16" height="18" fill="#ffffff"/>
+      <rect x="22" y="82" width="16" height="18" fill="#ffffff"/>
+      <rect x="52" y="88" width="16" height="32" fill="#ef3b2c"/>
+    </g>
+  </svg>
+  <svg class="globe-house" style="--tilt:-30deg; --w:76px" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g stroke="#333333" stroke-width="3">
+      <rect x="14" y="28" width="62" height="92" fill="#afa9a1"/>
+      <polygon points="8,28 45,2 82,28" fill="#ef3b2c"/>
+      <rect x="26" y="44" width="14" height="16" fill="#ffffff"/>
+      <rect x="50" y="44" width="14" height="16" fill="#ffffff"/>
+      <rect x="26" y="76" width="14" height="16" fill="#ffffff"/>
+      <rect x="50" y="76" width="14" height="16" fill="#ffffff"/>
+    </g>
+  </svg>
+  <svg class="globe-house" style="--tilt:-40deg; --w:62px" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g stroke="#333333" stroke-width="3">
+      <rect x="12" y="40" width="66" height="80" fill="#c9c4bd"/>
+      <polygon points="6,40 45,12 84,40" fill="#ef3b2c"/>
+      <rect x="24" y="56" width="15" height="17" fill="#ffffff"/>
+      <rect x="51" y="56" width="15" height="17" fill="#ffffff"/>
+    </g>
+  </svg>
+  <svg class="globe-house" style="--tilt:20deg; --w:96px" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g stroke="#333333" stroke-width="3">
+      <rect x="10" y="35" width="70" height="85" fill="#afa9a1"/>
+      <polygon points="5,35 45,5 85,35" fill="#ef3b2c"/>
+      <rect x="22" y="50" width="16" height="18" fill="#ffffff"/>
+      <rect x="52" y="50" width="16" height="18" fill="#ffffff"/>
+      <rect x="52" y="82" width="16" height="18" fill="#ffffff"/>
+      <rect x="22" y="88" width="16" height="32" fill="#ef3b2c"/>
+    </g>
+  </svg>
+  <svg class="globe-house" style="--tilt:30deg; --w:76px" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g stroke="#333333" stroke-width="3">
+      <rect x="14" y="28" width="62" height="92" fill="#c9c4bd"/>
+      <polygon points="8,28 45,2 82,28" fill="#ef3b2c"/>
+      <rect x="26" y="44" width="14" height="16" fill="#ffffff"/>
+      <rect x="50" y="44" width="14" height="16" fill="#ffffff"/>
+      <rect x="26" y="76" width="14" height="16" fill="#ffffff"/>
+      <rect x="50" y="76" width="14" height="16" fill="#ffffff"/>
+    </g>
+  </svg>
+  <svg class="globe-house" style="--tilt:40deg; --w:62px" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g stroke="#333333" stroke-width="3">
+      <rect x="12" y="40" width="66" height="80" fill="#afa9a1"/>
+      <polygon points="6,40 45,12 84,40" fill="#ef3b2c"/>
+      <rect x="24" y="56" width="15" height="17" fill="#ffffff"/>
+      <rect x="51" y="56" width="15" height="17" fill="#ffffff"/>
+    </g>
+  </svg>
+
   <!-- mascot riding the arc -->
   <img class="hero-tesla" src="/static/tesla.png" alt="A cheerful carpool full of kids">
 
   <!-- curved display headline on the blue -->
   <div class="hero-copy">
     <h1 class="display"><span class="l1">Carpool,</span><span class="l2">on autopilot.</span></h1>
-    <p class="hero-sub">The driver rotates. The route optimizes. The reminders send themselves over WhatsApp. You just drive when it&rsquo;s your turn.</p>
+    <p class="hero-sub">The driver rotates. The route optimizes. The reminders send themselves. You just drive when it&rsquo;s your turn.</p>
     <div class="hero-links">
       <a class="sign-link" href="/create-group">Start a carpool</a>
       <a class="sign-link" href="/login">Sign in</a>
@@ -398,7 +473,7 @@
   </div>
   <div class="intro-body">
     <div class="heading-sm">So we retired ours.</div>
-    <p>One parent starts the group. Everyone else joins from a WhatsApp link. After that the app picks the driver, plans the route, pings every family, and even tells your kids when to put their shoes on. Nobody coordinates anything.</p>
+    <p>One parent starts the group. Everyone else joins from a link on their phone. After that the app picks the driver, plans the route, pings every family, and even tells your kids when to put their shoes on. Nobody coordinates anything.</p>
   </div>
 </section>
 
@@ -414,7 +489,7 @@
     <div class="step">
       <div class="num">2</div>
       <div class="heading-sm">Invite families</div>
-      <p>Type a phone number. That parent gets a one-tap WhatsApp link to sign up.</p>
+      <p>Type a phone number. That parent gets a one-tap link to sign up.</p>
     </div>
     <div class="step">
       <div class="num">3</div>
@@ -436,7 +511,7 @@
     <div class="feature-words">
       <span>Fair rotation</span><span>·</span>
       <span>Optimized routes</span><span>·</span>
-      <span>WhatsApp invites</span><span>·</span>
+      <span>Invites by {{ channel }}</span><span>·</span>
       <span>Live driver map</span><span>·</span>
       <span>Kid check-ins</span><span>·</span>
       <span>Kitchen-iPad bulletin</span><span>·</span>
@@ -447,7 +522,7 @@
       <span>Fairness karma</span><span>·</span>
       <span>Trip stats</span>
     </div>
-    <p class="fine">No app to install for the other parents — everything they need arrives over WhatsApp. And the kids get their own big-type bulletin for the kitchen iPad: today&rsquo;s driver, live countdown, &ldquo;be ready by 4:42.&rdquo;</p>
+    <p class="fine">{% if on_whatsapp %}Everything the other parents need arrives over WhatsApp.{% else %}No app to install for the other parents — everything they need arrives by text.{% endif %} And the kids get their own big-type bulletin for the kitchen iPad: today&rsquo;s driver, live countdown, &ldquo;be ready by 4:42.&rdquo;</p>
   </div>
 </section>
 
@@ -455,6 +530,24 @@
 <section class="cta">
   <svg class="cloud" style="top:8vh; animation-duration:75s; animation-delay:-30s;" width="140" height="48" viewBox="0 0 150 52"><ellipse cx="40" cy="36" rx="40" ry="16"/><ellipse cx="80" cy="26" rx="34" ry="20"/><ellipse cx="115" cy="38" rx="34" ry="14"/></svg>
   <div class="globe"></div>
+  <svg class="globe-house" style="--tilt:-24deg; --w:84px" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g stroke="#333333" stroke-width="3">
+      <rect x="10" y="35" width="70" height="85" fill="#c9c4bd"/>
+      <polygon points="5,35 45,5 85,35" fill="#ef3b2c"/>
+      <rect x="22" y="50" width="16" height="18" fill="#ffffff"/>
+      <rect x="52" y="50" width="16" height="18" fill="#ffffff"/>
+      <rect x="22" y="88" width="16" height="32" fill="#ef3b2c"/>
+    </g>
+  </svg>
+  <svg class="globe-house" style="--tilt:24deg; --w:84px" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g stroke="#333333" stroke-width="3">
+      <rect x="14" y="28" width="62" height="92" fill="#afa9a1"/>
+      <polygon points="8,28 45,2 82,28" fill="#ef3b2c"/>
+      <rect x="26" y="44" width="14" height="16" fill="#ffffff"/>
+      <rect x="50" y="44" width="14" height="16" fill="#ffffff"/>
+      <rect x="26" y="76" width="14" height="16" fill="#ffffff"/>
+    </g>
+  </svg>
   <img class="cta-tesla" src="/static/tesla.png" alt="">
   <div class="cta-copy">
     <h2 class="display"><span class="l1">Ready to stop</span><span class="l2">coordinating?</span></h2>

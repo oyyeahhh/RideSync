@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY")
+from maps_keys import server_key
 from storage import DATA_DIR, atomic_write_json, read_json
 CACHE_FILE = DATA_DIR / "geocode_cache.json"
 
@@ -33,9 +33,11 @@ def _save_cache(cache: dict) -> None:
 def geocode(address: str) -> tuple[float, float]:
     """Returns (latitude, longitude) for the given address string.
     Caches results on disk so repeat calls are free."""
-    if not API_KEY:
+    api_key = server_key()
+    if not api_key:
         raise RuntimeError(
-            "GOOGLE_MAPS_API_KEY not set. Create a .env file with your key."
+            "No Google Maps server key. Set GOOGLE_MAPS_SERVER_KEY (restricted "
+            "to the Geocoding and Routes APIs) in your environment."
         )
 
     cache = _load_cache()
@@ -45,7 +47,7 @@ def geocode(address: str) -> tuple[float, float]:
     print(f"  Geocoding (API call): {address}")
     response = requests.get(
         "https://maps.googleapis.com/maps/api/geocode/json",
-        params={"address": address, "key": API_KEY},
+        params={"address": address, "key": api_key},
         timeout=10,
     )
     response.raise_for_status()

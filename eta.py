@@ -53,7 +53,8 @@ def compute_etas(driver_lat: float, driver_lng: float, trip_date: str,
     if not pickup_families:
         return []
 
-    api_key = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+    from maps_keys import server_key
+    api_key = server_key()
     body = {
         "origins": [{"waypoint": {"location": {"latLng": {
             "latitude": driver_lat, "longitude": driver_lng

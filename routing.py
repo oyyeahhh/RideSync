@@ -26,7 +26,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY")
+from maps_keys import server_key
 ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
 
 
@@ -55,9 +55,11 @@ def compute_optimal_route(
         - depart_at: datetime to leave home
         - leg_durations_seconds: time for each leg
     """
-    if not API_KEY:
+    api_key = server_key()
+    if not api_key:
         raise RuntimeError(
-            "GOOGLE_MAPS_API_KEY not set. Create a .env file with your key."
+            "No Google Maps server key. Set GOOGLE_MAPS_SERVER_KEY (restricted "
+            "to the Geocoding and Routes APIs) in your environment."
         )
 
     if arrival_time.tzinfo is None:
@@ -85,7 +87,7 @@ def compute_optimal_route(
     # durations.
     headers = {
         "Content-Type": "application/json",
-        "X-Goog-Api-Key": API_KEY,
+        "X-Goog-Api-Key": api_key,
         "X-Goog-FieldMask": (
             "routes.duration,"
             "routes.distanceMeters,"

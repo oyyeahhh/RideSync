@@ -3,411 +3,416 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🚗 Carpool Today — {{ group_name }}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Tiempos+Text:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
+  <title>{{ group_name }} · Pickup Bulletin</title>
+
   <!-- Auto-refresh every 60s so kids see live updates without tapping -->
   <meta http-equiv="refresh" content="60">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Changa+One&display=swap" rel="stylesheet">
   <style>
+    /* ── The storybook system from the About page, on a kitchen iPad ────────
+       Yellow is the canvas, never white. Blue is the globe, and everything
+       happening right now. Coral is architecture: roofs, doors, places.
+       Charcoal is every other word. No cards, no shadows, no emoji. */
     :root {
-      --bg-1: #FFF7EE;
-      --bg-2: #FFE8D5;
-      --ink: #1A1714;
-      --soft: #5A524A;
-      --orange: #FF8C42;
-      --coral: #FF6B8A;
-      --teal: #3EC9E8;
-      --sun: #FFC857;
-      --green: #6FCF7E;
+      --yellow: #ffe600;
+      --azure:  #007fff;
+      --coral:  #ef3b2c;
+      --ink:    #333333;
+      --white:  #ffffff;
+      --font-display: 'Changa One', Impact, 'Arial Narrow Bold', sans-serif;
+      --font-body: Arial, Helvetica, ui-sans-serif, system-ui, sans-serif;
     }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html, body {
+      height: 100%;
+      background: var(--yellow);
+      color: var(--ink);
+      font-family: var(--font-body);
+      overflow: hidden;            /* a display board never scrolls */
+    }
+
     body {
-      font-family: "Fredoka", ui-sans-serif, system-ui, sans-serif;
-      background: linear-gradient(160deg, var(--bg-1) 0%, var(--bg-2) 100%);
-      color: var(--ink);
-      min-height: 100vh;
-      padding: 24px;
-      overflow-x: hidden;
-    }
-
-    /* Decorative floating shapes */
-    .blob {
-      position: fixed;
-      border-radius: 50%;
-      filter: blur(30px);
-      opacity: 0.35;
-      pointer-events: none;
-      z-index: 0;
-    }
-    .blob.b1 { width: 360px; height: 360px; background: var(--coral); top: -80px; left: -80px; }
-    .blob.b2 { width: 420px; height: 420px; background: var(--teal); bottom: -120px; right: -100px; }
-    .blob.b3 { width: 280px; height: 280px; background: var(--sun); top: 40%; right: 8%; opacity: 0.25; }
-
-    .wrap {
-      position: relative;
-      z-index: 1;
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-
-    /* Header */
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 24px;
-      flex-wrap: wrap;
-      margin-bottom: 28px;
-      padding: 8px 0;
-    }
-    header h1 {
-      font-family: "Fredoka", sans-serif;
-      font-size: 34px;
-      font-weight: 600;
-      color: var(--ink);
-      letter-spacing: -0.01em;
-    }
-    header .group-name {
-      color: var(--orange);
-    }
-    .clock {
-      font-size: 22px;
-      font-weight: 500;
-      color: var(--soft);
-    }
-
-    /* Today's driver card — the hero */
-    .hero-card {
-      background: #FFFFFF;
-      border-radius: 28px;
-      padding: 36px 40px;
-      box-shadow: 0 12px 40px rgba(0,0,0,0.06);
-      margin-bottom: 24px;
-      position: relative;
-      overflow: hidden;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 24px;
-      align-items: center;
-    }
-    .hero-card-content { min-width: 0; }
-    .hero-mascot {
-      width: clamp(180px, 28vw, 320px);
-      height: auto;
-      display: block;
-      flex-shrink: 0;
-      animation: bounce 4s ease-in-out infinite;
-    }
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50%      { transform: translateY(-6px); }
-    }
-    @media (max-width: 720px) {
-      .hero-card { grid-template-columns: 1fr; text-align: center; }
-      .hero-mascot { margin: 0 auto; width: 180px; }
-    }
-    .hero-card::before {
-      content: "";
-      position: absolute;
-      top: -60px; right: -60px;
-      width: 200px; height: 200px;
-      background: var(--sun);
-      border-radius: 50%;
-      opacity: 0.18;
-    }
-    .hero-card .day-label {
-      font-size: 18px;
-      font-weight: 500;
-      color: var(--orange);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 12px;
-    }
-    .hero-card .driver-line {
-      font-size: clamp(36px, 6vw, 60px);
-      font-weight: 700;
-      line-height: 1.1;
-      margin-bottom: 16px;
-      letter-spacing: -0.02em;
-    }
-    .hero-card .driver-line .label {
-      color: var(--soft);
-      font-weight: 500;
-    }
-    .hero-card .driver-line .name {
-      color: var(--ink);
-    }
-    .hero-card .meta-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 22px;
-      align-items: center;
-      font-size: 22px;
-      color: var(--soft);
-      font-weight: 500;
-    }
-    .hero-card .meta-row .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: var(--bg-1);
-      padding: 8px 18px;
-      border-radius: 99px;
-      font-size: 19px;
-    }
-    .hero-card .meta-row .pill strong { color: var(--ink); font-weight: 600; }
-
-    /* Two-column area */
-    .grid {
-      display: grid;
-      grid-template-columns: 1.4fr 1fr;
-      gap: 22px;
-    }
-    @media (max-width: 880px) {
-      .grid { grid-template-columns: 1fr; }
-    }
-
-    .card {
-      background: #FFFFFF;
-      border-radius: 24px;
-      padding: 26px 28px;
-      box-shadow: 0 8px 28px rgba(0,0,0,0.05);
-    }
-    .card h2 {
-      font-family: "Fredoka", sans-serif;
-      font-size: 22px;
-      font-weight: 600;
-      margin-bottom: 16px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      color: var(--ink);
-    }
-
-    /* Pickup schedule list */
-    .pickup-list {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      position: relative;
+      isolation: isolate;          /* keeps the globe behind the type */
     }
-    .pickup-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      padding: 14px 18px;
-      background: var(--bg-1);
-      border-radius: 14px;
-      font-size: 19px;
-    }
-    .pickup-row .who {
-      font-weight: 600;
+
+    .d { font-family: var(--font-display); font-weight: 400; text-transform: uppercase; }
+
+    .lbl {
+      font-size: clamp(12px, 1.4vw, 15px);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
       color: var(--ink);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .pickup-row .when {
-      font-weight: 600;
-      color: var(--orange);
-      font-size: 20px;
-    }
-    .pickup-row.absent { opacity: 0.5; }
-    .pickup-row.absent .who { text-decoration: line-through; }
-
-    /* Countdown badges */
-    .countdown {
-      display: inline-block;
-      margin-left: 8px;
-      padding: 3px 10px;
-      border-radius: 99px;
-      background: var(--teal);
-      color: #FFFFFF;
-      font-size: 14px;
-      font-weight: 600;
-      vertical-align: middle;
-    }
-    .countdown.soon  { background: var(--orange); }
-    .countdown.now   { background: var(--coral); animation: pulse-bg 1.2s infinite; }
-    .countdown.past  { background: #B0ABA5; }
-    .countdown-hero {
-      display: inline-block;
-      margin-left: 10px;
-      padding: 3px 12px;
-      border-radius: 99px;
-      background: var(--teal);
-      color: #FFFFFF;
-      font-size: 16px;
-      font-weight: 600;
-      vertical-align: middle;
-    }
-    .countdown-hero.soon { background: var(--orange); }
-    .countdown-hero.now  { background: var(--coral); animation: pulse-bg 1.2s infinite; }
-    .countdown-hero.past { background: #B0ABA5; }
-    @keyframes pulse-bg {
-      0%, 100% { transform: scale(1); }
-      50%      { transform: scale(1.07); }
     }
 
-    /* Upcoming */
-    .upcoming-row {
+    /* ── the strip: whose carpool, and what time it is now ── */
+    .top {
+      position: relative;
+      z-index: 5;
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      padding: 12px 16px;
-      background: var(--bg-1);
-      border-radius: 12px;
-      margin-bottom: 8px;
-      font-size: 17px;
+      align-items: baseline;
+      gap: 20px;
+      padding: clamp(14px, 2.6vh, 24px) clamp(20px, 3.4vw, 44px) 0;
     }
-    .upcoming-row .date { font-weight: 600; color: var(--ink); }
-    .upcoming-row .driver { color: var(--soft); }
+    .top .group { font-size: clamp(22px, 3.4vw, 36px); line-height: 1; }
+    .top .clock { font-size: clamp(16px, 2.4vw, 27px); line-height: 1; }
 
-    /* Live banner */
-    .live-banner {
-      background: linear-gradient(135deg, var(--green), #4FB95F);
-      color: #FFFFFF;
-      border-radius: 18px;
-      padding: 18px 22px;
-      margin-bottom: 24px;
+    /* ── the live line, in azure, only while someone is driving ── */
+    .live {
+      position: relative;
+      z-index: 5;
       display: flex;
       align-items: center;
-      gap: 14px;
-      box-shadow: 0 8px 24px rgba(111,207,126,0.3);
+      gap: clamp(8px, 1.2vw, 14px);
+      padding: clamp(10px, 2vh, 18px) clamp(20px, 3.4vw, 44px) 0;
     }
-    .live-banner .pulse {
-      width: 12px; height: 12px;
-      background: #FFF;
+    .live .dot {
+      width: clamp(14px, 1.8vw, 22px);
+      height: clamp(14px, 1.8vw, 22px);
       border-radius: 50%;
-      box-shadow: 0 0 0 0 rgba(255,255,255,0.7);
-      animation: pulse 2s infinite;
+      background: var(--azure);
+      flex-shrink: 0;
+      animation: pulse 2s ease-in-out infinite;
     }
-    @keyframes pulse {
-      0%   { box-shadow: 0 0 0 0 rgba(255,255,255,0.7); }
-      70%  { box-shadow: 0 0 0 14px rgba(255,255,255,0); }
-      100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+    .live .text { font-size: clamp(22px, 3.9vw, 42px); line-height: 1; color: var(--azure); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+    /* ── the two columns: today's trip, and the pickup order ── */
+    .middle {
+      position: relative;
+      z-index: 5;
+      flex: 1;
+      display: flex;
+      gap: clamp(20px, 4vw, 60px);
+      align-items: flex-start;
+      padding: clamp(12px, 2.2vh, 22px) clamp(20px, 3.4vw, 44px) 0;
+      min-height: 0;
     }
-    .live-banner .text {
-      font-size: 18px;
-      font-weight: 600;
+
+    .trip { flex: 1 1 58%; min-width: 0; }
+    .trip .driver {
+      font-size: clamp(56px, 11vw, 116px);
+      line-height: 0.78;
+      margin-top: 6px;
+      transform: rotate(-2deg);
+      transform-origin: left bottom;
     }
+    .trip .dest { font-size: clamp(20px, 3.2vw, 35px); line-height: 1; margin-top: clamp(10px, 1.8vh, 18px); }
+    .trip .ready {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: clamp(10px, 1.6vw, 18px);
+      margin-top: clamp(8px, 1.4vh, 14px);
+    }
+    .trip .ready .when { font-size: clamp(26px, 4.4vw, 48px); line-height: 1; }
+    .trip .ready .in { font-size: clamp(18px, 2.8vw, 31px); line-height: 1; color: var(--azure); }
+    .trip .home { font-size: clamp(16px, 2.2vw, 24px); line-height: 1.2; margin-top: clamp(8px, 1.4vh, 14px); }
+
+    .pickups { flex: 0 1 34%; min-width: 220px; }
+    .pickups .head { border-bottom: 3px solid var(--ink); padding-bottom: 8px; }
+    .stop {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 14px;
+      padding: clamp(6px, 1.1vh, 11px) 0;
+      border-bottom: 3px solid var(--ink);
+    }
+    .stop:last-child { border-bottom: none; }
+    .stop .who { font-size: clamp(20px, 3vw, 33px); line-height: 1; }
+    .stop .when { font-size: clamp(18px, 2.7vw, 31px); line-height: 1; white-space: nowrap; }
+    .stop .state { font-size: clamp(14px, 1.9vw, 21px); line-height: 1; white-space: nowrap; }
+    .stop.aboard .state { color: var(--azure); }
 
     .empty {
-      text-align: center;
-      color: var(--soft);
-      font-style: italic;
-      padding: 28px 12px;
-      font-size: 17px;
-    }
-    .empty img.mascot-small {
-      width: 140px;
-      height: auto;
-      display: block;
-      margin: 4px auto 12px;
-      opacity: 0.92;
+      font-size: clamp(15px, 2vw, 20px);
+      line-height: 1.5;
+      padding-top: 14px;
+      max-width: 30ch;
     }
 
-    footer {
+    /* ── the globe closes the board, with houses standing on its rim ── */
+    .globe-band { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
+    .globe {
+      position: absolute;
+      left: 50%;
+      top: var(--globe-top);
+      transform: translateX(-50%);
+      width: max(176vw, 900px);
+      aspect-ratio: 1 / 1;
+      border-radius: 1440px;
+      background: var(--azure);
+    }
+    /* Each house's bottom centre is pinned to the globe's centre, rotated by
+       --tilt, then pushed out one radius: it lands on the rim, perpendicular
+       to the surface. Depth comes from stacking, never from shadows. */
+    .globe-house {
+      position: absolute;
+      left: 50%;
+      top: calc(var(--globe-top) + max(88vw, 450px));
+      width: var(--w, 90px);
+      height: auto;
+      transform-origin: 50% 100%;
+      transform: translate(-50%, -100%) rotate(var(--tilt)) translateY(calc(max(88vw, 450px) * -1));
+    }
+    .mascot {
+      position: absolute;
+      left: 50%;
+      top: var(--globe-top);
+      width: clamp(180px, 30vw, 330px);
+      transform: translate(-50%, -84%) rotate(-3deg);
+      z-index: 3;
+    }
+    .globe-band { --globe-top: 72%; }
+    /* The map covers the globe while it is up. If Google refuses the key (an
+       unpaid account, a referrer that does not match), the script drops
+       .has-map and the globe comes back rather than leaving Google's error
+       tiles on a board in someone's kitchen. */
+    body.has-map .globe-band { display: none; }
+
+    /* ── what is coming after today ── */
+    .coming {
+      position: relative;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 0 20px clamp(10px, 2vh, 22px);
       text-align: center;
-      color: var(--soft);
-      font-size: 13px;
-      margin-top: 32px;
-      opacity: 0.6;
+    }
+    .coming .row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: baseline;
+      gap: clamp(12px, 2.4vw, 28px);
+    }
+    .coming .lead { font-size: clamp(14px, 1.8vw, 21px); }
+    .coming .trip-item { font-size: clamp(16px, 2.2vw, 26px); }
+    .coming .fine { font-size: clamp(11px, 1.2vw, 14px); }
+    /* On the globe it sits on blue; over the map it sits on yellow. */
+    .coming .lead, .coming .trip-item, .coming .fine { color: var(--white); }
+    body.has-map .coming .lead,
+    body.has-map .coming .trip-item,
+    body.has-map .coming .fine { color: var(--ink); }
+
+    /* ── the live map, when there is a ride and a browser key ── */
+    .map-band {
+      position: relative;
+      z-index: 4;
+      height: clamp(200px, 31vh, 260px);
+      flex-shrink: 0;
+      background: var(--white);
+      border-top: 3px solid var(--ink);
+    }
+    #map { position: absolute; inset: 0; }
+    .map-band .street {
+      position: absolute;
+      bottom: 100%;
+      z-index: 2;
+      height: auto;
+      pointer-events: none;
+    }
+
+    .clouds { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+    .cloud { position: absolute; fill: var(--white); animation: drift 90s linear infinite; }
+    @keyframes drift { from { transform: translateX(-20vw); } to { transform: translateX(120vw); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .cloud, .live .dot { animation: none; }
+    }
+
+    /* A phone held sideways, or a narrow window: one column. */
+    @media (max-width: 700px) {
+      .middle { flex-direction: column; gap: 14px; }
+      .pickups { flex: 1 1 auto; width: 100%; min-width: 0; }
+      .globe-band { --globe-top: 82%; }
     }
   </style>
 </head>
-<body>
-  <div class="blob b1"></div>
-  <div class="blob b2"></div>
-  <div class="blob b3"></div>
+<body{% if live_location and live_location.active and live_location.lat and maps_api_key %} class="has-map"{% endif %}>
 
-  <div class="wrap">
+  <div class="clouds" aria-hidden="true">
+    <svg class="cloud" style="top: 12vh; width: 130px; animation-duration: 105s;" viewBox="0 0 150 52"><ellipse cx="40" cy="36" rx="40" ry="16"/><ellipse cx="80" cy="26" rx="34" ry="20"/><ellipse cx="115" cy="38" rx="34" ry="14"/></svg>
+    <svg class="cloud" style="top: 4vh; width: 96px; animation-duration: 140s; animation-delay: -60s;" viewBox="0 0 150 52"><ellipse cx="40" cy="36" rx="40" ry="16"/><ellipse cx="80" cy="26" rx="34" ry="20"/><ellipse cx="115" cy="38" rx="34" ry="14"/></svg>
+  </div>
 
-    <header>
-      <h1>🚗 <span class="group-name">{{ group_name }}</span></h1>
-      <div class="clock" id="clock">—</div>
-    </header>
+  <div class="top">
+    <span class="d group">{{ group_name }}</span>
+    <span class="d clock" id="clock">&nbsp;</span>
+  </div>
 
-    {% if live_location and live_location.active %}
-    <div class="live-banner">
-      <div class="pulse"></div>
-      <div class="text">📍 {{ live_location.driver_name or 'Driver' }} is on the way! Live tracking active.</div>
+  {% if live_location and live_location.active %}
+  <div class="live">
+    <span class="dot" aria-hidden="true"></span>
+    <span class="d text">{{ live_location.driver_name or next_trip.driver }} is on the way</span>
+  </div>
+  {% endif %}
+
+  <div class="middle">
+
+    <!-- today's trip, as poster type -->
+    <div class="trip">
+      <div class="lbl">{% if next_trip.is_today %}Today&rsquo;s carpool{% else %}Next carpool · {{ next_trip.date }}{% endif %}</div>
+      <div class="d driver">{{ next_trip.driver }}</div>
+      <div class="d dest">To {{ next_trip.destination }}</div>
+      <div class="ready">
+        <span class="d when">Be ready {{ next_trip.arrive_by }}</span>
+        {% if next_trip.arrive_by_iso %}
+        <span class="d in countdown-hero" data-target="{{ next_trip.arrive_by_iso }}"></span>
+        {% endif %}
+      </div>
+      {% if next_trip.return_time %}
+      <div class="d home">{{ next_trip.return_driver or next_trip.driver }} brings everyone home at {{ next_trip.return_time }}</div>
+      {% endif %}
     </div>
-    {% endif %}
 
-    <!-- HERO: today / next trip -->
-    <div class="hero-card">
-      <div class="hero-card-content">
-        <div class="day-label">
-          {% if next_trip.is_today %}Today&rsquo;s carpool{% else %}Next carpool — {{ next_trip.date }}{% endif %}
-        </div>
-        <div class="driver-line">
-          <span class="label">Driving:</span> <span class="name">{{ next_trip.driver }}</span>
-        </div>
-        <div class="meta-row">
-          <span class="pill">🏁 <strong>{{ next_trip.destination }}</strong></span>
-          <span class="pill">🕒 Be ready by <strong>{{ next_trip.arrive_by }}</strong>{% if next_trip.arrive_by_iso %} <span class="countdown-hero" data-target="{{ next_trip.arrive_by_iso }}"></span>{% endif %}</span>
-          {% if next_trip.return_time %}
-          <span class="pill">🏠 Returning <strong>{{ next_trip.return_driver or next_trip.driver }}</strong> at <strong>{{ next_trip.return_time }}</strong></span>
+    <!-- the pickup order, big enough to read from the counter -->
+    <div class="pickups">
+      <div class="lbl head">Today&rsquo;s pickups</div>
+      {% set timed = pickups | selectattr("pickup_time") | list %}
+      {% if pickups %}
+        {% for p in pickups %}
+        <div class="stop{% if p.picked_up %} aboard{% endif %}">
+          <span class="d who">{{ p.name }}</span>
+          {% if p.absent %}
+            <span class="d state">Away today</span>
+          {% elif p.picked_up %}
+            <span class="d state">In the car</span>
+          {% elif p.pickup_time %}
+            <span class="d when">{{ p.pickup_time }}</span>
           {% endif %}
         </div>
-      </div>
-      <img src="/static/tesla.png" alt="" class="hero-mascot">
-    </div>
-
-    <div class="grid">
-
-      <!-- Today's pickup order -->
-      <div class="card">
-        <h2>🎒 Today&rsquo;s pickups</h2>
-        {% if pickups %}
-        <div class="pickup-list">
-          {% for p in pickups %}
-          <div class="pickup-row {% if p.absent %}absent{% endif %}">
-            <span class="who">{% if p.absent %}🙅{% elif p.picked_up %}🚗{% else %}🧒{% endif %} {{ p.name }}</span>
-            <span class="when">
-              {% if p.absent %}
-                away today
-              {% elif p.picked_up %}
-                <span style="color:#2a9d5c;font-weight:700;">✓ in the car</span>
-              {% else %}
-                {{ p.pickup_time or '—' }}
-                {% if p.pickup_iso %}<span class="countdown" data-target="{{ p.pickup_iso }}"></span>{% endif %}
-              {% endif %}
-            </span>
-          </div>
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="empty">
-          <img src="/static/tesla.png" alt="" class="mascot-small">
-          No pickups scheduled yet — the route will appear here once the driver hits &ldquo;Send Route.&rdquo;
-        </div>
-        {% endif %}
-      </div>
-
-      <!-- Upcoming -->
-      <div class="card">
-        <h2>📅 Coming up</h2>
-        {% if upcoming %}
-        {% for trip in upcoming %}
-        <div class="upcoming-row">
-          <span class="date">{{ trip.date_friendly }}</span>
-          <span class="driver">{{ trip.driver or '—' }}</span>
-        </div>
         {% endfor %}
-        {% else %}
-        <div class="empty">No upcoming trips yet.</div>
+        {% if not timed %}
+        <p class="empty">Pickup times show up here once the driver sends the route.</p>
         {% endif %}
-      </div>
-
+      {% else %}
+        <p class="empty">The pickup order shows up here as soon as the driver sends the route.</p>
+      {% endif %}
     </div>
+  </div>
 
-    <footer>
-      Auto-refreshes every minute &middot; CarpoolSync
-    </footer>
+  <!-- ── the globe holds the bottom of the board, and stays in the page even
+       while the map is up, so a map Google refuses has something to fall back
+       to ── -->
+  <div class="globe-band" aria-hidden="true">
+    <div class="globe"></div>
+    <svg class="globe-house" style="--tilt: -17deg; --w: clamp(58px, 9vw, 104px);" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#333333" stroke-width="3">
+        <rect x="10" y="35" width="70" height="85" fill="#c9c4bd"/>
+        <polygon points="5,35 45,5 85,35" fill="#ef3b2c"/>
+        <rect x="22" y="50" width="16" height="18" fill="#ffffff"/>
+        <rect x="52" y="50" width="16" height="18" fill="#ffffff"/>
+        <rect x="22" y="82" width="16" height="18" fill="#ffffff"/>
+        <rect x="52" y="88" width="16" height="32" fill="#ef3b2c"/>
+      </g>
+    </svg>
+    <svg class="globe-house" style="--tilt: -24deg; --w: clamp(46px, 7.2vw, 84px);" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#333333" stroke-width="3">
+        <rect x="14" y="28" width="62" height="92" fill="#afa9a1"/>
+        <polygon points="8,28 45,2 82,28" fill="#ef3b2c"/>
+        <rect x="26" y="44" width="14" height="16" fill="#ffffff"/>
+        <rect x="50" y="44" width="14" height="16" fill="#ffffff"/>
+        <rect x="26" y="76" width="14" height="16" fill="#ffffff"/>
+        <rect x="50" y="76" width="14" height="16" fill="#ffffff"/>
+      </g>
+    </svg>
+    <svg class="globe-house" style="--tilt: 17deg; --w: clamp(52px, 8.4vw, 96px);" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#333333" stroke-width="3">
+        <rect x="10" y="35" width="70" height="85" fill="#afa9a1"/>
+        <polygon points="5,35 45,5 85,35" fill="#ef3b2c"/>
+        <rect x="22" y="50" width="16" height="18" fill="#ffffff"/>
+        <rect x="52" y="50" width="16" height="18" fill="#ffffff"/>
+        <rect x="52" y="82" width="16" height="18" fill="#ffffff"/>
+        <rect x="22" y="88" width="16" height="32" fill="#ef3b2c"/>
+      </g>
+    </svg>
+    <svg class="globe-house" style="--tilt: 24deg; --w: clamp(44px, 6.8vw, 80px);" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#333333" stroke-width="3">
+        <rect x="12" y="40" width="66" height="80" fill="#c9c4bd"/>
+        <polygon points="6,40 45,12 84,40" fill="#ef3b2c"/>
+        <rect x="24" y="56" width="15" height="17" fill="#ffffff"/>
+        <rect x="51" y="56" width="15" height="17" fill="#ffffff"/>
+      </g>
+    </svg>
+    <img class="mascot" src="/static/tesla.png" alt="">
+  </div>
 
+  {% if live_location and live_location.active and live_location.lat and maps_api_key %}
+  <!-- ── driving now: the bottom of the board becomes the map. Houses stand on
+       its top edge, the way they stand on every other hard cut in this design,
+       and nothing above it moves when a ride starts. ── -->
+  <div class="map-band">
+    <div id="map" role="img" aria-label="Live map of the carpool on its way"></div>
+    <svg class="street" style="left: 3%; width: clamp(56px, 8vw, 92px);" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <g stroke="#333333" stroke-width="3">
+        <rect x="10" y="35" width="70" height="85" fill="#c9c4bd"/>
+        <polygon points="5,35 45,5 85,35" fill="#ef3b2c"/>
+        <rect x="22" y="50" width="16" height="18" fill="#ffffff"/>
+        <rect x="52" y="50" width="16" height="18" fill="#ffffff"/>
+        <rect x="22" y="82" width="16" height="18" fill="#ffffff"/>
+        <rect x="52" y="88" width="16" height="32" fill="#ef3b2c"/>
+      </g>
+    </svg>
+    <svg class="street" style="left: 14%; width: clamp(46px, 6.6vw, 76px);" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <g stroke="#333333" stroke-width="3">
+        <rect x="14" y="28" width="62" height="92" fill="#afa9a1"/>
+        <polygon points="8,28 45,2 82,28" fill="#ef3b2c"/>
+        <rect x="26" y="44" width="14" height="16" fill="#ffffff"/>
+        <rect x="50" y="44" width="14" height="16" fill="#ffffff"/>
+        <rect x="26" y="76" width="14" height="16" fill="#ffffff"/>
+        <rect x="50" y="76" width="14" height="16" fill="#ffffff"/>
+      </g>
+    </svg>
+    <svg class="street" style="left: 24%; width: clamp(40px, 5.6vw, 64px);" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <g stroke="#333333" stroke-width="3">
+        <rect x="12" y="40" width="66" height="80" fill="#c9c4bd"/>
+        <polygon points="6,40 45,12 84,40" fill="#ef3b2c"/>
+        <rect x="24" y="56" width="15" height="17" fill="#ffffff"/>
+        <rect x="51" y="56" width="15" height="17" fill="#ffffff"/>
+      </g>
+    </svg>
+    <svg class="street" style="left: 54%; width: clamp(50px, 7.4vw, 86px);" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <g stroke="#333333" stroke-width="3">
+        <rect x="14" y="28" width="62" height="92" fill="#c9c4bd"/>
+        <polygon points="8,28 45,2 82,28" fill="#ef3b2c"/>
+        <rect x="26" y="44" width="14" height="16" fill="#ffffff"/>
+        <rect x="50" y="44" width="14" height="16" fill="#ffffff"/>
+        <rect x="26" y="76" width="14" height="16" fill="#ffffff"/>
+        <rect x="50" y="76" width="14" height="16" fill="#ffffff"/>
+      </g>
+    </svg>
+    <svg class="street" style="left: 68%; width: clamp(38px, 5.4vw, 62px);" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <g stroke="#333333" stroke-width="3">
+        <rect x="12" y="40" width="66" height="80" fill="#afa9a1"/>
+        <polygon points="6,40 45,12 84,40" fill="#ef3b2c"/>
+        <rect x="24" y="56" width="15" height="17" fill="#ffffff"/>
+        <rect x="51" y="56" width="15" height="17" fill="#ffffff"/>
+      </g>
+    </svg>
+  </div>
+  {% endif %}
+
+  <div class="coming">
+    {% if upcoming %}
+    <div class="row">
+      <span class="d lead">Coming up</span>
+      {% for trip in upcoming[:3] %}
+      <span class="d trip-item">{{ trip.date_friendly }} · {{ trip.driver }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="fine">This board updates itself every minute.</div>
   </div>
 
   <script>
@@ -416,41 +421,100 @@
       const opts = { weekday: 'long', month: 'short', day: 'numeric' };
       const date = now.toLocaleDateString(undefined, opts);
       const time = now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-      document.getElementById('clock').textContent = date + '  ·  ' + time;
+      document.getElementById('clock').textContent = date + ' · ' + time;
 
-      // Live countdowns for each pickup + hero arrive-by.
-      document.querySelectorAll('.countdown, .countdown-hero').forEach(el => {
+      // Live countdown against the arrive-by time.
+      document.querySelectorAll('.countdown-hero').forEach(el => {
         const target = new Date(el.dataset.target);
         if (isNaN(target)) { el.textContent = ''; return; }
         const diffMin = Math.round((target - now) / 60000);
-        // Reset state classes
-        el.classList.remove('soon', 'now', 'past');
         if (diffMin > 60) {
           const h = Math.floor(diffMin / 60);
           const m = diffMin % 60;
           el.textContent = m ? `in ${h}h ${m}m` : `in ${h}h`;
-        } else if (diffMin > 15) {
-          el.textContent = `in ${diffMin} min`;
         } else if (diffMin > 1) {
           el.textContent = `in ${diffMin} min`;
-          el.classList.add('soon');
         } else if (diffMin === 1) {
           el.textContent = `in 1 min`;
-          el.classList.add('now');
         } else if (diffMin === 0) {
-          el.textContent = `now!`;
-          el.classList.add('now');
+          el.textContent = `now`;
         } else if (diffMin > -10) {
           el.textContent = `just now`;
-          el.classList.add('past');
         } else {
           el.textContent = `${Math.abs(diffMin)} min ago`;
-          el.classList.add('past');
         }
       });
     }
     tick();
-    setInterval(tick, 10000);  // update every 10s for smooth countdowns
+    setInterval(tick, 10000);
   </script>
+
+  {% if live_location and live_location.active and live_location.lat and maps_api_key %}
+  <script>
+    // The map is styled to the board: flat blocks, ink linework, no POI noise,
+    // and the carpool as one azure dot. The key here is the BROWSER key, which
+    // is referrer-restricted and limited to Maps JavaScript, so a display URL
+    // shared with the whole team cannot be used to spend money.
+    const CARPOOL = { lat: {{ live_location.lat }}, lng: {{ live_location.lng }} };
+    const MAP_STYLE = [
+      { elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+      { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+      { elementType: 'labels.text.fill', stylers: [{ color: '#333333' }] },
+      { elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }] },
+      { featureType: 'administrative', elementType: 'geometry', stylers: [{ visibility: 'off' }] },
+      { featureType: 'landscape.man_made', elementType: 'geometry.fill', stylers: [{ color: '#c9c4bd' }] },
+      { featureType: 'landscape.natural', elementType: 'geometry.fill', stylers: [{ color: '#e4e0d8' }] },
+      { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+      { featureType: 'poi.park', elementType: 'geometry.fill', stylers: [{ color: '#afa9a1' }, { visibility: 'on' }] },
+      { featureType: 'road', elementType: 'geometry.fill', stylers: [{ color: '#ffffff' }] },
+      { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#333333' }, { weight: 0.6 }] },
+      { featureType: 'road', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+      { featureType: 'road.arterial', elementType: 'labels', stylers: [{ visibility: 'simplified' }] },
+      { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+      { featureType: 'water', elementType: 'geometry.fill', stylers: [{ color: '#007fff' }] }
+    ];
+
+    let mapReady = false;
+
+    // A refused key (unpaid account, referrer mismatch) or a script that never
+    // answers: drop the map band and let the globe come back.
+    function dropMap() {
+      if (mapReady) return;
+      document.body.classList.remove('has-map');
+      const band = document.querySelector('.map-band');
+      if (band) band.remove();
+    }
+    window.gm_authFailure = dropMap;
+    setTimeout(dropMap, 8000);
+
+    function initBulletinMap() {
+      mapReady = true;
+      const map = new google.maps.Map(document.getElementById('map'), {
+        center: CARPOOL,
+        zoom: 15,
+        styles: MAP_STYLE,
+        disableDefaultUI: true,
+        gestureHandling: 'none',
+        keyboardShortcuts: false
+      });
+      new google.maps.Marker({
+        position: CARPOOL,
+        map: map,
+        title: 'The carpool',
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 11,
+          fillColor: '#007fff',
+          fillOpacity: 1,
+          strokeColor: '#333333',
+          strokeWeight: 3
+        }
+      });
+    }
+    window.initBulletinMap = initBulletinMap;
+  </script>
+  <script async
+    src="https://maps.googleapis.com/maps/api/js?key={{ maps_api_key }}&amp;callback=initBulletinMap&amp;loading=async"></script>
+  {% endif %}
 </body>
 </html>
