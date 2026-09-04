@@ -132,7 +132,7 @@ def test_the_shared_stylesheet_is_served(client):
     r = client.get("/static/storybook.css")
     assert r.status_code == 200
     css = r.get_data(as_text=True)
-    assert "#007fff" in css and "#ffe600" in css
+    assert "#0071e3" in css and "#ffe600" in css
     assert "3px solid var(--color-charcoal-ink)" in css, "the ink linework"
     assert "height: 44px" in css and "min-height: 44px" in css, "thumb targets"
     assert "border-radius: 0" in css, "no radii in this design"
