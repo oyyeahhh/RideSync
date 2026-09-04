@@ -364,6 +364,17 @@ def current_user() -> dict | None:
     return get_user_by_id(uid)
 
 
+def _browser_key() -> str:
+    """The only Maps key allowed into a rendered page.
+
+    Kept as a one-line indirection so there is a single place to grep when
+    asking "what does the browser get", and so the server key cannot be
+    reached from a template by accident.
+    """
+    from maps_keys import browser_key
+    return browser_key()
+
+
 def _family_for_user(user: dict, group_id: str):
     """The user's own family, rebuilt from their account if the record is gone.
 
@@ -1350,6 +1361,13 @@ def health():
         messaging_line = (f"⚠️  {_msg['channel']} — "
                           + "; ".join(_msg["problems"]))
 
+    from maps_keys import status as _maps_status
+    _mk = _maps_status()
+    if _mk["ready"]:
+        maps_line = "✅ browser and server keys set separately"
+    else:
+        maps_line = "⚠️  " + "; ".join(_mk["problems"])
+
     auth_mode = ("🔐 Supabase Auth (USE_SUPABASE_AUTH=1)"
                  if os.environ.get("USE_SUPABASE_AUTH", "").strip() == "1"
                  else "🗝  Legacy bcrypt")
@@ -1392,6 +1410,7 @@ Groups       : {len(groups)} ({', '.join(g['id'] for g in groups) or 'none'})
 
 Supabase     : {supa_line}
 Schema       : {schema_line}
+Maps keys    : {maps_line}
 Messaging    : {messaging_line}
 Auth mode    : {auth_mode}
 Auth users   : {auth_users_line}
@@ -2238,7 +2257,8 @@ def dashboard():
         trip_date_label=trip_date_label,
         absences_by_date=get_all_absences(group_id),
         live_location=get_location(group_id),
-        maps_api_key=os.environ.get("GOOGLE_MAPS_API_KEY", ""),
+        # Browser key only. The server key must never reach a page.
+        maps_api_key=_browser_key(),
         assignment_mode=get_assignment_mode(group_id),
         kid_bulletin_url=kid_bulletin_url,
         drive_url=drive_url,
@@ -3133,7 +3153,8 @@ def bulletin(group_id):
 
     return render_template(
         "bulletin.html",
-        maps_api_key=os.environ.get("GOOGLE_MAPS_API_KEY", ""),
+        # Browser key only. The server key must never reach a page.
+        maps_api_key=_browser_key(),
         live_location=live_location,
         group_name=get_group_name(group_id),
         group_id=group_id,
