@@ -3100,18 +3100,33 @@ def update_location_route():
     if not _can_share_location(current_user(), group_id):
         return jsonify({"ok": False, "error": "Only the driver or an admin can share location."}), 403
     update_location(lat=lat, lng=lng, group_id=group_id)
-    # ETAs are for the next actual trip (schedule-aware), not the config date.
-    info = _next_trip_info(group_id)
-    try:
-        etas = compute_etas(lat, lng, info["date"], group_id,
-                            driver_family_id=info.get("driver_id") or "")
-    except Exception:
-        etas = []
+
+    # The position is stored on every post, so the map dot stays live. The
+    # Routes call is not: watchPosition fires every few seconds, and one
+    # billable matrix per fix is how a single drive runs up a bill. See
+    # eta_budget for the rule and the numbers.
+    from eta_budget import should_recompute, stamp
     loc = get_location(group_id)
-    loc["etas"] = etas
+    recompute, why = should_recompute(loc, lat, lng)
+    if recompute:
+        # ETAs are for the next actual trip (schedule-aware), not the config date.
+        info = _next_trip_info(group_id)
+        try:
+            etas = compute_etas(lat, lng, info["date"], group_id,
+                                driver_family_id=info.get("driver_id") or "")
+        except Exception:
+            logger.exception("ETA computation failed")
+            etas = loc.get("etas") or []
+        else:
+            loc["etas"] = etas
+            stamp(loc, lat, lng)
+            logger.info("ETAs recomputed (%s) for group=%s", why, group_id)
+    else:
+        logger.debug("ETA recompute skipped (%s)", why)
+
     from location import _save as _save_location
     _save_location(loc, group_id)
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "etas_recomputed": bool(recompute)})
 
 
 @app.route("/get-location")

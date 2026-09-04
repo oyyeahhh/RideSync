@@ -1981,11 +1981,31 @@
 
   function startGeolocation() {
     if (!navigator.geolocation) { alert("Your browser doesn't support location sharing."); return false; }
+    // watchPosition fires every few seconds in a moving car. Posting each one
+    // is wasteful in requests, and the server throttles the billable route
+    // call anyway, so send a fix only when it tells us something: 12s apart,
+    // or 60m of movement, whichever comes first.
+    let lastPost = 0, lastLat = null, lastLng = null;
+    const POST_EVERY_MS = 12000, POST_AFTER_M = 60;
+
+    const metres = (a1, o1, a2, o2) => {
+      const R = 6371000, r = Math.PI / 180;
+      const dp = (a2 - a1) * r, dl = (o2 - o1) * r;
+      const h = Math.sin(dp / 2) ** 2 +
+                Math.cos(a1 * r) * Math.cos(a2 * r) * Math.sin(dl / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    };
+
     watchId = navigator.geolocation.watchPosition(pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      const now = Date.now();
+      const moved = (lastLat === null) ? Infinity : metres(lastLat, lastLng, lat, lng);
+      if (lastPost && now - lastPost < POST_EVERY_MS && moved < POST_AFTER_M) return;
+      lastPost = now; lastLat = lat; lastLng = lng;
       fetch("/update-location", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        body: JSON.stringify({ lat, lng }),
       });
     }, null, { enableHighAccuracy: true, maximumAge: 5000 });
     return true;
