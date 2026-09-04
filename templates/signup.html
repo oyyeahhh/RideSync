@@ -3,359 +3,178 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Join Carpool</title>
+  <title>Join the carpool · CarpoolSync</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500;600&family=Tiempos+Text:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Changa+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='storybook.css') }}">
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --arc: 104px; --mascot-w: min(210px, 46vw); }
+    .sheet { max-width: 420px; }
+    h1 { margin-bottom: 6px; }
+    .lede { color: var(--color-cloud-white); font-size: 15px; margin-bottom: 18px; }
 
-    body {
-      font-family: "Styrene A", ui-sans-serif, system-ui, sans-serif;
-      background: #FAF9F5;
-      color: #1A1714;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    header {
-      background: transparent;
-      padding: 32px 48px 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    header img.site-logo {
-      height: 100px;
-      width: auto;
-      display: block;
-    }
-
-    main {
-      flex: 1;
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
-      padding: 48px 24px;
-    }
-
-    .card {
-      background: #FFFFFF;
-      border-radius: 14px;
-      padding: 40px 44px;
-      border: 1px solid #EAE8E3;
-      width: 100%;
-      max-width: 460px;
-      box-shadow: 0 2px 16px rgba(0,0,0,0.06);
-    }
-
-    .card-heading {
-      font-family: "Tiempos Text", Georgia, serif;
-      font-size: 22px;
-      font-weight: 500;
-      color: #1A1714;
-      margin-bottom: 6px;
-    }
-
-    .card-sub {
-      font-size: 14px;
-      color: #8C8680;
-      margin-bottom: 28px;
-    }
-
-    .phone-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      background: #F0EDE8;
-      border-radius: 6px;
-      padding: 6px 12px;
-      font-size: 13px;
-      color: #1A1714;
-      font-weight: 500;
-      margin-bottom: 24px;
-    }
-
-    .phone-badge .label {
-      color: #8C8680;
-      font-weight: 400;
-    }
-
-    .form-field {
+    /* The number the invite went to, so a parent can see at a glance that the
+       messages will reach the phone they are holding. */
+    .plate {
+      background: var(--color-cloud-white);
+      border: 3px solid var(--color-charcoal-ink);
+      color: var(--color-charcoal-ink);
+      padding: 12px 14px;
       margin-bottom: 16px;
+      font-size: 14px;
     }
-
-    .form-field label {
+    .plate .lead {
+      font-family: var(--font-changa-one);
+      font-weight: 400;
+      text-transform: uppercase;
+      font-size: 15px;
       display: block;
-      font-size: 11px;
-      font-weight: 600;
-      color: #8C8680;
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
+    }
+    .plate .number {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 16px;
     }
 
-    .form-field input {
-      width: 100%;
-      padding: 10px 13px;
-      border: 1px solid #EAE8E3;
-      border-radius: 7px;
-      font-size: 15px;
-      font-family: inherit;
-      background: #FDFCFA;
-      color: #1A1714;
-      outline: none;
-      transition: border-color 0.15s;
-    }
-
-    .form-field input:focus {
-      border-color: #D4784A;
-    }
-
-    .form-field input[readonly] {
-      background: #F0EDE8;
-      color: #8C8680;
-      cursor: default;
-    }
-
-    .divider {
-      height: 1px;
-      background: #EAE8E3;
-      margin: 20px 0;
-    }
-
-    .section-label {
-      font-size: 11px;
-      font-weight: 600;
-      color: #8C8680;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 14px;
-    }
-
-    .error-banner {
-      background: #FDF0EC;
-      border: 1px solid #E8B8A4;
-      border-radius: 7px;
-      padding: 10px 13px;
-      font-size: 14px;
-      color: #8B3A1E;
-      margin-bottom: 18px;
-    }
-
-    .btn-submit {
-      width: 100%;
-      background: #1A1714;
-      color: #FAF9F5;
-      border: none;
-      padding: 12px 20px;
-      border-radius: 7px;
-      font-size: 15px;
-      font-weight: 500;
-      font-family: inherit;
-      cursor: pointer;
-      transition: background 0.15s;
-      margin-top: 8px;
-    }
-
-    .btn-submit:hover { background: #D4784A; }
-
-    .whatsapp-notice {
-      background: #F0FAF3;
-      border: 1px solid #B7DFC4;
-      border-radius: 10px;
-      padding: 18px 20px;
-      margin-bottom: 24px;
-    }
-
-    .whatsapp-notice-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-weight: 600;
-      font-size: 14px;
-      color: #1A5C30;
-      margin-bottom: 10px;
-    }
-
-    .whatsapp-notice-header .wa-icon {
-      width: 22px;
-      height: 22px;
-      background: #25D366;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 13px;
-      flex-shrink: 0;
-    }
-
-    .whatsapp-notice p {
-      font-size: 13px;
-      color: #2D6B45;
-      line-height: 1.55;
-      margin-bottom: 10px;
-    }
-
-    .whatsapp-notice p:last-child { margin-bottom: 0; }
-
-    .whatsapp-steps {
-      list-style: none;
-      counter-reset: steps;
-      margin: 0;
-      padding: 0;
-    }
-
-    .whatsapp-steps li {
-      counter-increment: steps;
+    /* WhatsApp opt-in: four steps, ink on white, no brand green and no chat
+       bubble. It reads as instructions because that is what it is. */
+    .optin ol { list-style: none; margin: 10px 0 0; padding: 0; }
+    .optin li {
       display: flex;
       align-items: flex-start;
       gap: 10px;
       font-size: 13px;
-      color: #2D6B45;
       line-height: 1.5;
-      margin-bottom: 8px;
+      padding: 5px 0;
     }
-
-    .whatsapp-steps li:last-child { margin-bottom: 0; }
-
-    .step-num {
+    .optin .n {
+      font-family: var(--font-changa-one);
+      font-weight: 400;
+      font-size: 22px;
+      line-height: 0.8;
       width: 20px;
-      height: 20px;
-      background: #25D366;
-      color: #fff;
-      border-radius: 50%;
-      font-size: 11px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       flex-shrink: 0;
-      margin-top: 1px;
+      color: var(--color-globe-azure);
     }
-
-    .join-code {
+    .optin .code {
       display: inline-block;
-      background: #fff;
-      border: 1px solid #B7DFC4;
-      border-radius: 5px;
-      padding: 2px 8px;
-      font-family: ui-monospace, monospace;
+      border: 3px solid var(--color-charcoal-ink);
+      padding: 1px 7px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 13px;
-      color: #1A5C30;
-      font-weight: 600;
     }
-
-    @media (max-width: 480px) {
-      header { padding: 20px 24px; }
-      .card { padding: 28px 24px; }
-    }
-      @media (max-width: 640px) { .site-logo { height: 96px !important; } }
-      .consent { display: flex; gap: 12px; align-items: flex-start; margin: 4px 0 18px; font-size: 13px; line-height: 1.5; color: #5c574d; cursor: pointer; }
-    .consent input { width: 20px; height: 20px; margin: 2px 0 0; flex-shrink: 0; accent-color: #1A1714; }
-    .consent a { color: inherit; text-decoration: underline; }
   </style>
 </head>
 <body>
 
 <header>
-  <img src="/static/carpoolsynclogo.png" alt="CarpoolSync" class="site-logo">
+  <a href="/"><img src="/static/carpoolsynclogo.png" alt="CarpoolSync"></a>
 </header>
 
-<main>
-  <div class="card">
-    <div class="card-heading">Create your account</div>
-    <div class="card-sub">You've been invited to join the carpool group.</div>
+{% include "_sky.html" %}
 
-    <div class="phone-badge">
-      <span class="label">Phone:</span>
-      <span>{{ phone }}</span>
+<main>
+  <div class="sheet">
+    <h1>Join the carpool</h1>
+    <p class="lede">Someone in the group invited you. Fill this in once and the rota, the route and the reminders take it from there.</p>
+
+    <div class="plate">
+      <span class="lead">Messages go to</span>
+      <span class="number">{{ phone }}</span>
     </div>
 
     {% if on_whatsapp %}
-    <div class="whatsapp-notice">
-      <div class="whatsapp-notice-header">
-        <div class="wa-icon">💬</div>
-        Set up WhatsApp notifications
-      </div>
-      <p>This carpool group sends reminders and route info via WhatsApp. To receive them, you need to opt in once before your first message arrives.</p>
-      <ol class="whatsapp-steps">
-        <li>
-          <div class="step-num">1</div>
-          <span>Open WhatsApp on your phone</span>
-        </li>
-        <li>
-          <div class="step-num">2</div>
-          <span>Start a new chat with <strong>{{ sandbox_number }}</strong></span>
-        </li>
-        <li>
-          <div class="step-num">3</div>
-          <span>Send the message:
-            {% if sandbox_keyword %}
-              <span class="join-code">join {{ sandbox_keyword }}</span>
-            {% else %}
-              <span class="join-code">join &lt;keyword&gt;</span>
-              &nbsp;— your admin will share the exact keyword
-            {% endif %}
-          </span>
-        </li>
-        <li>
-          <div class="step-num">4</div>
-          <span>You'll get a confirmation reply, then you're all set!</span>
-        </li>
+    <div class="plate optin">
+      <span class="lead">One step before your first message</span>
+      This group's reminders go out over WhatsApp, and WhatsApp needs you to say hello first.
+      <ol>
+        <li><span class="n">1</span><span>Open WhatsApp on your phone.</span></li>
+        <li><span class="n">2</span><span>Start a chat with <strong>{{ sandbox_number }}</strong>.</span></li>
+        <li><span class="n">3</span><span>Send {% if sandbox_keyword %}<span class="code">join {{ sandbox_keyword }}</span>{% else %}<span class="code">join &lt;keyword&gt;</span>, and ask your group admin for the keyword{% endif %}.</span></li>
+        <li><span class="n">4</span><span>A confirmation comes back, and that is it.</span></li>
       </ol>
     </div>
     {% endif %}
 
     {% if error %}
-    <div class="error-banner">{{ error }}</div>
+    <div class="notice bad">{{ error }}</div>
     {% endif %}
 
     <form method="POST" action="/signup">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="token" value="{{ token }}">
 
-      <div class="section-label">Your Info</div>
+      <div class="section">Your account</div>
+      <div class="field">
+        <label for="your-name">Your name</label>
+        <input type="text" id="your-name" name="name" value="{{ form.name or '' }}" placeholder="e.g. Sarah Nadler" autocomplete="name" required autofocus>
+      </div>
+      <div class="field">
+        <label for="family-name">Family name</label>
+        <input type="text" id="family-name" name="family_name" value="{{ form.family_name or suggested_family_name or '' }}" placeholder="e.g. Nadler Family" required>
+      </div>
+      <div class="field">
+        <label for="signup-email">Email</label>
+        <input type="email" id="signup-email" name="email" value="{{ form.email or '' }}" autocomplete="email" required>
+      </div>
+      <div class="field">
+        <label for="signup-password">Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="signup-password" name="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters">
+          <button type="button" onclick="togglePw()" id="pw-toggle" class="pw-eye" aria-label="Show password" title="Show or hide password">
+            <svg class="open" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M1.6 12S5.5 5.2 12 5.2 22.4 12 22.4 12 18.5 18.8 12 18.8 1.6 12 1.6 12z"/>
+              <circle cx="12" cy="12" r="3.2"/>
+            </svg>
+            <svg class="shut" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 5.5c2.3 3 5.3 4.6 9 4.6s6.7-1.6 9-4.6"/>
+              <path d="M12 10.1V14"/>
+              <path d="M6.4 8.9 4.3 12.2"/>
+              <path d="M17.6 8.9l2.1 3.3"/>
+            </svg>
+          </button>
+        </div>
+      </div>
 
-      <div class="form-field">
-        <label>Your Name</label>
-        <input type="text" name="name" value="{{ form.name or '' }}" placeholder="e.g. Sarah Nadler" required autofocus>
+      <div class="section">Your child</div>
+      <div class="field">
+        <label for="child-name">Child's name</label>
+        <input type="text" id="child-name" name="child_name" value="{{ form.child_name or '' }}" placeholder="e.g. Avigail">
       </div>
-      <div class="form-field">
-        <label>Family Name</label>
-        <input type="text" name="family_name" value="{{ form.family_name or suggested_family_name or '' }}" placeholder="e.g. Nadler Family" required>
-      </div>
-      <div class="form-field">
-        <label>Email</label>
-        <input type="email" name="email" value="{{ form.email or '' }}" autocomplete="email" required>
-      </div>
-      <div class="form-field">
-        <label>Password</label>
-        <input type="password" name="password" autocomplete="new-password" minlength="8" required>
+      <div class="field">
+        <label for="home-address">Home address</label>
+        <input type="text" id="home-address" name="address" value="{{ form.address or '' }}" placeholder="123 Main St, Teaneck, NJ" required>
+        <span class="hint">Your pickup point. Only your own group sees it.</span>
       </div>
 
-      <div class="divider"></div>
-      <div class="section-label">Your Child</div>
-
-      <div class="form-field">
-        <label>Child's Name</label>
-        <input type="text" name="child_name" value="{{ form.child_name or '' }}" placeholder="e.g. Avigail">
-      </div>
-      <div class="form-field">
-        <label>Home Address</label>
-        <input type="text" name="address" value="{{ form.address or '' }}" placeholder="123 Main St, Teaneck, NJ" required>
-      </div>
-
-      <label class="consent">
+      {# Same consent wording, and the same empty box, as the page a group
+         admin signs up on. The carrier's verification covers both. #}
+      <label class="check plate">
         <input type="checkbox" name="sms_consent" value="yes" required {% if form.sms_consent %}checked{% endif %}>
         <span>Text me about this carpool at the number above: who is driving, running-late and arrival alerts, and schedule changes. Message frequency varies. Message and data rates may apply. Reply STOP to stop, HELP for help. See the <a href="/privacy" target="_blank">privacy notice</a>.</span>
       </label>
 
-      <button type="submit" class="btn-submit">Create Account</button>
+      <button type="submit" class="btn btn-primary">Create account</button>
     </form>
+
+    <div class="under">
+      <div class="aside">
+        Already have an account? <a class="sign-link" href="/login">Sign in</a>
+      </div>
+    </div>
   </div>
 </main>
+
+<script>
+  function togglePw() {
+    const inp = document.getElementById('signup-password');
+    const btn = document.getElementById('pw-toggle');
+    const showing = inp.type === 'password';
+    inp.type = showing ? 'text' : 'password';
+    btn.classList.toggle('on', showing);
+    btn.setAttribute('aria-label', showing ? 'Hide password' : 'Show password');
+  }
+</script>
 
 </body>
 </html>
