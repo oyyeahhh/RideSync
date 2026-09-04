@@ -1128,6 +1128,12 @@ def kid_display(token):
         pickups=pickups,
         upcoming=upcoming_view,
         live_location=live_location,
+        # The bulletin shows a live map while a ride is active. This is the
+        # BROWSER key by design: it lands in a page anyone holding the display
+        # URL can read, so it has to be the referrer-restricted,
+        # Maps-JavaScript-only one. Unset, the template shows the globe rather
+        # than a broken map.
+        maps_api_key=_browser_key(),
     )
 
 
