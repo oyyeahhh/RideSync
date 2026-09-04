@@ -19,7 +19,10 @@ def test_tokenless_login_establishes_no_session(app, group):
     c = app.test_client()
     r = c.post("/login", data={"email": "admin@example.com", "password": "Sunflower99"})
     assert r.status_code in (302, 400)
-    assert c.get("/").status_code == 302  # still redirected to login
+    # "/" is the public front door now, so it no longer proves anything about
+    # the session. Probe a page that does require one.
+    assert c.get("/profile").status_code == 302
+    assert "/login" in c.get("/profile").headers.get("Location", "")
 
 
 def test_add_trip_and_dashboard(admin):
@@ -175,3 +178,36 @@ def test_channel_context_processor(monkeypatch):
         assert portal.inject_message_channel()["on_whatsapp"] is True
         monkeypatch.setenv("MESSAGE_CHANNEL", "carrier-pigeon")
         assert portal.inject_message_channel()["on_whatsapp"] is True
+
+
+# ── the front door ──────────────────────────────────────────────────────────
+# carpoolsync.com used to be a login form to anyone who had not signed up.
+# Twilio's toll-free reviewer met exactly that and rejected the verification
+# under reason 30491, "Website Is Password Protected or Requires Login".
+
+def test_the_root_url_is_public(client):
+    """A visitor with no account sees the About page, not a login wall."""
+    r = client.get("/")
+    assert r.status_code == 200, "the front door must not redirect to /login"
+    body = r.get_data(as_text=True)
+    assert "Carpool, on autopilot" in body or "on autopilot" in body
+    assert "password" not in body.lower(), "no login form on the public page"
+
+
+def test_a_signed_in_parent_still_gets_the_dashboard(app, group):
+    from conftest import ADMIN, login
+    c = login(app.test_client(), ADMIN)
+    body = c.get("/").get_data(as_text=True)
+    assert "Driving Rotation" in body or "rotation" in body.lower()
+    assert "on autopilot" not in body, "a signed-in parent should not land on marketing"
+
+
+def test_a_stale_cookie_lands_on_the_public_page_not_a_dead_end(client):
+    """A session pointing at a deleted user used to be cleared on the way to
+    /login. It still gets cleared; it just lands somewhere useful."""
+    with client.session_transaction() as s:
+        s["user_id"] = "user_does_not_exist"
+    r = client.get("/")
+    assert r.status_code == 200
+    with client.session_transaction() as s:
+        assert "user_id" not in s, "the stale session should have been cleared"

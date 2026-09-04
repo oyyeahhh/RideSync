@@ -2046,8 +2046,26 @@ def profile():
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 @app.route("/")
-@login_required
 def dashboard():
+    """The front door. A signed-in parent gets their dashboard; anyone else
+    gets the public About page.
+
+    This used to be login_required, which meant carpoolsync.com was a login
+    form to anybody who had not signed up yet. That is what Twilio's toll-free
+    reviewer met, and it is why the verification came back rejected under
+    reason 30491, "Website Is Password Protected or Requires Login". It was
+    also just bad manners: a parent who gets sent the link has no way to find
+    out what the thing is before being asked to log in.
+
+    The endpoint keeps its name, because url_for("dashboard") is spread across
+    the templates and the redirect after login.
+    """
+    if not session.get("user_id") or current_user() is None:
+        if session.get("user_id"):
+            # Stale cookie pointing at a user who no longer exists.
+            session.clear()
+        return render_template("about.html")
+
     user = current_user()
     group_id = gid()
     if not group_id:
