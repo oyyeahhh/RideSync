@@ -3,222 +3,457 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign In — Carpool</title>
+  <title>Sign in · CarpoolSync</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500;600&family=Tiempos+Text:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Changa+One&display=swap" rel="stylesheet">
   <style>
+    /* The About page's world, on a phone: yellow sky, blue globe, and the
+       form printed straight onto the blue. Same five tokens, same 3px ink
+       linework the canal-house windows carry, no cards and no radii. */
+    :root {
+      --color-signal-yellow: #ffe600;
+      --color-globe-azure:   #007fff;
+      --color-roof-coral:    #ef3b2c;
+      --color-charcoal-ink:  #333333;
+      --color-cloud-white:   #ffffff;
+      --font-changa-one: 'Changa One', Impact, 'Arial Narrow Bold', sans-serif;
+      --font-arial: Arial, Helvetica, ui-sans-serif, system-ui, sans-serif;
+      --radius-full: 1440px;
+
+      /* Globe geometry, lifted from about.html so the curve matches.
+         --arc is where the rim cuts the sky; the ground below picks the
+         blue up at a depth where the circle already spans the viewport. */
+      --globe-d: max(150vw, 900px);
+      --arc: 122px;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body {
-      font-family: "Styrene A", ui-sans-serif, system-ui, sans-serif;
-      background: #FAF9F5;
-      color: #1A1714;
-      min-height: 100vh;
+    html, body {
+      background: var(--color-signal-yellow);
+      color: var(--color-charcoal-ink);
+      font-family: var(--font-arial);
+      font-size: 14px;
+      line-height: 1.43;
+      overflow-x: hidden;
+    }
+
+    body { min-height: 100vh; display: flex; flex-direction: column; }
+    img { display: block; }
+
+    .display {
+      font-family: var(--font-changa-one);
+      font-weight: 400;
+      text-transform: uppercase;
+    }
+
+    /* ── The sky ──────────────────────────────────────────────────────────── */
+    header { padding: 14px 20px 6px; display: flex; justify-content: center; }
+    header img { width: 112px; height: auto; }
+
+    /* The sky clips the globe: only the rim shows here, and the blue below
+       is main's own background, so the page never scrolls past its content. */
+    .sky {
+      position: relative;
+      overflow: hidden;
+      height: calc(var(--arc) + max(84px, 21vw));
+    }
+
+    .globe {
+      position: absolute;
+      z-index: 0;
+      left: 50%;
+      top: var(--arc);
+      transform: translateX(-50%);
+      width: var(--globe-d);
+      aspect-ratio: 1 / 1;
+      background: var(--color-globe-azure);
+      border-radius: var(--radius-full);
+    }
+
+    /* Houses stand on the rim: pinned to the globe's centre, rotated by
+       --tilt, then pushed out one radius. Depth is stacking, never shadow. */
+    .globe-house {
+      position: absolute;
+      z-index: 3;
+      left: 50%;
+      top: calc(var(--arc) + (var(--globe-d) / 2));
+      width: var(--w, 72px);
+      height: auto;
+      transform-origin: 50% 100%;
+      transform: translate(-50%, -100%) rotate(var(--tilt))
+                 translateY(calc(var(--globe-d) / -2));
+    }
+
+    .cloud {
+      position: absolute;
+      z-index: 2;
+      fill: var(--color-cloud-white);
+      animation: drift 60s linear infinite;
+    }
+    @keyframes drift {
+      from { transform: translateX(-30vw); }
+      to   { transform: translateX(130vw); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .cloud { animation: none; }
+    }
+
+    /* The mascot rides the apex, flat, no shadow. */
+    .mascot {
+      position: absolute;
+      z-index: 4;
+      left: 50%;
+      top: var(--arc);
+      width: min(240px, 50vw);
+      height: auto;
+      transform: translate(-50%, -86%) rotate(-3deg);
+    }
+
+    /* ── The ground: everything below the rim is blue ─────────────────────── */
+    main {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      background: var(--color-globe-azure);
+      padding: 4px 24px 22px;
+    }
+
+    .sheet { width: 100%; max-width: 400px; margin: 0 auto; }
+
+    h1 {
+      font-family: var(--font-changa-one);
+      font-weight: 400;
+      text-transform: uppercase;
+      font-size: clamp(34px, 10vw, 44px);
+      line-height: 0.9;
+      color: var(--color-cloud-white);
+      margin-bottom: 14px;
+    }
+
+    /* ── Notices: a white plate, ink rule for good news, coral for bad ────── */
+    .notice {
+      background: var(--color-cloud-white);
+      border: 3px solid var(--color-charcoal-ink);
+      color: var(--color-charcoal-ink);
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    .notice.bad { border-color: var(--color-roof-coral); }
+    .notice .lead {
+      font-family: var(--font-changa-one);
+      font-weight: 400;
+      text-transform: uppercase;
+      font-size: 17px;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    /* ── The form ─────────────────────────────────────────────────────────── */
+    .field { margin-bottom: 12px; }
+    .field label {
+      display: block;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--color-cloud-white);
+      margin-bottom: 6px;
+    }
+    .field input {
+      width: 100%;
+      height: 48px;
+      padding: 0 14px;
+      background: var(--color-cloud-white);
+      border: 3px solid var(--color-charcoal-ink);
+      border-radius: 0;
+      font-family: var(--font-arial);
+      font-size: 16px;
+      color: var(--color-charcoal-ink);
+      outline: none;
+    }
+    .field input:focus {
+      box-shadow: 0 0 0 4px var(--color-signal-yellow);
+    }
+    /* Chrome's autofill repaints the field. Hold the white and the ink. */
+    .field input:-webkit-autofill,
+    .field input:-webkit-autofill:focus {
+      -webkit-text-fill-color: var(--color-charcoal-ink);
+      -webkit-box-shadow: 0 0 0 1000px var(--color-cloud-white) inset;
+    }
+
+    .pw-wrap { position: relative; }
+    .pw-wrap input { padding-right: 52px; }
+    #pw-toggle {
+      position: absolute;
+      right: 3px;
+      top: 2px;
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+      padding: 0;
+    }
+    #pw-toggle svg { stroke: var(--color-charcoal-ink); }
+    #pw-toggle .shut { display: none; }
+    #pw-toggle.on .open { display: none; }
+    #pw-toggle.on .shut { display: block; }
+
+    .remember {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 44px;
+      margin: 2px 0 12px;
+      font-size: 15px;
+      color: var(--color-cloud-white);
+      cursor: pointer;
+      user-select: none;
+    }
+    .remember input {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+      margin: 0;
+      background: var(--color-cloud-white);
+      border: 3px solid var(--color-charcoal-ink);
+      border-radius: 0;
+      cursor: pointer;
+      position: relative;
+    }
+    .remember input:checked::after {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: -3px;
+      width: 8px;
+      height: 14px;
+      border: solid var(--color-charcoal-ink);
+      border-width: 0 3px 3px 0;
+      transform: rotate(45deg);
+    }
+    .remember input:focus-visible { box-shadow: 0 0 0 4px var(--color-signal-yellow); }
+
+    /* Buttons are signage: flat plates, ink linework, display type. */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 56px;
+      font-family: var(--font-changa-one);
+      font-weight: 400;
+      text-transform: uppercase;
+      font-size: 24px;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      border-radius: 0;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: var(--color-cloud-white);
+      color: var(--color-charcoal-ink);
+      border: 3px solid var(--color-charcoal-ink);
+    }
+    .btn-primary:hover { background: var(--color-signal-yellow); }
+    .btn-secondary {
+      height: 52px;
+      font-size: 20px;
+      background: transparent;
+      color: var(--color-cloud-white);
+      border: 3px solid var(--color-cloud-white);
+    }
+    .btn-secondary:hover {
+      background: var(--color-cloud-white);
+      color: var(--color-globe-azure);
+    }
+    .btn:focus-visible { outline: 4px solid var(--color-signal-yellow); outline-offset: 2px; }
+
+    .or {
+      display: block;
+      text-align: center;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--color-cloud-white);
+      margin: 16px 0 12px;
+    }
+
+    /* Signpost links: type and a border-bottom, nothing else. */
+    .sign-link {
+      font-family: var(--font-changa-one);
+      font-weight: 400;
+      text-transform: uppercase;
+      font-size: 17px;
+      line-height: 1.2;
+      text-decoration: none;
+      color: var(--color-cloud-white);
+      border-bottom: 3px solid var(--color-cloud-white);
+      padding-bottom: 2px;
+    }
+    .sign-link:hover { color: var(--color-signal-yellow); border-bottom-color: var(--color-signal-yellow); }
+
+    .under {
       display: flex;
       flex-direction: column;
-    }
-
-    header {
-      background: transparent;
-      padding: 32px 48px 8px;
-      display: flex;
       align-items: center;
-      justify-content: center;
+      gap: 14px;
+      margin-top: 14px;
+      text-align: center;
     }
-
-    header img.site-logo {
-      height: 300px;
-      width: auto;
-      display: block;
-    }
-
-    main {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 48px 24px;
-    }
-
-    .card {
-      background: #FFFFFF;
-      border-radius: 14px;
-      padding: 40px 44px;
-      border: 1px solid #EAE8E3;
-      width: 100%;
-      max-width: 400px;
-      box-shadow: 0 2px 16px rgba(0,0,0,0.06);
-    }
-
-    .card-heading {
-      font-family: "Tiempos Text", Georgia, serif;
-      font-size: 22px;
-      font-weight: 500;
-      color: #1A1714;
-      margin-bottom: 6px;
-    }
-
-    .card-sub {
-      font-size: 14px;
-      color: #8C8680;
-      margin-bottom: 28px;
-    }
-
-    .form-field {
-      margin-bottom: 16px;
-    }
-
-    .form-field label {
-      display: block;
-      font-size: 11px;
-      font-weight: 600;
-      color: #8C8680;
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      margin-bottom: 6px;
-    }
-
-    .form-field input {
-      width: 100%;
-      padding: 10px 13px;
-      border: 1px solid #EAE8E3;
-      border-radius: 7px;
-      font-size: 15px;
-      font-family: inherit;
-      background: #FDFCFA;
-      color: #1A1714;
-      outline: none;
-      transition: border-color 0.15s;
-    }
-
-    .form-field input:focus {
-      border-color: #D4784A;
-    }
-
-    .error-banner {
-      background: #FDF0EC;
-      border: 1px solid #E8B8A4;
-      border-radius: 7px;
-      padding: 10px 13px;
-      font-size: 14px;
-      color: #8B3A1E;
-      margin-bottom: 18px;
-    }
-
-    .btn-submit {
-      width: 100%;
-      background: #1A1714;
-      color: #FAF9F5;
-      border: none;
-      padding: 12px 20px;
-      border-radius: 7px;
-      font-size: 15px;
-      font-weight: 500;
-      font-family: inherit;
-      cursor: pointer;
-      transition: background 0.15s;
-      margin-top: 8px;
-    }
-
-    .btn-submit:hover { background: #D4784A; }
-
-    @media (max-width: 480px) {
-      header { padding: 20px 24px; }
-      .card { padding: 28px 24px; }
-    }
-      @media (max-width: 640px) { .site-logo { height: 96px !important; } }
+    .under .aside { font-size: 14px; color: var(--color-cloud-white); }
+    .under .aside .thin { display: block; font-size: 12px; margin-top: 8px; }
   </style>
 </head>
 <body>
 
 <header>
-  <img src="/static/carpoolsynclogo.png" alt="CarpoolSync" class="site-logo">
+  <a href="/"><img src="/static/carpoolsynclogo.png" alt="CarpoolSync"></a>
 </header>
 
+<div class="sky">
+  <svg class="cloud" style="top:6px; animation-duration:88s;" width="118" height="41" viewBox="0 0 150 52" aria-hidden="true"><ellipse cx="40" cy="36" rx="40" ry="16"/><ellipse cx="80" cy="26" rx="34" ry="20"/><ellipse cx="115" cy="38" rx="34" ry="14"/></svg>
+  <svg class="cloud" style="top:58px; animation-duration:124s; animation-delay:-62s;" width="86" height="30" viewBox="0 0 150 52" aria-hidden="true"><ellipse cx="40" cy="36" rx="40" ry="16"/><ellipse cx="80" cy="26" rx="34" ry="20"/><ellipse cx="115" cy="38" rx="34" ry="14"/></svg>
+
+  <div class="globe"></div>
+
+  <!-- canal houses standing on the globe's curve -->
+  <svg class="globe-house" style="--tilt:-27deg; --w:62px" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g stroke="#333333" stroke-width="3">
+      <rect x="12" y="40" width="66" height="80" fill="#c9c4bd"/>
+      <polygon points="6,40 45,12 84,40" fill="#ef3b2c"/>
+      <rect x="24" y="56" width="15" height="17" fill="#ffffff"/>
+      <rect x="51" y="56" width="15" height="17" fill="#ffffff"/>
+    </g>
+  </svg>
+  <svg class="globe-house" style="--tilt:-15deg; --w:78px" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g stroke="#333333" stroke-width="3">
+      <rect x="14" y="28" width="62" height="92" fill="#afa9a1"/>
+      <polygon points="8,28 45,2 82,28" fill="#ef3b2c"/>
+      <rect x="26" y="44" width="14" height="16" fill="#ffffff"/>
+      <rect x="50" y="44" width="14" height="16" fill="#ffffff"/>
+      <rect x="26" y="76" width="14" height="16" fill="#ffffff"/>
+      <rect x="50" y="76" width="14" height="16" fill="#ffffff"/>
+    </g>
+  </svg>
+  <svg class="globe-house" style="--tilt:16deg; --w:80px" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g stroke="#333333" stroke-width="3">
+      <rect x="10" y="35" width="70" height="85" fill="#c9c4bd"/>
+      <polygon points="5,35 45,5 85,35" fill="#ef3b2c"/>
+      <rect x="22" y="50" width="16" height="18" fill="#ffffff"/>
+      <rect x="52" y="50" width="16" height="18" fill="#ffffff"/>
+      <rect x="52" y="82" width="16" height="18" fill="#ffffff"/>
+      <rect x="22" y="88" width="16" height="32" fill="#ef3b2c"/>
+    </g>
+  </svg>
+  <svg class="globe-house" style="--tilt:28deg; --w:60px" viewBox="0 0 90 120" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <g stroke="#333333" stroke-width="3">
+      <rect x="12" y="40" width="66" height="80" fill="#afa9a1"/>
+      <polygon points="6,40 45,12 84,40" fill="#ef3b2c"/>
+      <rect x="24" y="56" width="15" height="17" fill="#ffffff"/>
+      <rect x="51" y="56" width="15" height="17" fill="#ffffff"/>
+    </g>
+  </svg>
+
+  <img class="mascot" src="/static/tesla.png" alt="">
+</div>
+
 <main>
-  <div class="card">
-    <div class="card-heading">Welcome back</div>
-    <div class="card-sub">Sign in to your carpool account</div>
+  <div class="sheet">
+    <h1>Welcome back</h1>
 
     {% if success %}
-    <div style="background:#F0FAF3;border:1px solid #B7DFC4;border-radius:7px;padding:10px 13px;font-size:14px;color:#1A5C30;margin-bottom:18px;">{{ success }}</div>
+    <div class="notice">{{ success }}</div>
     {% endif %}
 
     {% if magic_sent %}
-    <div style="background:#F0FAF3;border:1px solid #B7DFC4;border-radius:7px;padding:12px 14px;font-size:14px;color:#1A5C30;margin-bottom:18px;">
-      <strong>📧 Check your email.</strong><br>
-      We sent a one-tap sign-in link to <strong>{{ email }}</strong>. Click it on this device to sign in. Link expires in 1 hour.
+    <div class="notice">
+      <span class="lead">Check your email</span>
+      We sent a one-tap sign-in link to <strong>{{ email }}</strong>. Open it on this device. The link works for one hour.
     </div>
     {% endif %}
 
     {% if error %}
-    <div class="error-banner">{{ error }}</div>
+    <div class="notice bad">{{ error }}</div>
     {% endif %}
 
     {# Primary: password sign-in. Magic link is a secondary option below. #}
     <form method="POST" action="/login" id="pw-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="form-field">
+
+      <div class="field">
         <label for="login-email">Email</label>
         <input type="email" id="login-email" name="email" value="{{ email or '' }}" autocomplete="username" required autofocus>
       </div>
-      <div class="form-field">
+
+      <div class="field">
         <label for="pw-input">Password</label>
-        <div style="position:relative;">
-          <input type="password" id="pw-input" name="password" autocomplete="current-password" required style="padding-right:42px;">
-          <button type="button" onclick="togglePw()" id="pw-toggle"
-            style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:transparent;border:0;cursor:pointer;font-size:16px;padding:4px 6px;color:#8C8680;"
-            title="Show/hide password" aria-label="Show password">👁</button>
+        <div class="pw-wrap">
+          <input type="password" id="pw-input" name="password" autocomplete="current-password" required>
+          <button type="button" onclick="togglePw()" id="pw-toggle" aria-label="Show password" title="Show or hide password">
+            <svg class="open" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M1.6 12S5.5 5.2 12 5.2 22.4 12 22.4 12 18.5 18.8 12 18.8 1.6 12 1.6 12z"/>
+              <circle cx="12" cy="12" r="3.2"/>
+            </svg>
+            <svg class="shut" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 5.5c2.3 3 5.3 4.6 9 4.6s6.7-1.6 9-4.6"/>
+              <path d="M12 10.1V14"/>
+              <path d="M6.4 8.9 4.3 12.2"/>
+              <path d="M17.6 8.9l2.1 3.3"/>
+            </svg>
+          </button>
         </div>
       </div>
-      <script>
-        function togglePw() {
-          const inp = document.getElementById('pw-input');
-          const btn = document.getElementById('pw-toggle');
-          if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
-          else { inp.type = 'password'; btn.textContent = '👁'; }
-        }
-      </script>
-      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#8C8680;margin:4px 0 14px;cursor:pointer;user-select:none;">
-        <input type="checkbox" name="remember" style="width:16px;height:16px;cursor:pointer;accent-color:#D4784A;">
+
+      <label class="remember">
+        <input type="checkbox" name="remember">
         Keep me signed in for 30 days
       </label>
-      <button type="submit" class="btn-submit">Sign In</button>
+
+      <button type="submit" class="btn btn-primary">Sign in</button>
     </form>
 
-    <div style="display:flex;align-items:center;gap:12px;margin:22px 0 14px;font-size:11px;color:#B0ABA5;text-transform:uppercase;letter-spacing:0.08em;">
-      <div style="flex:1;height:1px;background:#EAE8E3;"></div>
-      <span>or</span>
-      <div style="flex:1;height:1px;background:#EAE8E3;"></div>
-    </div>
+    <span class="or">or</span>
 
-    {# Magic-link is now an inline button that re-uses the email field above.
-       Single email input on the page = no autofill confusion. #}
-    <form method="POST" action="/auth/magic-link" id="magic-form" style="margin-bottom:6px;">
+    {# Magic link re-uses the email field above, so the page keeps a single
+       email input and autofill has nothing to be confused by. #}
+    <form method="POST" action="/auth/magic-link" id="magic-form">
       <input type="hidden" name="email" id="magic-email-mirror" value="{{ email or '' }}">
-      <button type="submit" id="magic-btn" class="btn-submit"
-        style="background:transparent;color:#1A1714;border:1px solid #EAE8E3;font-weight:500;"
-        onmouseover="this.style.borderColor='#D4784A';this.style.color='#D4784A'"
-        onmouseout="this.style.borderColor='#EAE8E3';this.style.color='#1A1714'">
-        📧 Email me a sign-in link instead
-      </button>
+      <button type="submit" id="magic-btn" class="btn btn-secondary">Email me a link</button>
     </form>
-    <script>
-      // Keep the magic-link form's hidden email in sync with what's typed above.
-      const _le = document.getElementById('login-email');
-      const _me = document.getElementById('magic-email-mirror');
-      if (_le && _me) _le.addEventListener('input', () => { _me.value = _le.value; });
-    </script>
 
-    <a href="/forgot-password" style="display:block;text-align:center;margin-top:16px;font-size:14px;color:#8C8680;text-decoration:none;">Forgot password?</a>
-
-    <div style="border-top:1px solid #EAE8E3;margin-top:24px;padding-top:20px;text-align:center;">
-      <div style="font-size:13px;color:#8C8680;margin-bottom:10px;">Starting a new carpool group?</div>
-      <a href="/create-group" style="display:inline-block;padding:9px 20px;border:1px solid #EAE8E3;border-radius:7px;font-size:14px;font-weight:500;color:#1A1714;text-decoration:none;">Create a new group</a>
-      <div style="font-size:12px;color:#B0ABA5;margin-top:10px;">Already invited? Use the link {% if on_whatsapp %}sent to your WhatsApp{% else %}we texted you{% endif %}.</div>
+    <div class="under">
+      <a class="sign-link" href="/forgot-password">Forgot password</a>
+      <div class="aside">
+        New to CarpoolSync? <a class="sign-link" href="/create-group">Start a carpool</a>
+        <span class="thin">Already invited? Use the link {% if on_whatsapp %}sent to your WhatsApp{% else %}we texted you{% endif %}.</span>
+      </div>
     </div>
   </div>
 </main>
+
+<script>
+  function togglePw() {
+    const inp = document.getElementById('pw-input');
+    const btn = document.getElementById('pw-toggle');
+    const showing = inp.type === 'password';
+    inp.type = showing ? 'text' : 'password';
+    btn.classList.toggle('on', showing);
+    btn.setAttribute('aria-label', showing ? 'Hide password' : 'Show password');
+  }
+
+  // Keep the magic-link form's hidden email in sync with what's typed above.
+  const _le = document.getElementById('login-email');
+  const _me = document.getElementById('magic-email-mirror');
+  if (_le && _me) _le.addEventListener('input', () => { _me.value = _le.value; });
+</script>
 
 </body>
 </html>
